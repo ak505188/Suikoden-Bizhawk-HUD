@@ -1,0 +1,36 @@
+M = {}
+
+M.Areas = {
+  ["CAVE_OF_THE_PAST"] = "Cave of the Past",
+  ["DRAGON_KNIGHT_WM"] = "Dragon Knights' WM",
+  ["DRAGONS_DEN"] = "Dragon's Den",
+  ["DWARF_TRAIL"] = "Dwarf Trail",
+  ["DWARVES_VAULT"] = "Dwarves' Vault",
+  ["GREAT_FOREST"] = "Great Forest",
+  ["GREGMINSTER_WM1"] = "Gregminster WM1",
+  ["GREGMINSTER_WM2"] = "Gregminster WM2",
+  ["GREGMINSTER_PALACE"] = "Gregminster Palace",
+  ["KALEKKA"] = "Kalekka",
+  ["KIROV_WM"] = "Kirov WM",
+  ["LEPANTS_MANSION"] = "Lepant's Mansion",
+  ["LORIMAR_WM"] = "Lorimar WM",
+  ["MAGICIANS_ISLAND"] = "Magician's Island",
+  ["MORAVIA_WM"] = "Moravia WM",
+  ["MORAVIA_CASTLE"] = "Moravia Castle",
+  ["MT_SEIFU"] = "Mt. Seifu",
+  ["MT_TIGERWOLF"] = "Mt. Tigerwolf",
+  ["NECLORDS_CASTLE"] = "Neclord's Castle",
+  ["PANNU_YAKUTA_WM"] = "Pannu Yakuta WM",
+  ["PANNU_YAKUTA"] = "Pannu Yakuta",
+  ["SCARLETIA_WM"] = "Scarletia WM",
+  ["SCARLETIA"] = "Scarletia",
+  ["SEEK_VALLEY"] = "Seek Valley",
+  ["SEIKA_WM"] = "Seika WM",
+  ["SHASARAZADE"] = "Shasarazade",
+  ["SONIERE_PRISON"] = "Soniere Prison",
+  ["TORAN_CASTLE"] = "Toran Castle",
+  ["TORAN_LAKE_WM"] = "Toran Lake WM",
+  ["VILLAGE_OF_THE_PAST_WM"] = "Village of the Past WM",
+}
+
+return M
