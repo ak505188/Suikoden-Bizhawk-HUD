@@ -82,6 +82,10 @@ local function getRNG2(rng)
   return bit.band(bit.rshift(rng, 16), 0x7fff)
 end
 
+local function isRun(rng2)
+  return rng2 % 100 > 50
+end
+
 M.GetResetData = function(eventID)
 	if (eventID == 9) then
     return getDragonRideData()
@@ -95,5 +99,6 @@ end
 
 M.nextRNG = nextRNG
 M.getRNG2 = getRNG2
+M.isRun = isRun
 
 return M

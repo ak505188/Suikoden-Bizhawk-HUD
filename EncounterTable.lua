@@ -5,14 +5,12 @@ local EncounterTable = {
     name = "Cave of the Past",
     areaType = 2,
     encounterRate = 2,
-    tableSize = 11,
     encounters = { "010000", "101000", "101010", "020000", "202000", "202020", "201000", "101020", "333020", "333010", "333101" },
     enemies = { "Banshee", "Clay Doll", "Red Elemental" }
   },
   [Names.Areas.DRAGON_KNIGHT_WM] = {
     name = "Dragon Knights WM",
     areaType = 1,
-    tableSize = 8,
     encounters = { "100000", "110000", "111000", "020000", "202000", "303000", "333030", "111203" },
     enemies = { "Ivy", "Shadow Man", "Mirage" }
   },
@@ -20,7 +18,6 @@ local EncounterTable = {
     name = "Dragon's Den",
     areaType = 2,
     encounterRate = 3,
-    tableSize = 7,
     encounters = { "020000", "010000", "101000", "111000", "201000", "333020", "333101" },
     enemies = { "Magic Shield", "Sunshine King", "Black Elemental" }
   },
@@ -28,7 +25,6 @@ local EncounterTable = {
     name = "Dwarves Trail",
     areaType = 2,
     encounterRate = 2,
-    tableSize = 14,
     encounters = { "222101", "010000", "101000", "101010", "020000", "202000", "222000", "030000", "303000", "333000", "333010", "333020", "333101", "333102" },
     enemies = { "Eagle Man", "Dwarf", "Death Boar" }
   },
@@ -36,7 +32,6 @@ local EncounterTable = {
     name = "Dwarves' Vault",
     areaType = 2,
     encounterRate = 2,
-    tableSize = 14,
     encounters = { "010000", "101000", "111000", "040000", "404000", "444000", "020000", "202000", "222000", "303000", "333000", "222010", "222101", "222111" },
     enemies = { "Death Machine R", "Crimson Dwarf", "Death Boar", "Death Machine B" }
   },
@@ -44,21 +39,18 @@ local EncounterTable = {
     name = "Great Forest",
     areaType = 2,
     encounterRate = 2,
-    tableSize = 8,
     encounters = { "100000", "111000", "111222", "220000", "344000", "444344", "444333", "444444" },
-    enemies = { "Kobold S", "Kobold B", "Holly Spirit", "Holly Boy", "Veteran Soldier" }
+    enemies = { "Kobold S", "Kobold B", "Holly Spirit", "Holly Boy" }
   },
   [Names.Areas.GREGMINSTER_WM1] = {
     name = "Gregminster WM 1",
     areaType = 1,
-    tableSize = 9,
     encounters = { "100000", "111000", "222222", "330000", "400000", "500000", "550000", "222500", "433000" },
     enemies = { "BonBon", "Mosquito", "Crow", "Wild Boar", "Red Solider Ant" }
   },
   [Names.Areas.GREGMINSTER_WM2] = {
     name = "Gregminster WM 2",
     areaType = 1,
-    tableSize = 13,
     encounters = { "111200", "100000", "110000", "111000", "200000", "220000", "222000", "300000", "330000", "333000", "111300", "111220", "111300" },
     enemies = { "Ninja Master", "Simurgh", "Orc" }
   },
@@ -66,7 +58,6 @@ local EncounterTable = {
     name = "Gregminster Palace",
     areaType = 2,
     encounterRate = 3,
-    tableSize = 11,
     encounters = { "400000", "110000", "111000", "220000", "300000", "303000", "333000", "111050", "333050", "333040", "212040" },
     enemies = { "Imperial Guards Sa", "Imperial Guards Sw", "Phantom", "Colossus", "Ekidonna" }
   },
@@ -74,14 +65,12 @@ local EncounterTable = {
     name = "Kalekka",
     areaType = 2,
     encounterRate = 4,
-    tableSize = 7,
     encounters = { "030000", "101000", "101100", "101101", "202000", "202202", "101202" },
     enemies = { "Demon Hound", "Hawk Man", "Shadow" }
   },
   [Names.Areas.KIROV_WM] = {
     name = "Kirov WM",
     areaType = 2,
-    tableSize = 9,
     encounters = { "010000", "101000", "101010", "202000", "202020", "101030", "020000", "030000", "303000" },
     enemies = { "Dagon", "Grizzly Bear", "Siren" }
   },
@@ -89,14 +78,12 @@ local EncounterTable = {
     name = "Lepant's Mansion",
     areaType = 2,
     encounterRate = 2,
-    tableSize = 3,
     encounters = { "300000", "211000", "111222" },
     enemies = { "Robot Soldier B", "Robot Soldier Y", "SlotMan" }
   },
   [Names.Areas.LORIMAR_WM] = {
     name = "Lorimar WM",
     areaType = 1,
-    tableSize = 11,
     encounters = { "333100", "400000", "440000", "300000", "330000", "333000", "200000", "220000", "333200", "333400", "333440" },
     enemies = { "Whip Wolf", "Sorcerer", "Hell Hound", "Grave Master" }
   },
@@ -104,22 +91,19 @@ local EncounterTable = {
     name = "Magician's Island",
     areaType = 2,
     encounterRate = 4,
-    tableSize = 9,
     encounters = { "111100", "111111", "111220", "220000", "111100", "111111", "111220", "220000", "222000" },
     enemies = { "Holly Boy", "FurFur" }
   },
   [Names.Areas.MORAVIA_WM] = {
     name = "Moravia WM",
     areaType = 1,
-    tableSize = 12,
     encounters = { "100000", "110000", "111000", "200000", "220000", "222000", "300000", "303000", "111300", "222300", "111303", "222303" },
     enemies = { "Rabbit Bird", "Mirage", "Earth Golem" }
   },
-  [Names.Areas.MORAVIA_CASTLE] = {
-    name = "Moravia Castle",
+  [Names.Areas.MORAVIA] = {
+    name = "Moravia",
     areaType = 2,
     encounterRate = 3,
-    tableSize = 16,
     encounters = { "222100", "222110", "222122", "300000", "330000", "400000", "440000", "500000", "550000", "222410", "333400", "555400", "222330", "333440", "535440", "222551" },
     enemies = { "Whip Master", "HellHound", "Ninja", "Magus", "EliteSoldier" }
   },
@@ -127,7 +111,6 @@ local EncounterTable = {
     name = "Mt. Seifu",
     areaType = 2,
     encounterRate = 2,
-    tableSize = 5,
     encounters = { "111111", "220000", "232000", "550000", "440000" },
     enemies = { "Soldier Ant", "Bandit R", "Bandit Y", "Bandit G", "Black Wild Boar" }
   },
@@ -135,7 +118,6 @@ local EncounterTable = {
     name = "Mt. Tigerwolf",
     areaType = 2,
     encounterRate = 3,
-    tableSize = 5,
     encounters = { "111111", "220000", "333000", "333000", "200000" },
     enemies = { "Slasher Rabbit", "Giant Snail", "Killer Slime" }
   },
@@ -143,7 +125,6 @@ local EncounterTable = {
     name = "Neclord's Castle",
     areaType = 2,
     encounterRate = 2,
-    tableSize = 9,
     encounters = { "020000", "010000", "202000", "030000", "303000", "333000", "333020", "333010", "333102" },
     enemies = { "Hell Unicorn", "Demon Sorcerer", "Larvae" }
   },
@@ -157,14 +138,12 @@ local EncounterTable = {
     name = "Pannu Yakuta",
     areaType = 2,
     encounterRate = 2,
-    tableSize = 10,
     encounters = { "222000", "500000", "444500", "011000", "111000", "333000", "233100", "231330", "440000", "444000" },
     enemies = { "Veteran Soldier Sa", "Veteran Soldier Sp", "Veteran Soldier B", "Devil Shield", "Devil Armor" }
   },
   [Names.Areas.SCARLETIA_WM] = {
     name = "Scarleticia WM",
     areaType = 1,
-    tableSize = 12,
     encounters = { "100000", "110000", "111000", "200000", "220000", "222000", "300000", "330000", "333000", "111300", "111200", "222300" },
     enemies = { "Holly Fairy", "Mad Ivy", "Creeper" }
   },
@@ -172,7 +151,6 @@ local EncounterTable = {
     name = "Scarleticia",
     areaType = 2,
     encounterRate = 3,
-    tableSize = 6,
     encounters = { "110000", "220000", "222000", "222222", "300000", "222300" },
     enemies = { "Mad Ivy", "Creeper", "Nightmare" }
   },
@@ -180,21 +158,18 @@ local EncounterTable = {
     name = "Seek Valley",
     areaType = 2,
     encounterRate = 2,
-    tableSize = 12,
     encounters = { "010000", "101000", "101010", "020000", "202000", "202020", "040000", "030000", "101020", "101040", "202030", "202040" },
     enemies = { "Ivy", "Rock Buster", "Queen Ant", "Wyvern" }
   },
   [Names.Areas.SEIKA_WM] = {
     name = "Seika WM",
     areaType = 1,
-    tableSize = 8,
     encounters = { "222300", "202000", "222222", "040000", "111111", "404000", "111300", "222131" },
     enemies = { "Killer Rabbit", "Flying Squirrel", "Beast Commander", "Roc" }
   },
   [Names.Areas.SHASARAZADE] = {
     name = "Shasarazade",
     areaType = 2,
-    tableSize = 7,
     encounters = { "111010", "101000", "111000", "202000", "222000", "222020", "030000" },
     enemies = { "Elite Soldier", "Siren", "Kerberos" }
   },
@@ -202,7 +177,6 @@ local EncounterTable = {
     name = "Soniere Prison",
     areaType = 2,
     encounterRate = 2,
-    tableSize = 8,
     encounters = { "120000", "222100", "300000", "333000", "333440", "400000", "444000", "333400" },
     enemies = { "Viperman", "Delf", "Red Slime", "Nightmare" }
   },
@@ -210,29 +184,9 @@ local EncounterTable = {
     name = "Toran Castle",
     areaType = 2,
     encounterRate = 2,
-    tableSize = 7,
     encounters = { "202000", "222000", "330000", "333000", "100000", "333100", "222100" },
     enemies = { "Ghost Armor", "Oannes", "Giant Slug" }
   }
 }
 
-local TableSizes = {
-  WM = {},
-  OW = {},
-}
-
-for _,area in pairs(EncounterTable) do
-  local encounterTableSize = #area.encounters
-  if area.areaType == 1 then
-    if not TableSizes.WM[encounterTableSize] then
-      TableSizes.WM[encounterTableSize] = true
-    end
-  end
-  if area.areaType == 2 then
-    if not TableSizes.OW[encounterTableSize] then
-      TableSizes.OW[encounterTableSize] = true
-    end
-  end
-end
-
-return EncounterTable, TableSizes
+return EncounterTable

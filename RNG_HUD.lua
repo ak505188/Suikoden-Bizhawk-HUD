@@ -1,7 +1,8 @@
 -- Performance notes: Seems to be about the same as event-driven one.
-local R = require "RNGLib"
+local RNGLib = require "RNGLib"
 local Address = require "Address"
 local EncounterLib = require "EncounterLib"
+local Battles_HUD = require "Battles_HUD"
 
 -- These are options for text and this runs, edit as needed
 -----------------------------------------------------------
@@ -20,7 +21,7 @@ local BUFFER_INCREMENT_SIZE = 500 -- Later look-ahead size per frame
 local BUFFER_MARGIN_SIZE = 30000 -- When difference between current length & current RNG Index is greater than this, look ahead again.
 
 --- Plugins On/Off
-local ENCOUNTER_GENERATOR = false
+local ENCOUNTER_GENERATOR = true
 
 -----------------------------------------------------------
 
@@ -35,6 +36,7 @@ local RNG_HUD = {
     RNG_CHANGED = false,
     RNG_RESET_INCOMING = false,
     RNG_RESET_HAPPENED = false,
+    START_RNG_CHANGED = false,
   }
 }
 
@@ -47,17 +49,38 @@ function RNG_HUD:generateRNGBuffer(RNGTable, bufferLength)
   local function handleEncounterRNG()
     local isBattleWM = EncounterLib.isPossibleBattle(rng, true)
     local isBattleOW = EncounterLib.isPossibleBattle(rng, false)
+    local nextRNG, nextRNG2, isRun
     if isBattleWM then
+      local battles = {}
+      nextRNG = RNGLib.nextRNG(rng)
+      nextRNG2 = RNGLib.getRNG2(nextRNG)
+      isRun = RNGLib.isRun(RNGLib.getRNG2(RNGLib.nextRNG(nextRNG)))
+
+      for size,_ in pairs(EncounterLib.TableSizes.WM) do
+        battles[size] = EncounterLib.getEncounterIndex(nextRNG, size, nextRNG2)
+      end
       table.insert(RNGTable.WM, {
         index = index,
         rng = rng,
+        run = isRun,
+        battles = battles,
       })
     end
     if isBattleOW then
+      local battles = {}
+      nextRNG = nextRNG or RNGLib.nextRNG(rng)
+      nextRNG2 = nextRNG2 or RNGLib.getRNG2(nextRNG)
+      isRun = isRun or RNGLib.isRun(RNGLib.getRNG2(RNGLib.nextRNG(nextRNG)))
+
+      for size,_ in pairs(EncounterLib.TableSizes.OW) do
+        battles[size] = EncounterLib.getEncounterIndex(nextRNG, size, nextRNG2)
+      end
       table.insert(RNGTable.OW, {
         index = index,
         rng = rng,
         value = isBattleOW,
+        run = isRun,
+        battles = battles,
       })
     end
   end
@@ -66,7 +89,7 @@ function RNG_HUD:generateRNGBuffer(RNGTable, bufferLength)
   if ENCOUNTER_GENERATOR then handleEncounterRNG() end
 
   for _ = 1, bufferLength do
-    rng = R.nextRNG(rng)
+    rng = RNGLib.nextRNG(rng)
     index = index + 1
     RNGTable.table[rng] = index
 
@@ -110,6 +133,7 @@ end
 
 function RNG_HUD:handleRNGOverflow()
   RNG = memory.read_u32_le(Address.RNG)
+  self.State.START_RNG_CHANGED = true
   local start,index
   for startingRNG, RNGTable in pairs(self.RNGTables) do
     if (RNGTable.table[RNG]) then
@@ -140,7 +164,7 @@ function RNG_HUD:handleRNGReset()
 
   local handled = false
   local eventID = memory.read_u8(Address.EVENT_ID)
-  local resetData = R.GetResetData(eventID)
+  local resetData = RNGLib.GetResetData(eventID)
 
   -- Cleanup
   self.State.RNG_RESET_INCOMING = false
@@ -245,9 +269,19 @@ function RNG_HUD:run()
 end
 
 RNG_HUD:init()
+if ENCOUNTER_GENERATOR then
+  Battles_HUD:init({ WM = RNG_HUD:getRNGTable().WM, OW = RNG_HUD:getRNGTable().OW })
+end
 
 while true do
   RNG_HUD:run()
+  if ENCOUNTER_GENERATOR then
+    if RNG_HUD.State.START_RNG_CHANGED then
+      Battles_HUD:init({ WM = RNG_HUD:getRNGTable().WM, OW = RNG_HUD:getRNGTable().OW })
+    end
+    Battles_HUD:run(RNG_HUD.RNGIndex)
+  end
+  RNG_HUD.State.START_RNG_CHANGED = false
 end
 
 -- while true do
