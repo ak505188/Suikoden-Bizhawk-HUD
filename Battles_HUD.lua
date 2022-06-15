@@ -1,7 +1,6 @@
 local EncounterTable = require "EncounterTable"
 local EncounterLib = require "EncounterLib"
 local ZoneInfo = require "ZoneInfo"
-local RNGLib = require "RNGLib"
 local Address = require "Address"
 
 local Config = {
@@ -26,12 +25,24 @@ local Gamestates = {
 
 local BattlesHUD = {
   State = {},
-  RefreshCounter = 0
+  RefreshCounter = 0,
+  Locked = false,
 }
+
+function BattlesHUD:toggleLock()
+  self.Locked = not self.Locked
+end
 
 -- Returns whether or not state changed
 function BattlesHUD:updateState()
+  if self.Locked then return end
+
   local location = EncounterLib.onWorldMapOrOverworld()
+
+  if location ~= Gamestates.WORLD_MAP and location ~= Gamestates.OVERWORLD then
+    return false
+  end
+
   local wm_zone = memory.read_u8(Address.WM_ZONE)
   local area_zone = memory.read_u8(Address.AREA_ZONE)
   local inGameEncounterRate = memory.read_u8(Address.ENCOUNTER_RATE)
@@ -48,7 +59,6 @@ function BattlesHUD:updateState()
   local name
   local data
 
-
   if location == Gamestates.WORLD_MAP then
     name = ZoneInfo[wm_zone].name
     data = EncounterTable[name]
@@ -60,7 +70,6 @@ function BattlesHUD:updateState()
     if not data then return false end
     encounterRate = math.min(inGameEncounterRate, data.encounterRate)
   end
-
 
   self.State = {
     Location = location,
@@ -83,6 +92,7 @@ end
 
 function BattlesHUD:findTablePosition(table, RNGIndex)
   table = table or self:getTable()
+  if #table <= 0 then return end
   RNGIndex = RNGIndex or self.RNGIndex
 
   if RNGIndex < table[1].index or RNGIndex > table[#table].index then return 0 end
@@ -109,62 +119,23 @@ function BattlesHUD:updateTablePosition(RNGIndex)
   RNGIndex = RNGIndex or self.RNGIndex
   local pos = self:findTablePosition(nil, RNGIndex)
   if pos < 1 then return end
-  self.cur = pos
-  if self.pos < pos then
+  if self.pos == self.cur then
     self.pos = pos
   end
+  self.cur = pos
 end
 
----@param referenceTables? { WM: {}, OW: {} }
--- Create Initial Battle Buffer
-function BattlesHUD:createBattlesTable(referenceTables)
-  referenceTables = referenceTables or self.ReferenceTables
-  local encounterRate = self.State.EncounterRate
-  local encounterTable = self.State.EncounterTable
-  local encounterTableSize = self.State.EncounterTableSize
-  local areaName = self.State.Name
-  if not encounterTable then return end
-
-  local currentTable = {
-    pos = 1,
-    cur = 1,
-    battles = {},
-  }
-
-  local referenceTable
-  local location = State.Location
-  if location == 1 then
-    referenceTable = referenceTables.WM
-  else
-    referenceTable = referenceTables.OW
-  end
-
-  -- Start iterating through the list, adding battles whenever it's a real battle
-  local i = 1
-
-  repeat
-    local curPossibleBattle = referenceTable[i]
-    if location == 1 or curPossibleBattle.value < encounterRate then
-      local nextRNG = RNGLib.nextRNG(curPossibleBattle.rng)
-      local encounterIndex = EncounterLib.getEncounterIndex(nextRNG, encounterTableSize)
-      local battle = {
-        rng = curPossibleBattle.rng,
-        index = curPossibleBattle.index,
-        group = encounterTable[encounterIndex]
-      }
-      table.insert(currentTable.battles, battle)
-      if not currentTable.startIndex then
-        currentTable.startIndex = curPossibleBattle.index
-      end
-    end
-    i = i + 1
-  until #currentTable.battles >= Config.BATTLES_BUFFER or i > #referenceTable
-  Tables[areaName] = currentTable
+function BattlesHUD:adjustPos(amount)
+  local newPos = self.pos + amount
+  if newPos < 1 then self.pos = 1
+  elseif newPos > #self:getTable() then self.pos = #self:getTable()
+  else self.pos = newPos end
 end
 
 function BattlesHUD:getEncounter(tableIndex)
   tableIndex = tableIndex or self.cur
   local table = self:getTable()
+  if #table <= 0 then return end
   local possibleBattle = table[tableIndex]
 
   if possibleBattle.value and possibleBattle.value >= self.State.EncounterRate then return nil end
@@ -183,8 +154,15 @@ end
 --   areaName = areaName or self.State.Name
 --   return self.State.EncounterTable
 
-function BattlesHUD:drawUpcomingEncounters()
+function BattlesHUD:drawUpcomingEncounters(locked)
+  locked = locked or self.Locked
   local cur = self.cur
+  if locked then
+    cur = self.pos
+  else
+    self.pos = cur
+  end
+
   local i = 0
   local d = 0 -- Number of entries displayed
   local tableLength = #self:getTable()
@@ -211,11 +189,18 @@ function BattlesHUD:drawAreaEnemies()
   gui.text(Config.GUI_X, client.bufferheight()-16, s)
 end
 
-function BattlesHUD:init(referenceTables, RNGIndex)
-  self.Tables = referenceTables
+function BattlesHUD:drawHUD(locked)
+  if not next(self.State) then return end
+  self:drawUpcomingEncounters(locked)
+  self:drawAreaEnemies()
+end
+
+function BattlesHUD:init(RNG_HUD)
+  self.RNG_HUD = RNG_HUD
+  self.Tables = { WM = RNG_HUD:getRNGTable().WM, OW = RNG_HUD:getRNGTable().OW }
   self.pos = 1
   self.cur = 1
-  self.RNGIndex = RNGIndex
+  self.RNGIndex = RNG_HUD.RNGIndex
   self:updateState()
 end
 
@@ -233,8 +218,6 @@ function BattlesHUD:run(RNGIndex)
     self:updateTablePosition(RNGIndex)
   end
 
-  self:drawUpcomingEncounters()
-  self:drawAreaEnemies()
   self.RefreshCounter = self.RefreshCounter % Config.REFRESH_RATE
 end
 

@@ -3,6 +3,7 @@ local RNGLib = require "RNGLib"
 local Address = require "Address"
 local EncounterLib = require "EncounterLib"
 local Battles_HUD = require "Battles_HUD"
+local Controls = require "Controls"
 
 -- These are options for text and this runs, edit as needed
 -----------------------------------------------------------
@@ -88,10 +89,13 @@ function RNG_HUD:generateRNGBuffer(RNGTable, bufferLength)
   -- Initial call
   if ENCOUNTER_GENERATOR then handleEncounterRNG() end
 
-  for _ = 1, bufferLength do
+  local startingTableSize = #self:getRNGTable().byIndex
+
+  for i = 1, bufferLength do
     rng = RNGLib.nextRNG(rng)
     index = index + 1
     RNGTable.table[rng] = index
+    RNGTable.byIndex[startingTableSize + i] = rng
 
     if ENCOUNTER_GENERATOR then handleEncounterRNG() end
   end
@@ -105,6 +109,9 @@ function RNG_HUD:createNewRNGTable(rng)
     self.RNGTables[rng] = {
       table = {
         [rng] = 0
+      },
+      byIndex = {
+        [0] = rng
       },
       last = rng
     }
@@ -127,8 +134,33 @@ function RNG_HUD:getRNGTableSize(startingRNG)
 end
 
 function RNG_HUD:getRNGIndex(startingRNG)
+  startingRNG = startingRNG or self.StartingRNG
   local currentTable = self:getRNGTable(startingRNG)
   return currentTable.table[self.RNG]
+end
+
+function RNG_HUD:goToRNGIndex(index)
+  if index == self.RNGIndex then return end
+
+  if index < 0 then
+    index = 0
+  elseif index > #self:getRNGTable().byIndex then
+    index = #self:getRNGTable().byIndex
+  end
+
+  self.RNGIndex = index
+  self.RNG = self:getRNGTable().byIndex[index]
+  memory.write_u32_le(Address.RNG, self.RNG)
+  self.State.RNG_CHANGED = true
+
+  -- Increase buffer size if needed
+  if (self:getRNGTableSize() - self.RNGIndex < BUFFER_MARGIN_SIZE) then
+    self:generateRNGBuffer(self:getRNGTable(), BUFFER_INCREMENT_SIZE)
+  end
+end
+
+function RNG_HUD:adjustRNGIndex(amount)
+  self:goToRNGIndex(self.RNGIndex + amount)
 end
 
 function RNG_HUD:handleRNGOverflow()
@@ -156,7 +188,6 @@ function RNG_HUD:handleRNGOverflow()
   self.StartingRNG = RNG
   self.RNGIndex = 0
   self:createNewRNGTable(RNG)
-  print("Created new table")
 end
 
 function RNG_HUD:handleRNGReset()
@@ -232,7 +263,7 @@ function RNG_HUD:onFrameStart()
   end
 end
 
-function RNG_HUD:drawGUI()
+function RNG_HUD:drawHUD()
   gui.text(GUI_X_POS, GUI_Y_POS + GUI_PX_BETWEEN_LINES * 0, string.format('%s%x', START_RNG_LABEL, self.StartingRNG))
   gui.text(GUI_X_POS, GUI_Y_POS + GUI_PX_BETWEEN_LINES * 1, string.format('%s%d/%d', RNG_INDEX_LABEL, self.RNGIndex, self:getRNGTableSize()))
   gui.text(GUI_X_POS, GUI_Y_POS + GUI_PX_BETWEEN_LINES * 2, string.format('%s%x', RNG_VALUE_LABEL, self.RNG))
@@ -262,29 +293,34 @@ function RNG_HUD:run()
     self:generateRNGBuffer(self:getRNGTable(), BUFFER_INCREMENT_SIZE)
   end
 
-  self:drawGUI()
-
   --Cleanup before next loop
   self.State.RNG_CHANGED = false
 end
 
-RNG_HUD:init()
-if ENCOUNTER_GENERATOR then
-  Battles_HUD:init({ WM = RNG_HUD:getRNGTable().WM, OW = RNG_HUD:getRNGTable().OW })
+function RNG_HUD:draw()
+  gui.cleartext()
+  self:drawHUD()
+  Battles_HUD:drawHUD()
+  -- Controls:drawHUD()
 end
 
+RNG_HUD:init()
+
+if ENCOUNTER_GENERATOR then
+  Battles_HUD:init(RNG_HUD)
+end
+
+Controls:init(RNG_HUD, Battles_HUD)
+
 while true do
+  Controls:run()
   RNG_HUD:run()
   if ENCOUNTER_GENERATOR then
     if RNG_HUD.State.START_RNG_CHANGED then
-      Battles_HUD:init({ WM = RNG_HUD:getRNGTable().WM, OW = RNG_HUD:getRNGTable().OW })
+      Battles_HUD:init(RNG_HUD)
     end
     Battles_HUD:run(RNG_HUD.RNGIndex)
   end
   RNG_HUD.State.START_RNG_CHANGED = false
+  RNG_HUD:draw()
 end
-
--- while true do
---   emu.frameadvance()
---   EncounterLib.doStuff({ WM = getCurrentRNGTable().WM, OW = getCurrentRNGTable().OW })
--- end
