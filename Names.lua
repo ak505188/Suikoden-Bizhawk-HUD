@@ -1,5 +1,6 @@
 M = {}
 
+-- Areas with encounters
 M.Areas = {
   ["CAVE_OF_THE_PAST"] = "Cave of the Past",
   ["DRAGON_KNIGHT_WM"] = "Dragon Knights' WM",
@@ -29,8 +30,38 @@ M.Areas = {
   ["SHASARAZADE"] = "Shasarazade",
   ["SONIERE_PRISON"] = "Soniere Prison",
   ["TORAN_CASTLE"] = "Toran Castle",
-  ["TORAN_LAKE_WM"] = "Toran Lake WM",
-  ["VILLAGE_OF_THE_PAST_WM"] = "Village of the Past WM",
+}
+
+-- Same as above, but by index instead of key
+M.AreasList = {
+  "Cave of the Past",
+  "Dragon Knights' WM",
+  "Dragon's Den",
+  "Dwarf Trail",
+  "Dwarves' Vault",
+  "Great Forest",
+  "Gregminster WM1",
+  "Gregminster WM2",
+  "Gregminster Palace",
+  "Kalekka",
+  "Kirov WM",
+  "Lepant's Mansion",
+  "Lorimar WM",
+  "Magician's Island",
+  "Moravia WM",
+  "Moravia",
+  "Mt. Seifu",
+  "Mt. Tigerwolf",
+  "Neclord's Castle",
+  "Pannu Yakuta WM",
+  "Pannu Yakuta",
+  "Scarletia WM",
+  "Scarletia",
+  "Seek Valley",
+  "Seika WM",
+  "Shasarazade",
+  "Soniere Prison",
+  "Toran Castle",
 }
 
 return M

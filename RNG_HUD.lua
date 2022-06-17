@@ -4,25 +4,26 @@ local Address = require "Address"
 local EncounterLib = require "EncounterLib"
 local Battles_HUD = require "Battles_HUD"
 local Controls = require "Controls"
+local Config = require "Config"
 
 -- These are options for text and this runs, edit as needed
 -----------------------------------------------------------
 -- These are text labels for data printed on screen
-local START_RNG_LABEL = "S: "
-local RNG_INDEX_LABEL = "I: "
-local RNG_VALUE_LABEL = "R: "
-local GUI_X_POS = 0
-local GUI_Y_POS = 32
-local GUI_PX_BETWEEN_LINES = 16
+local START_RNG_LABEL = Config.RNG_HUD.START_RNG_LABEL
+local RNG_INDEX_LABEL = Config.RNG_HUD.RNG_INDEX_LABEL
+local RNG_VALUE_LABEL = Config.RNG_HUD.RNG_VALUE_LABEL
+local GUI_X_POS = Config.RNG_HUD.GUI_X_POS
+local GUI_Y_POS = Config.RNG_HUD.GUI_Y_POS
+local GUI_GAP = Config.RNG_HUD.GUI_GAP
 
 -- These affect how far ahead in the RNG the script looks. Don't touch if things are working well.
 -- If you set these too small, the script might stop working if RNG advances too quickly.
-local INITITAL_BUFFER_SIZE = 5000 -- Initial look-ahead
-local BUFFER_INCREMENT_SIZE = 500 -- Later look-ahead size per frame
-local BUFFER_MARGIN_SIZE = 30000 -- When difference between current length & current RNG Index is greater than this, look ahead again.
+local INITITAL_BUFFER_SIZE = Config.RNG_HUD.INITITAL_BUFFER_SIZE -- Initial look-ahead
+local BUFFER_INCREMENT_SIZE = Config.RNG_HUD.BUFFER_INCREMENT_SIZE -- Later look-ahead size per frame
+local BUFFER_MARGIN_SIZE = Config.RNG_HUD.BUFFER_MARGIN_SIZE -- When difference between current length & current RNG Index is greater than this, look ahead again.
 
 --- Plugins On/Off
-local ENCOUNTER_GENERATOR = true
+local Battles_HUD_Enabled = Config.Plugins.BATTLES_HUD
 
 -----------------------------------------------------------
 
@@ -63,6 +64,7 @@ function RNG_HUD:generateRNGBuffer(RNGTable, bufferLength)
       table.insert(RNGTable.WM, {
         index = index,
         rng = rng,
+        value = isBattleWM,
         run = isRun,
         battles = battles,
       })
@@ -87,7 +89,7 @@ function RNG_HUD:generateRNGBuffer(RNGTable, bufferLength)
   end
 
   -- Initial call
-  if ENCOUNTER_GENERATOR then handleEncounterRNG() end
+  if Battles_HUD_Enabled then handleEncounterRNG() end
 
   local startingTableSize = #self:getRNGTable().byIndex
 
@@ -97,7 +99,7 @@ function RNG_HUD:generateRNGBuffer(RNGTable, bufferLength)
     RNGTable.table[rng] = index
     RNGTable.byIndex[startingTableSize + i] = rng
 
-    if ENCOUNTER_GENERATOR then handleEncounterRNG() end
+    if Battles_HUD_Enabled then handleEncounterRNG() end
   end
 
   RNGTable.last = rng
@@ -115,7 +117,7 @@ function RNG_HUD:createNewRNGTable(rng)
       },
       last = rng
     }
-    if ENCOUNTER_GENERATOR then
+    if Battles_HUD_Enabled then
       self.RNGTables[rng].WM = {}
       self.RNGTables[rng].OW = {}
     end
@@ -225,14 +227,14 @@ function RNG_HUD:handleRNGReset()
       self.RNG = self.RNG - 1
     end
     if not handled then
-      gui.text(GUI_X_POS, GUI_Y_POS + GUI_PX_BETWEEN_LINES * 0, "Unknown RNG, assuming RNG Reset")
-      gui.text(GUI_X_POS, GUI_Y_POS + GUI_PX_BETWEEN_LINES * 1, "Event:" .. resetData.name)
-      gui.text(GUI_X_POS, GUI_Y_POS + GUI_PX_BETWEEN_LINES * 2, string.format("RNG: %x", self.RNG))
-      gui.text(GUI_X_POS, GUI_Y_POS + GUI_PX_BETWEEN_LINES * 3, "X: Continue")
-      gui.text(GUI_X_POS, GUI_Y_POS + GUI_PX_BETWEEN_LINES * 4, "O: Reset")
-      gui.text(GUI_X_POS, GUI_Y_POS + GUI_PX_BETWEEN_LINES * 5, "Sq: Was Load State")
-      gui.text(GUI_X_POS, GUI_Y_POS + GUI_PX_BETWEEN_LINES * 6, "Up: Increase RNG Value")
-      gui.text(GUI_X_POS, GUI_Y_POS + GUI_PX_BETWEEN_LINES * 7, "Down: Decrease RNG Value")
+      gui.text(GUI_X_POS, GUI_Y_POS + GUI_GAP * 0, "Unknown RNG, assuming RNG Reset")
+      gui.text(GUI_X_POS, GUI_Y_POS + GUI_GAP * 1, "Event:" .. resetData.name)
+      gui.text(GUI_X_POS, GUI_Y_POS + GUI_GAP * 2, string.format("RNG: %x", self.RNG))
+      gui.text(GUI_X_POS, GUI_Y_POS + GUI_GAP * 3, "X: Continue")
+      gui.text(GUI_X_POS, GUI_Y_POS + GUI_GAP * 4, "O: Reset")
+      gui.text(GUI_X_POS, GUI_Y_POS + GUI_GAP * 5, "Sq: Was Load State")
+      gui.text(GUI_X_POS, GUI_Y_POS + GUI_GAP * 6, "Up: Increase RNG Value")
+      gui.text(GUI_X_POS, GUI_Y_POS + GUI_GAP * 7, "Down: Decrease RNG Value")
     end
   end
 
@@ -264,10 +266,10 @@ function RNG_HUD:onFrameStart()
 end
 
 function RNG_HUD:drawHUD()
-  gui.text(GUI_X_POS, GUI_Y_POS + GUI_PX_BETWEEN_LINES * 0, string.format('%s%x', START_RNG_LABEL, self.StartingRNG))
-  gui.text(GUI_X_POS, GUI_Y_POS + GUI_PX_BETWEEN_LINES * 1, string.format('%s%d/%d', RNG_INDEX_LABEL, self.RNGIndex, self:getRNGTableSize()))
-  gui.text(GUI_X_POS, GUI_Y_POS + GUI_PX_BETWEEN_LINES * 2, string.format('%s%x', RNG_VALUE_LABEL, self.RNG))
-  -- gui.text(GUI_X_POS, GUI_Y_POS + GUI_PX_BETWEEN_LINES * 3, string.format('C:%s I:%s H:%s', tostring(self.State.RNG_CHANGED), tostring(self.State.RNG_RESET_INCOMING), tostring(self.State.RNG_RESET_HAPPENED)))
+  gui.text(GUI_X_POS, GUI_Y_POS + GUI_GAP * 0, string.format('%s%x', START_RNG_LABEL, self.StartingRNG))
+  gui.text(GUI_X_POS, GUI_Y_POS + GUI_GAP * 1, string.format('%s%d/%d', RNG_INDEX_LABEL, self.RNGIndex, self:getRNGTableSize()))
+  gui.text(GUI_X_POS, GUI_Y_POS + GUI_GAP * 2, string.format('%s%x', RNG_VALUE_LABEL, self.RNG))
+  -- gui.text(GUI_X_POS, GUI_Y_POS + GUI_GAP * 3, string.format('C:%s I:%s H:%s', tostring(self.State.RNG_CHANGED), tostring(self.State.RNG_RESET_INCOMING), tostring(self.State.RNG_RESET_HAPPENED)))
 end
 
 function RNG_HUD:init()
@@ -301,12 +303,12 @@ function RNG_HUD:draw()
   gui.cleartext()
   self:drawHUD()
   Battles_HUD:drawHUD()
-  -- Controls:drawHUD()
+  Controls:drawHUD()
 end
 
 RNG_HUD:init()
 
-if ENCOUNTER_GENERATOR then
+if Battles_HUD_Enabled then
   Battles_HUD:init(RNG_HUD)
 end
 
@@ -315,7 +317,7 @@ Controls:init(RNG_HUD, Battles_HUD)
 while true do
   Controls:run()
   RNG_HUD:run()
-  if ENCOUNTER_GENERATOR then
+  if Battles_HUD_Enabled then
     if RNG_HUD.State.START_RNG_CHANGED then
       Battles_HUD:init(RNG_HUD)
     end

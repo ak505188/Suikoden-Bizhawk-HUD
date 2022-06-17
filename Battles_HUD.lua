@@ -2,17 +2,13 @@ local EncounterTable = require "EncounterTable"
 local EncounterLib = require "EncounterLib"
 local ZoneInfo = require "ZoneInfo"
 local Address = require "Address"
+local Config = require "Config"
 
-local Config = {
-  ["REFRESH_RATE"] = 60, -- Refresh data every X frames
-  ["BATTLES_BUFFER"] = 30, -- Size of encounter table to store
-  ["BATTLES_DISPLAY_LENGTH"] = 15, -- How many upcoming encounters to show
-  ["BUFFER_ADD_SIZE"] = 15, -- How much to increase buffer size by
-  ["GUI_GAP"] = 16,
-  ["GUI_X"] = 0,
-  ["NUM_TO_DISPLAY"] = 15,
-}
-Config.GUI_Y = Config.GUI_GAP * 6
+local REFRESH_RATE = Config.Battle_HUD.REFRESH_RATE
+local GUI_GAP = Config.Battle_HUD.GUI_GAP
+local GUI_X = Config.Battle_HUD.GUI_X
+local GUI_Y = Config.Battle_HUD.GUI_Y
+local NUM_TO_DISPLAY = Config.Battle_HUD.NUM_TO_DISPLAY
 
 local Gamestates = {
   ["TITLE"] = 0,
@@ -27,10 +23,31 @@ local BattlesHUD = {
   State = {},
   RefreshCounter = 0,
   Locked = false,
+  AreaMenuOpen = false,
 }
 
 function BattlesHUD:toggleLock()
   self.Locked = not self.Locked
+end
+
+--- @param state boolean
+function BattlesHUD:setLock(state)
+  self.Locked = state
+end
+
+function BattlesHUD:jumpToBattle(pos)
+  pos = pos or self.pos
+  local battle
+
+  battle, pos = self:getValidEncounter(pos)
+  if not battle then return end
+
+  local newRNGIndex = battle.index - 1
+  if newRNGIndex < 0 then newRNGIndex = 0 end
+
+  self.cur = pos
+  self.pos = pos
+  self.RNG_HUD:goToRNGIndex(newRNGIndex)
 end
 
 -- Returns whether or not state changed
@@ -59,6 +76,7 @@ function BattlesHUD:updateState()
   local name
   local data
 
+
   if location == Gamestates.WORLD_MAP then
     name = ZoneInfo[wm_zone].name
     data = EncounterTable[name]
@@ -84,16 +102,32 @@ function BattlesHUD:updateState()
   return true
 end
 
+function BattlesHUD:switchArea(areaName)
+  local areaData = EncounterTable[areaName]
+
+  self.State.Location = areaData.areaType
+  self.State.Name = areaName
+  self.State.EncounterTable = areaData.encounters
+  self.State.Enemies = areaData.enemies
+  self.State.EncounterRate = areaData.encounterRate or 8
+  self.State.EncounterTableSize = #areaData.encounters
+end
+
+
 function BattlesHUD:getTable(location)
   location = location or self.State.Location
   local locationKey = EncounterLib.locationIntToKey(location)
   return self.Tables[locationKey]
 end
 
+function BattlesHUD:getRNGIndex()
+  return self.RNG_HUD.RNGIndex
+end
+
 function BattlesHUD:findTablePosition(table, RNGIndex)
   table = table or self:getTable()
   if #table <= 0 then return end
-  RNGIndex = RNGIndex or self.RNGIndex
+  RNGIndex = RNGIndex or self:getRNGIndex()
 
   if RNGIndex < table[1].index or RNGIndex > table[#table].index then return 0 end
 
@@ -116,7 +150,7 @@ function BattlesHUD:findTablePosition(table, RNGIndex)
 end
 
 function BattlesHUD:updateTablePosition(RNGIndex)
-  RNGIndex = RNGIndex or self.RNGIndex
+  RNGIndex = RNGIndex or self:getRNGIndex()
   local pos = self:findTablePosition(nil, RNGIndex)
   if pos < 1 then return end
   if self.pos == self.cur then
@@ -150,12 +184,35 @@ function BattlesHUD:getEncounter(tableIndex)
   }
 end
 
--- function getEncounterTable(areaName)
---   areaName = areaName or self.State.Name
---   return self.State.EncounterTable
+function BattlesHUD:getValidEncounter(tableIndex)
+  tableIndex = tableIndex or self.cur
+  local table = self:getTable()
+  if #table <= 0 then return end
+
+  local possibleBattle
+  local validBattleFound = false
+
+  repeat
+    possibleBattle = table[tableIndex]
+    if possibleBattle.value < self.State.EncounterRate then
+      validBattleFound = true
+    else
+      tableIndex = tableIndex + 1
+    end
+  until validBattleFound or tableIndex > #table
+
+  local group = self.State.EncounterTable[table[tableIndex].battles[self.State.EncounterTableSize]]
+
+  return {
+    index = possibleBattle.index,
+    rng = possibleBattle.rng,
+    run = possibleBattle.run,
+    group = group
+  }, tableIndex
+end
 
 function BattlesHUD:drawUpcomingEncounters(locked)
-  locked = locked or self.Locked
+  locked = locked or false
   local cur = self.cur
   if locked then
     cur = self.pos
@@ -167,17 +224,24 @@ function BattlesHUD:drawUpcomingEncounters(locked)
   local d = 0 -- Number of entries displayed
   local tableLength = #self:getTable()
 
-  gui.text(Config.GUI_X, Config.GUI_Y, self.State.Name)
+  local areaNameStr = self.State.Name
+  if self.Locked then
+    areaNameStr = areaNameStr .. " LOCKED"
+  end
+  gui.text(GUI_X, GUI_Y, areaNameStr)
+  if (self.Locked) then
+    gui.text(client.bufferwidth()-32, client.bufferheight()-16, "LOCK")
+  end
   repeat
     local battle = self:getEncounter(cur + i)
     if battle then
       local run = "F"
       if battle.run then run = "R" end
-      gui.text(Config.GUI_X, Config.GUI_Y + (d+1) * Config.GUI_GAP, string.format("%d: %s %s", battle.index, run, battle.group))
+      gui.text(GUI_X, GUI_Y + (d+1) * GUI_GAP, string.format("%d: %s %s", battle.index, run, battle.group))
       d = d + 1
     end
     i = i + 1
-  until d >= Config.NUM_TO_DISPLAY or (cur + i) > tableLength
+  until d >= NUM_TO_DISPLAY or (cur + i) > tableLength
 end
 
 function BattlesHUD:drawAreaEnemies()
@@ -186,7 +250,7 @@ function BattlesHUD:drawAreaEnemies()
     s = s .. string.format("%d:%s ", k, v)
   end
 
-  gui.text(Config.GUI_X, client.bufferheight()-16, s)
+  gui.text(GUI_X, client.bufferheight()-16, s)
 end
 
 function BattlesHUD:drawHUD(locked)
@@ -200,25 +264,23 @@ function BattlesHUD:init(RNG_HUD)
   self.Tables = { WM = RNG_HUD:getRNGTable().WM, OW = RNG_HUD:getRNGTable().OW }
   self.pos = 1
   self.cur = 1
-  self.RNGIndex = RNG_HUD.RNGIndex
   self:updateState()
 end
 
-function BattlesHUD:run(RNGIndex)
+function BattlesHUD:run()
   local stateChanged = false
   self.RefreshCounter = self.RefreshCounter + 1
-  if self.RefreshCounter == Config.REFRESH_RATE then
+  if self.RefreshCounter == REFRESH_RATE and not self.Locked then
     stateChanged = self:updateState()
   end
 
+  self.RefreshCounter = self.RefreshCounter % REFRESH_RATE
+
   if not next(self.State) then return end
 
-  if RNGIndex ~= self.RNGIndex or stateChanged then
-    self.RNGIndex = RNGIndex
-    self:updateTablePosition(RNGIndex)
+  if self.RNG_HUD.State.RNG_Changed or stateChanged then
+    self:updateTablePosition()
   end
-
-  self.RefreshCounter = self.RefreshCounter % Config.REFRESH_RATE
 end
 
 return BattlesHUD

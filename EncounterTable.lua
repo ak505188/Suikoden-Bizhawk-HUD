@@ -170,6 +170,7 @@ local EncounterTable = {
   [Names.Areas.SHASARAZADE] = {
     name = "Shasarazade",
     areaType = 2,
+    encounterRate = 3,
     encounters = { "111010", "101000", "111000", "202000", "222000", "222020", "030000" },
     enemies = { "Elite Soldier", "Siren", "Kerberos" }
   },
