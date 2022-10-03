@@ -1,5 +1,6 @@
 local EncounterTable = require "EncounterTable"
 local EncounterLib = require "EncounterLib"
+local PartyLib = require "PartyLib"
 local ZoneInfo = require "ZoneInfo"
 local Address = require "Address"
 local Config = require "Config"
@@ -89,6 +90,10 @@ function BattlesHUD:updateState()
     encounterRate = math.min(inGameEncounterRate, data.encounterRate)
   end
 
+  -- Get Champion Rune Info
+  local IsChampion = PartyLib.isChampionsRuneEquipped()
+  local PartyLevel = PartyLib.getPartyLVL()
+
   self.State = {
     Location = location,
     Name = name,
@@ -96,9 +101,13 @@ function BattlesHUD:updateState()
     Enemies = data.enemies,
     EncounterRate = encounterRate,
     EncounterTableSize = #data.encounters,
+    ChampVals = data.champVals,
     WM_Zone = wm_zone,
     Area_Zone = area_zone,
+    IsChampion = IsChampion,
+    PartyLevel = PartyLevel
   }
+
   return true
 end
 
@@ -173,6 +182,10 @@ function BattlesHUD:getEncounter(tableIndex)
   local possibleBattle = table[tableIndex]
 
   if possibleBattle.value and possibleBattle.value >= self.State.EncounterRate then return nil end
+  if self.State.IsChampion then
+    local champVal = self.State.ChampVals[possibleBattle.battles[self.State.EncounterTableSize]]
+    if self.State.PartyLevel > champVal then return nil end
+  end
 
   local group = self.State.EncounterTable[table[tableIndex].battles[self.State.EncounterTableSize]]
 
@@ -195,7 +208,14 @@ function BattlesHUD:getValidEncounter(tableIndex)
   repeat
     possibleBattle = table[tableIndex]
     if possibleBattle.value < self.State.EncounterRate then
-      validBattleFound = true
+      if self.State.IsChampion then
+        local champVal = possibleBattle.battles[self.State.EncounterTableSize]
+        if self.State.PartyLevel > champVal then
+          validBattleFound = true
+        end
+      else
+        validBattleFound = true
+      end
     else
       tableIndex = tableIndex + 1
     end
@@ -225,9 +245,14 @@ function BattlesHUD:drawUpcomingEncounters(locked)
   local tableLength = #self:getTable()
 
   local areaNameStr = self.State.Name
+
   if self.Locked then
     areaNameStr = areaNameStr .. " LOCKED"
   end
+  if self.State.IsChampion then
+    areaNameStr = string.format("%s C:%d", areaNameStr, self.State.PartyLevel)
+  end
+
   gui.text(GUI_X, GUI_Y, areaNameStr)
   if (self.Locked) then
     gui.text(client.bufferwidth()-32, client.bufferheight()-16, "LOCK")
@@ -245,12 +270,11 @@ function BattlesHUD:drawUpcomingEncounters(locked)
 end
 
 function BattlesHUD:drawAreaEnemies()
-  local s = ""
+  local s = {}
   for k,v in ipairs(self.State.Enemies) do
-    s = s .. string.format("%d:%s ", k, v)
+    table.insert(s, string.format("%d:%s", k, v))
   end
-
-  gui.text(GUI_X, client.bufferheight()-16, s)
+  EncounterLib.drawTable(s, 0, 16, GUI_GAP, "bottomleft", true)
 end
 
 function BattlesHUD:drawHUD(locked)

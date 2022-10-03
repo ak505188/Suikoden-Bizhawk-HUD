@@ -54,6 +54,23 @@ local TableSizes = {
   OW = {},
 }
 
+local function drawTable(strs, x, y, gap, anchor, reverse)
+  anchor = anchor or "topleft"
+  reverse = reverse or false
+
+  if reverse then
+    for i = #strs, 1, -1 do
+      gui.text(x, y, strs[i], nil, anchor)
+      y = y + gap
+    end
+  else
+    for _,row in ipairs(strs) do
+      gui.text(x, y, row, nil, anchor)
+      y = y + gap
+    end
+  end
+end
+
 for _,area in pairs(EncounterTable) do
   local encounterTableSize = #area.encounters
   if area.areaType == 1 then
@@ -74,5 +91,6 @@ M.getEncounterIndex = getEncounterIndex
 M.isPossibleBattle = isPossibleBattle
 M.locationIntToKey = locationIntToKey
 M.TableSizes = TableSizes
+M.drawTable = drawTable
 
 return M

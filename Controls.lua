@@ -1,7 +1,10 @@
 local Names = require "Names"
 local Config = require "Config"
+local Lib = require "EncounterLib"
 
-local GUI_X = Config.Controls.GUI_X
+local drawTable = Lib.drawTable
+
+local GUI_X = 0
 local GUI_GAP = Config.Controls.GUI_GAP
 local GUI_Y = Config.Controls.GUI_Y
 
@@ -16,6 +19,8 @@ local ModesList = {
   "Areas"
 }
 
+local btns = Config.ButtonNames
+
 local Controls = {
   Mode = Modes.ENCOUNTER_MODE,
   State = {
@@ -23,55 +28,30 @@ local Controls = {
     LIST_POS = 1,
   },
   Buttons = {
-    MENU_BUTTON = { btn = "P1 R2", cooldown = -1 },
-    NEXT_MODE = { btn = "P1 R1", cooldown = 0, default_cd = 10 },
-    PREV_MODE = { btn = "P1 L1", cooldown = 0, default_cd = 10 },
-    TOGGLE_LOCK = { btn = "P1 Triangle", cooldown = 0, default_cd = 10 },
-    CONFIRM = { btn = "P1 Cross", cooldown = 0, default_cd = 10 },
-    POS_INCREMENT = { btn = "P1 Down", cooldown = 0 },
-    POS_DECREMENT = { btn = "P1 Up", cooldown = 0 },
-    POS_INCREASE = { btn = "P1 Right", cooldown = 0 },
-    POS_DECREASE = { btn = "P1 Left", cooldown = 0 },
+    MENU_BUTTON = { btn = btns.R2, cooldown = -1 },
+    NEXT_MODE = { btn = btns.R1, cooldown = 100 },
+    PREV_MODE = { btn = btns.L1, cooldown = 100 },
+    TOGGLE_LOCK = { btn = btns.Triangle, cooldown = 100 },
+    CONFIRM = { btn = btns.Cross, cooldown = 100 },
+    POS_INCREMENT = { btn = btns.Down, cooldown = 50 },
+    POS_DECREMENT = { btn = btns.Up, cooldown = 50 },
+    POS_INCREASE = { btn = btns.Right, cooldown = 25 },
+    POS_DECREASE = { btn = btns.Left, cooldown = 25 },
   },
 }
 
 local function buttonIsPressed(button)
   local pressed = joypad.get()[button.btn]
-  if pressed and button.cooldown <= 0 then
-    if button.cooldown == 0 then
-      local cooldown = button.default_cd or Config.Controls.BUTTON_COOLDOWN
-      button.cooldown = cooldown
-    end
-    return true
+  if not pressed then return false end
+  if button.cooldown then
+    client.exactsleep(button.cooldown)
   end
-  return false
-end
-
-function Controls:reduceCooldowns()
-  for _, button in pairs(self.Buttons) do
-    if button.cooldown > 0 then
-      button.cooldown = button.cooldown - 1
-    end
-  end
-end
-
-function Controls:buttonIsOffCooldown(buttonKey)
-  return self.Cooldowns[buttonKey] == 0
+  return true
 end
 
 function Controls:init(RNG_HUD, Battles_HUD)
   self.RNG_HUD = RNG_HUD
   self.Battles_HUD = Battles_HUD
-end
-
-local function drawTable(strs, X, Y, Gap)
-  local x = X or GUI_X
-  local y = Y or GUI_Y
-  local gap = Gap or GUI_GAP
-  for _,row in ipairs(strs) do
-    gui.text(x, y, row)
-    y = y + gap
-  end
 end
 
 function Controls:drawHUD()
@@ -102,9 +82,9 @@ function Controls:drawHUD()
       table.insert(strs, "Up: Up 1")
       table.insert(strs, "Do: Down 1")
     end
-    drawTable(strs, GUI_X, GUI_Y, GUI_GAP)
+    drawTable(strs, GUI_X, GUI_Y, GUI_GAP, "topright")
   else
-    gui.text(GUI_X, GUI_Y, "Hold R2: Controls")
+    gui.text(0, GUI_Y, "Hold R2: Controls", nil, "topright")
   end
 end
 
@@ -189,7 +169,6 @@ function Controls:run()
 
       self:drawMenu()
       self:drawHUD()
-      self:reduceCooldowns()
     end
 
     if client.ispaused() and self.State.PAUSED_BY_CONTROLS then

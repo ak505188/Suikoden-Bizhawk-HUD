@@ -41,19 +41,13 @@ local function isChampionsRuneEquipped()
   return false
 end
 
-local firstRun = false
-
 local function getPartyLVL()
   local lvl_sum = 0
   for i = 0,getPartySize()-1 do
     local char_addr = getCharacterDataAddress(i)
     local charLVL = getCharacterLVL(char_addr)
-    if not firstRun then
-      print(string.format("0x%x %d", char_addr, charLVL))
-    end
     lvl_sum = lvl_sum + charLVL
   end
-  firstRun = true
   return lvl_sum
 end
 
