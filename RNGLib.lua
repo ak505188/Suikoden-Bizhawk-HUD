@@ -43,7 +43,7 @@ local eventRNGValues = {
 
 local dragonRideRNGValues = {
 	{ 0x17, 0x18 },
-	{ 0x17, 0x18 },
+	{ 0x19 },
 	{ 0xAD, 0xAE }
 }
 

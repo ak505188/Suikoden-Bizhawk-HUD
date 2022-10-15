@@ -65,18 +65,35 @@ function BattlesHUD:updateState()
   local area_zone = memory.read_u8(Address.AREA_ZONE)
   local inGameEncounterRate = memory.read_u8(Address.ENCOUNTER_RATE)
 
+  local stateChanged = false
+
+  -- print("Location:", location, self.State.Location)
+  -- print("WM Zone:", wm_zone, self.State.WM_Zone)
+  -- print("Area Zone:", area_zone, self.State.Area_Zone)
+  -- print("Encounter Rate:", inGameEncounterRate, self.State.EncounterRate)
+
+  if (location ~= self.State.Location) then
+    -- print("Location changed")
+    stateChanged = true
+  elseif (wm_zone ~= self.State.WM_Zone) then
+    -- print("WM Zone changed")
+    stateChanged = true
+  elseif (area_zone ~= self.State.Area_Zone) then
+    -- print("Area Zone changed")
+    stateChanged = true
+  elseif (inGameEncounterRate ~= self.State.EncounterRate) then
+    -- print("EncounterRate changed")
+    stateChanged = true
+  end
+
   -- Check if change, if not do nothing.
-  if (location == self.State.Location and
-      wm_zone == self.State.WM_ZONE and
-      area_zone == self.State.Area_Zone and
-      inGameEncounterRate == self.State.EncounterRate) then
+  if not stateChanged then
     return false
   end
 
   local encounterRate
   local name
   local data
-
 
   if location == Gamestates.WORLD_MAP then
     name = ZoneInfo[wm_zone].name
@@ -302,7 +319,7 @@ function BattlesHUD:run()
 
   if not next(self.State) then return end
 
-  if self.RNG_HUD.State.RNG_Changed or stateChanged then
+  if self.RNG_HUD.State.RNG_CHANGED or stateChanged then
     self:updateTablePosition()
   end
 end

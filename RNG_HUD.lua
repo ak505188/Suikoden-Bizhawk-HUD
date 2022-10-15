@@ -6,6 +6,8 @@ local Battles_HUD = require "Battles_HUD"
 local Controls = require "Controls"
 local Config = require "Config"
 
+local btns = Config.ButtonNames
+
 -- These are options for text and this runs, edit as needed
 -----------------------------------------------------------
 -- These are text labels for data printed on screen
@@ -202,28 +204,29 @@ function RNG_HUD:handleRNGReset()
   -- Cleanup
   self.State.RNG_RESET_INCOMING = false
   self.State.RNG_RESET_HAPPENED = false
+  self.State.START_RNG_CHANGED = true
 
   while not handled do
     emu.yield()
     gui.cleartext()
     local buttons = joypad.get()
-    if (buttons["P1 Cross"]) then
+    if (buttons[btns.Cross]) then
       self.StartingRNG = self.RNG
       self.RNGIndex = 0
       memory.write_u32_le(Address.RNG, self.RNG)
       self:createNewRNGTable()
       handled = true
-    elseif buttons["P1 Square"] then
+    elseif buttons[btns.Square] then
       self.StartingRNG = self.RNG
       self.RNGIndex = 0
       self.RNG_RESET_INCOMING = true
       self:createNewRNGTable()
       handled = true
-    elseif buttons["P1 Circle"] then
+    elseif buttons[btns.Circle] then
       self.RNG = resetData.rng
-    elseif buttons["P1 Up"] then
+    elseif buttons[btns.Up] then
       self.RNG = self.RNG + 1
-    elseif buttons["P1 Down"] then
+    elseif buttons[btns.Down] then
       self.RNG = self.RNG - 1
     end
     if not handled then
@@ -282,6 +285,9 @@ function RNG_HUD:init()
 end
 
 function RNG_HUD:run()
+  --Cleanup before next loop
+  self.State.RNG_CHANGED = false
+
   self:onFrameStart()
   if self.State.RNG_RESET_HAPPENED then
     self:handleRNGReset()
@@ -294,9 +300,6 @@ function RNG_HUD:run()
   if (self:getRNGTableSize() - self.RNGIndex < BUFFER_MARGIN_SIZE) then
     self:generateRNGBuffer(self:getRNGTable(), BUFFER_INCREMENT_SIZE)
   end
-
-  --Cleanup before next loop
-  self.State.RNG_CHANGED = false
 end
 
 function RNG_HUD:draw()
@@ -321,7 +324,7 @@ while true do
     if RNG_HUD.State.START_RNG_CHANGED then
       Battles_HUD:init(RNG_HUD)
     end
-    Battles_HUD:run(RNG_HUD.RNGIndex)
+    Battles_HUD:run()
   end
   RNG_HUD.State.START_RNG_CHANGED = false
   RNG_HUD:draw()
