@@ -65,6 +65,10 @@ function BattlesHUD:updateState()
   local area_zone = memory.read_u8(Address.AREA_ZONE)
   local inGameEncounterRate = memory.read_u8(Address.ENCOUNTER_RATE)
 
+  -- Get Champion Rune Info
+  local IsChampion = PartyLib.isChampionsRuneEquipped()
+  local PartyLevel = PartyLib.getPartyLVL()
+
   local stateChanged = false
 
   -- print("Location:", location, self.State.Location)
@@ -72,18 +76,24 @@ function BattlesHUD:updateState()
   -- print("Area Zone:", area_zone, self.State.Area_Zone)
   -- print("Encounter Rate:", inGameEncounterRate, self.State.EncounterRate)
 
-  if (location ~= self.State.Location) then
+  if location ~= self.State.Location then
     -- print("Location changed")
     stateChanged = true
-  elseif (wm_zone ~= self.State.WM_Zone) then
+  elseif wm_zone ~= self.State.WM_Zone then
     -- print("WM Zone changed")
     stateChanged = true
-  elseif (area_zone ~= self.State.Area_Zone) then
+  elseif area_zone ~= self.State.Area_Zone then
     -- print("Area Zone changed")
     stateChanged = true
-  elseif (inGameEncounterRate ~= self.State.EncounterRate) then
+  elseif inGameEncounterRate ~= self.State.EncounterRate then
     -- print("EncounterRate changed")
     stateChanged = true
+  elseif IsChampion then
+    if not self.State.IsChampion then
+      stateChanged = true
+    elseif PartyLevel ~= self.State.PartyLevel then
+      stateChanged = true
+    end
   end
 
   -- Check if change, if not do nothing.
@@ -107,9 +117,6 @@ function BattlesHUD:updateState()
     encounterRate = math.min(inGameEncounterRate, data.encounterRate)
   end
 
-  -- Get Champion Rune Info
-  local IsChampion = PartyLib.isChampionsRuneEquipped()
-  local PartyLevel = PartyLib.getPartyLVL()
 
   self.State = {
     Location = location,
@@ -271,9 +278,6 @@ function BattlesHUD:drawUpcomingEncounters(locked)
   end
 
   gui.text(GUI_X, GUI_Y, areaNameStr)
-  if (self.Locked) then
-    gui.text(client.bufferwidth()-32, client.bufferheight()-16, "LOCK")
-  end
   repeat
     local battle = self:getEncounter(cur + i)
     if battle then

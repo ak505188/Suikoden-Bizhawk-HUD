@@ -11,12 +11,15 @@ local GUI_Y = Config.Controls.GUI_Y
 local Modes = {
   ENCOUNTER_MODE = 1,
   RNG_MODE = 2,
-  AREAS_MODE = 3
+  AREAS_MODE = 3,
+  -- DROPS_MODE = 4
 }
+
 local ModesList = {
   "Encounters",
   "RNG",
-  "Areas"
+  "Areas",
+  -- "Drops"
 }
 
 local btns = Config.ButtonNames
