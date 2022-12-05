@@ -47,6 +47,7 @@ local RNG_HUD = {
 function RNG_HUD:generateRNGBuffer(RNGTable, bufferLength)
   -- This handles the base RNG
   bufferLength = bufferLength or INITITAL_BUFFER_SIZE
+  RNGTable = RNGTable or self:getRNGTable()
   local rng = RNGTable.last
   local index = RNGTable.table[rng]
 
