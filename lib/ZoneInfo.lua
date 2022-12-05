@@ -1,4 +1,4 @@
-local Names = require "Names"
+local Names = require "lib.Names"
 
 local ZoneInfo = {
   [0] = {

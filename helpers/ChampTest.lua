@@ -1,4 +1,4 @@
-local PartyLib = require "../lib/Party.lua"
+local PartyLib = require "lib.Party"
 
 while true do
   gui.text(0, 16, PartyLib.getPartyLVL())

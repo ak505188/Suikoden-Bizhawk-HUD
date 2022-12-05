@@ -1,4 +1,4 @@
-local Names = require("Names")
+local Names = require "lib.Names"
 
 local EncounterTable = {
   [Names.Areas.CAVE_OF_THE_PAST] = {

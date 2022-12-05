@@ -1,4 +1,4 @@
-local RNGLib = require "RNG"
+local RNGLib = require "lib.RNG"
 local EncounterTable = require "lib.EncounterTable"
 local Address = require "lib.Address"
 local M = {}
