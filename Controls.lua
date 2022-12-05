@@ -1,6 +1,6 @@
-local Names = require "Names"
+local Names = require "lib.Names"
 local Config = require "Config"
-local Lib = require "EncounterLib"
+local Lib = require "lib.Encounter"
 
 local drawTable = Lib.drawTable
 

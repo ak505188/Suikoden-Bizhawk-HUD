@@ -1,4 +1,4 @@
-local ButtonNames = require "Buttons"
+local ButtonNames = require "lib.Buttons"
 local Config = {}
 
 --- Plugins On/Off

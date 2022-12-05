@@ -1,7 +1,7 @@
 -- Performance notes: Seems to be about the same as event-driven one.
-local RNGLib = require "RNGLib"
-local Address = require "Address"
-local EncounterLib = require "EncounterLib"
+local RNGLib = require "lib.RNG"
+local Address = require "lib.Address"
+local EncounterLib = require "lib.Encounter"
 local Battles_HUD = require "Battles_HUD"
 local Controls = require "Controls"
 local Config = require "Config"

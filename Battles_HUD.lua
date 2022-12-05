@@ -1,8 +1,8 @@
-local EncounterTable = require "EncounterTable"
-local EncounterLib = require "EncounterLib"
-local PartyLib = require "PartyLib"
-local ZoneInfo = require "ZoneInfo"
-local Address = require "Address"
+local EncounterTable = require "lib.EncounterTable"
+local EncounterLib = require "lib.Encounter"
+local PartyLib = require "lib.Party"
+local ZoneInfo = require "lib.ZoneInfo"
+local Address = require "lib.Address"
 local Config = require "Config"
 
 local REFRESH_RATE = Config.Battle_HUD.REFRESH_RATE

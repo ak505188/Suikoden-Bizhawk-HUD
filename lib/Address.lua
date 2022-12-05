@@ -10,6 +10,7 @@ local Address = {
   ["ENEMY_STRUCT_PTR"] = 0x197f10,
   ["ENEMY_ENC_TABLE_PTR"] = 0x197f14,
   ["ITEM_NAME_PTR_1"] = 0x16765c,
+  ["BATTLE_ITEM_DROP"] = 0x18faf0,
 }
 
 return Address
