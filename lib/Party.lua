@@ -1,27 +1,18 @@
-local Addresses = {}
-Addresses.GAMESTATE_BASE = 0x1b8000
-Addresses.PARTY_SIZE = Addresses.GAMESTATE_BASE + 3
--- Character 1 offset is at this address
--- Offset range is 0-5
-Addresses.CHARACTER_OFFSETS = Addresses.GAMESTATE_BASE + 0xe
+local Address = require "lib.Address"
 
 local ChampionRuneID = 24
 
 local PartyLib = {}
 
-function sanitizeAddress(addr)
-  return bit.band(addr, 0x001fffff)
-end
-
 local function getPartySize()
-  return memory.read_u8(Addresses.PARTY_SIZE)
+  return memory.read_u8(Address.PARTY_SIZE)
 end
 
 local function getCharacterDataAddress(formationSlot)
-  local offset = memory.read_u8(Addresses.CHARACTER_OFFSETS + formationSlot)
-  local ptr1 = Addresses.GAMESTATE_BASE + offset * 4
-  local ptr2 = sanitizeAddress(memory.read_u32_le(ptr1 + 0x1b9c))
-  return sanitizeAddress(memory.read_u32_le(sanitizeAddress(ptr2 + 0x1c)))
+  local offset = memory.read_u8(Address.CHARACTER_OFFSETS + formationSlot)
+  local ptr1 = Address.GAMESTATE_BASE + offset * 4
+  local ptr2 = Address.sanitize(memory.read_u32_le(ptr1 + 0x1b9c))
+  return Address.sanitize(memory.read_u32_le(Address.sanitize(ptr2 + 0x1c)))
 end
 
 local function getCharacterRune(character_data_address)
@@ -41,7 +32,8 @@ local function isChampionsRuneEquipped()
   return false
 end
 
-local function getPartyLVL()
+local function getPartyLVL(partySize)
+  partySize = partySize or getPartySize()
   local lvl_sum = 0
   for i = 0,getPartySize()-1 do
     local char_addr = getCharacterDataAddress(i)
