@@ -164,12 +164,13 @@ function RNGMonitor:adjustRNGIndex(amount)
 end
 
 function RNGMonitor:handleRNGOverflow()
-  RNG = memory.read_u32_le(Address.RNG)
-  self.State.START_RNG_CHANGED = true
+  local rng = self.RNG
+  self.Event = Events.START_RNG_CHANGED
+
   local start,index
   for startingRNG, RNGTable in pairs(self.RNGTables) do
-    if (RNGTable.table[RNG]) then
-      local t_index = RNGTable.table[RNG]
+    if (RNGTable.table[rng]) then
+      local t_index = RNGTable.table[rng]
       if (not index or t_index > index) then
         index = t_index
         start = startingRNG
@@ -179,15 +180,15 @@ function RNGMonitor:handleRNGOverflow()
 
   if (start) then
     self.StartingRNG = start
-    self.RNGIndex = self:getRNGTable().table[RNG]
+    self.RNGIndex = self:getRNGTable().table[rng]
     return
   end
 
   -- Else, create a new table
   -- No matches, so create new StartingRNG and Buffer
-  self.StartingRNG = RNG
+  self.StartingRNG = rng
   self.RNGIndex = 0
-  self:createNewRNGTable(RNG)
+  self:createNewRNGTable(rng)
 end
 
 function RNGMonitor:handleRNGReset()
@@ -199,7 +200,8 @@ function RNGMonitor:handleRNGReset()
 
   -- Cleanup
   self.State.RNG_RESET_INCOMING = false
-  self.State.START_RNG_CHANGED = true
+  -- TODO: Better handling for start RNG not changing. Currently assuming always changes
+  self.Event = Events.START_RNG_CHANGED
 
   while not handled do
     emu.yield()
@@ -239,28 +241,6 @@ function RNGMonitor:handleRNGReset()
   client.unpause()
 end
 --
--- TODO: Better loadState during RNGReset handling
-function RNGMonitor:onFrameStart()
-  if (self.StateMonitor.IG_CURRENT_GAMESTATE.current == 4 and self.StateMonitor.IG_CURRENT_GAMESTATE.previous ~= 4) then
-    self.State.RNG_RESET_INCOMING = true
-  end
-
-  local newRNG = memory.read_u32_le(Address.RNG)
-  if (newRNG ~= self.RNG) then
-    self.State.RNG_CHANGED = true
-  end
-  self.RNG = newRNG
-
-  if self.State.RNG_RESET_INCOMING and self.State.RNG_CHANGED then
-    self.State.RNG_RESET_HAPPENED = true
-  end
-
-  -- Handle Natural Overflow or Loadstate
-  if not self.State.RNG_RESET_HAPPENED and not self:getRNGTable().table[self.RNG] then
-    self:handleRNGOverflow()
-  end
-end
-
 function RNGMonitor:draw()
   gui.text(GUI_X_POS, GUI_Y_POS + GUI_GAP * 0, string.format('%s%x', START_RNG_LABEL, self.StartingRNG))
   gui.text(GUI_X_POS, GUI_Y_POS + GUI_GAP * 1, string.format('%s%d/%d', RNG_INDEX_LABEL, self.RNGIndex, self:getRNGTableSize()))
@@ -277,30 +257,7 @@ function RNGMonitor:init(stateMonitor)
   self:createNewRNGTable()
 end
 
-function RNGMonitor:runPreFrame()
-  --Cleanup before next loop
-  self.State.RNG_CHANGED = false
-
-  self:onFrameStart()
-  if self.State.RNG_RESET_HAPPENED then
-    self:handleRNGReset()
-  end
-end
-
-function RNGMonitor:runPostFrame()
-  self.RNGIndex = self:getRNGIndex()
-
-  -- Increase buffer size if needed
-  if (self:getRNGTableSize() - self.RNGIndex < BUFFER_MARGIN_SIZE) then
-    self:generateRNGBuffer(self:getRNGTable(), BUFFER_INCREMENT_SIZE)
-  end
-end
-
--- return RNGMonitor
--- Experimental Code beyond here
-
 function RNGMonitor:run()
-  -- onFrameStart Start
   self.RNG = self.StateMonitor.RNG.current
 
   if (self.StateMonitor.IG_CURRENT_GAMESTATE.current == 4 and self.StateMonitor.IG_CURRENT_GAMESTATE.previous ~= 4) then
@@ -309,14 +266,22 @@ function RNGMonitor:run()
 
   if self.State.RNG_RESET_INCOMING and self.StateMonitor.RNG.changed then
     self:handleRNGReset()
-  end
-
   -- Handle Natural Overflow or Loadstate
-  if not self.State.RNG_RESET_HAPPENED and not self:getRNGTable().table[self.RNG] then
+  elseif not self.State.RNG_RESET_HAPPENED and not self:getRNGTable().table[self.RNG] then
     self:handleRNGOverflow()
-  end
+  else
+    local prevRNGIndex = self.RNGIndex
+    self.RNGIndex = self:getRNGIndex()
 
-  self.RNGIndex = self:getRNGIndex()
+    -- Check if RNG Index changed for Event Tracking
+    if self.RNGIndex == prevRNGIndex then
+      self.Event = Events.NO_CHANGE
+    elseif self.RNGIndex < prevRNGIndex then
+      self.Event = Events.RNG_DECREMENT
+    else
+      self.Event = Events.RNG_INCREMENT
+    end
+  end
 
   -- Increase buffer size if needed
   if (self:getRNGTableSize() - self.RNGIndex < BUFFER_MARGIN_SIZE) then
