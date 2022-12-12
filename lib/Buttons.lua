@@ -57,4 +57,10 @@ elseif core == "Nymashock" then
   return NymashockButtons
 end
 
+-- Thinking about making a wrapper class/struct for handling buttons
+-- Basic setup would be
+-- - update function that calls joypad.get()
+-- - isPressed or getValue or something
+-- - maybe an set function eventually
+
 return 'Buttons.lua: Unknown Core'

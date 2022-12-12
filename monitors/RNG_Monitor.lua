@@ -35,7 +35,6 @@ local RNGMonitor = {
   RNGIndex = nil,
   Event = Events.NOT_INITIALIZED,
   State = {
-    RNG_CHANGED = false,
     RNG_RESET_INCOMING = false,
     RNG_RESET_HAPPENED = false,
     START_RNG_CHANGED = false,
@@ -200,7 +199,6 @@ function RNGMonitor:handleRNGReset()
 
   -- Cleanup
   self.State.RNG_RESET_INCOMING = false
-  self.State.RNG_RESET_HAPPENED = false
   self.State.START_RNG_CHANGED = true
 
   while not handled do
@@ -271,7 +269,7 @@ function RNGMonitor:draw()
 end
 
 function RNGMonitor:init(stateMonitor)
-  local rng = memory.read_u32_le(Address.RNG)
+  local rng = stateMonitor.RNG.current
   self.StateMonitor = stateMonitor
   self.RNG = rng
   self.StartingRNG = rng
@@ -297,5 +295,34 @@ function RNGMonitor:runPostFrame()
     self:generateRNGBuffer(self:getRNGTable(), BUFFER_INCREMENT_SIZE)
   end
 end
+
+-- return RNGMonitor
+-- Experimental Code beyond here
+
+function RNGMonitor:run()
+  -- onFrameStart Start
+  self.RNG = self.StateMonitor.RNG.current
+
+  if (self.StateMonitor.IG_CURRENT_GAMESTATE.current == 4 and self.StateMonitor.IG_CURRENT_GAMESTATE.previous ~= 4) then
+    self.State.RNG_RESET_INCOMING = true
+  end
+
+  if self.State.RNG_RESET_INCOMING and self.StateMonitor.RNG.changed then
+    self:handleRNGReset()
+  end
+
+  -- Handle Natural Overflow or Loadstate
+  if not self.State.RNG_RESET_HAPPENED and not self:getRNGTable().table[self.RNG] then
+    self:handleRNGOverflow()
+  end
+
+  self.RNGIndex = self:getRNGIndex()
+
+  -- Increase buffer size if needed
+  if (self:getRNGTableSize() - self.RNGIndex < BUFFER_MARGIN_SIZE) then
+    self:generateRNGBuffer(self:getRNGTable(), BUFFER_INCREMENT_SIZE)
+  end
+end
+
 
 return RNGMonitor

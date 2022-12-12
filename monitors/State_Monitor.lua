@@ -20,6 +20,7 @@ local StateMonitor = {
   ENCOUNTER_RATE = table.clone(initVarState),
   CHAMPION_RUNE_EQUIPPED = table.clone(initVarState),
   PARTY_LEVEL = table.clone(initVarState),
+  RNG = table.clone(initVarState),
 }
 
 function StateMonitor:updateState(key, value)
@@ -48,6 +49,7 @@ function StateMonitor:read()
   self:updateState("WM_ZONE", buffer[1])
   self:updateState("SCREEN_ZONE", buffer[2])
   self:updateState("AREA_ZONE", buffer[3])
+  self:updateState("RNG", mainmemory.read_u32_le(Address.RNG))
 
   self:updateState("IG_CURRENT_GAMESTATE", mainmemory.read_u8(Address.GAMESTATE))
   self:updateState("IG_PREVIOUS_GAMESTATE", mainmemory.read_u8(Address.PREV_GAMESTATE))

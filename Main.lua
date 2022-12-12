@@ -1,13 +1,15 @@
 local RNGMonitor = require "monitors.RNG_Monitor"
 local StateMonitor = require "monitors.State_Monitor"
 
+StateMonitor:run()
 RNGMonitor:init(StateMonitor)
+
+-- For controls/menus, should probably use a stack of structs with functions
 
 while true do
   -- Controls:run()
-  StateMonitor:run()
-  RNGMonitor:runPreFrame()
   emu.frameadvance()
-  RNGMonitor:runPostFrame()
+  StateMonitor:run()
+  RNGMonitor:run()
   RNGMonitor:draw()
 end
