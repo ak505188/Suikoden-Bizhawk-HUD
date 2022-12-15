@@ -14,10 +14,13 @@ function MenuController:pop()
   return self.stack.remove()
 end
 
-function MenuController:openMenu()
-  local menuBtn = Buttons.R2
+function MenuController:openMenu(menu)
+  self.push(menu)
+  self.open = false
+end
 
-
+function MenuController:run()
+  if not self.open then return end
 end
 
 return MenuController
