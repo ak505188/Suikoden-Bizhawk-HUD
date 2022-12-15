@@ -51,16 +51,27 @@ local NymashockButtons = {
   ["RStick Y"] = "P1 Right Stick Up / Down",
 }
 
-if core == "Octoshock" then
-  return OctoshockButtons
-elseif core == "Nymashock" then
-  return NymashockButtons
+local buttonNames = OctoshockButtons
+if core == "Nymashock" then
+  buttonNames = NymashockButtons
 end
 
--- Thinking about making a wrapper class/struct for handling buttons
--- Basic setup would be
--- - update function that calls joypad.get()
--- - isPressed or getValue or something
--- - maybe an set function eventually
+local Buttons = {
+  _values = btns
+}
 
-return 'Buttons.lua: Unknown Core'
+for btnName,btnKey in pairs(buttonNames) do
+  local button = {}
+  button.key = btnKey
+  button.name = btnName
+  function button:value()
+    return Buttons._values[self.key]
+  end
+  Buttons[btnName] = button
+end
+
+function Buttons:update()
+  self._values = joypad.get()
+end
+
+return Buttons
