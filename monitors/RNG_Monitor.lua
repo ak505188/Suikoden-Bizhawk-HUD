@@ -289,5 +289,4 @@ function RNGMonitor:run()
   end
 end
 
-
 return RNGMonitor

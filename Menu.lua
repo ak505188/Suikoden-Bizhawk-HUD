@@ -24,3 +24,11 @@ function MenuController:run()
 end
 
 return MenuController
+
+-- StackMenuAPI
+-- Will be defined within module as its own structure / class attached to the Module
+-- Attach dependencies with initialization in module. Part of Module
+-- Methods:
+-- draw()
+-- close()
+-- run/poll or onButton?
