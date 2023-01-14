@@ -64,13 +64,35 @@ for btnName,btnKey in pairs(buttonNames) do
   local button = {}
   button.key = btnKey
   button.name = btnName
-  function button:value()
-    return Buttons._values[self.key]
+
+
+  if not string.match(btnKey, "Stick") then
+    function button:value()
+      return Buttons._values[self.key]
+    end
+
+    function button:prevValue()
+      return Buttons._prev_values[self.key]
+    end
+
+    function button:pressed()
+      return Buttons._values[self.key] and not Buttons._prev_values[self.key]
+    end
+
+    function button:held()
+      return Buttons._values[self.key]
+    end
+
+    function button:released()
+      return not Buttons._values[self.key] and Buttons._prev_values[self.key]
+    end
   end
+
   Buttons[btnName] = button
 end
 
 function Buttons:update()
+  self._prev_values = self._values
   self._values = joypad.get()
 end
 
