@@ -1,6 +1,13 @@
 local RNGMonitor = require "monitors.RNG_Monitor"
 local StateMonitor = require "monitors.State_Monitor"
 
+local MenuController = require "Menu"
+
+
+local ModuleManager = require "modules.Manager"
+local RNGModule = require "modules.RNG.main"
+
+
 StateMonitor:run()
 RNGMonitor:init(StateMonitor)
 
