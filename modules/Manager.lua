@@ -5,7 +5,7 @@ local ModuleManager = {
 }
 
 function ModuleManager:addModule(module)
-  self.modules.insert(module)
+  table.insert(self.modules, module)
   self.modulePositionsByName[module.Name] = #self.modules
   if self.currentModule == nil then
     self.currentModule = #self.modules
@@ -27,8 +27,8 @@ end
 function ModuleManager:prevModule()
 end
 
-function ModuleManager:currentModule()
-  return self.modules(self.currentModule)
+function ModuleManager:getCurrentModule()
+  return self.modules[self.currentModule]
 end
 
 return ModuleManager

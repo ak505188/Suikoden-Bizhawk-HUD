@@ -3,8 +3,11 @@ local Buttons = require "lib.Buttons"
 local MenuController = {
   stack = {},
   current = {},
-  open = false,
 }
+
+function MenuController:init(moduleManager)
+  self.moduleManager = moduleManager
+end
 
 function MenuController:push(menu)
   self.stack.insert(menu)
@@ -20,18 +23,20 @@ function MenuController:openMenu(menu)
 end
 
 function MenuController:run()
+  while client.ispaused() do
+    emu.yield()
+    gui.cleartext()
+    Buttons:update()
+    local currentModule = self.moduleManager:getCurrentModule()
+    currentModule.Menu.draw()
+    currentModule.Menu:run()
+    currentModule:run()
+    currentModule:draw()
+  end
   -- Probably want to pass this down
-  Buttons:update()
-  if not self.open then return end
 end
 
-function MenuController:draw()
-  local x = 0
-  local y = 0
-  local anchor = "topright"
-  -- Should Draw
-
-end
+function MenuController:draw() end
 
 return MenuController
 
