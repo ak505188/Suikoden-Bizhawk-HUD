@@ -20,6 +20,9 @@ while true do
   StateMonitor:run()
   RNGMonitor:run()
   RNGMonitor:draw()
+
   emu.yield()
-  MenuController:run()
+  if client.ispaused() then
+    MenuController:open()
+  end
 end

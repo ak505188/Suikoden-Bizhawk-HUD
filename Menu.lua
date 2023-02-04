@@ -10,16 +10,28 @@ function MenuController:init(moduleManager)
 end
 
 function MenuController:push(menu)
-  self.stack.insert(menu)
+  table.insert(self.stack, menu)
 end
 
 function MenuController:pop()
-  return self.stack.remove()
+  return table.remove(self.stack)
 end
 
-function MenuController:openMenu(menu)
-  self.push(menu)
-  self.open = false
+function MenuController:getCurrentMenu()
+  return self.stack[#self.stack]
+end
+
+function MenuController:open(menu)
+  client.pause()
+  emu.yield()
+  if menu then
+    self:push(menu)
+  else
+    local currentModule = self.moduleManager:getCurrentModule()
+    local moduleMenu = currentModule.Menu;
+    self:push(moduleMenu)
+  end
+  self:run()
 end
 
 function MenuController:run()
@@ -27,9 +39,12 @@ function MenuController:run()
     emu.yield()
     gui.cleartext()
     Buttons:update()
+
+    local currentMenu = self:getCurrentMenu()
+    currentMenu:draw()
+    currentMenu:run()
+
     local currentModule = self.moduleManager:getCurrentModule()
-    currentModule.Menu.draw()
-    currentModule.Menu:run()
     currentModule:run()
     currentModule:draw()
   end

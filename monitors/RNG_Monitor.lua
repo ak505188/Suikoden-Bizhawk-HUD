@@ -2,7 +2,9 @@ local Config = require "Config"
 local Address = require "lib.Address"
 local EncounterLib = require "lib.Encounter"
 local RNGLib = require "lib.RNG"
-local btns = require "lib.Buttons"
+local Buttons = require "lib.Buttons"
+local MenuController = require "Menu"
+
 
 -- These are options for text and how this runs, edit as needed
 -----------------------------------------------------------
@@ -206,24 +208,24 @@ function RNGMonitor:handleRNGReset()
   while not handled do
     emu.yield()
     gui.cleartext()
-    local buttons = joypad.get()
-    if (buttons[btns.Cross]) then
+    Buttons:update()
+    if Buttons.Cross:pressed() then
       self.StartingRNG = self.RNG
       self.RNGIndex = 0
       memory.write_u32_le(Address.RNG, self.RNG)
       self:createNewRNGTable()
       handled = true
-    elseif buttons[btns.Square] then
+    elseif Buttons.Square:pressed() then
       self.StartingRNG = self.RNG
       self.RNGIndex = 0
       self.RNG_RESET_INCOMING = true
       self:createNewRNGTable()
       handled = true
-    elseif buttons[btns.Circle] then
+    elseif Buttons.Circle:pressed() then
       self.RNG = resetData.rng
-    elseif buttons[btns.Up] then
+    elseif Buttons.Up:pressed() then
       self.RNG = self.RNG + 1
-    elseif buttons[btns.Down] then
+    elseif Buttons.Down:pressed() then
       self.RNG = self.RNG - 1
     end
     if not handled then
