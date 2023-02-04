@@ -1,4 +1,5 @@
 local Buttons = require "lib.Buttons"
+local ModuleManager = require "modules.Manager"
 
 local MenuController = {
   stack = {},
@@ -6,7 +7,7 @@ local MenuController = {
 }
 
 function MenuController:init(moduleManager)
-  self.moduleManager = moduleManager
+  ModuleManager = moduleManager
 end
 
 function MenuController:push(menu)
@@ -27,7 +28,7 @@ function MenuController:open(menu)
   if menu then
     self:push(menu)
   else
-    local currentModule = self.moduleManager:getCurrentModule()
+    local currentModule = ModuleManager:getCurrentModule()
     local moduleMenu = currentModule.Menu;
     self:push(moduleMenu)
   end
@@ -44,7 +45,7 @@ function MenuController:run()
     currentMenu:draw()
     currentMenu:run()
 
-    local currentModule = self.moduleManager:getCurrentModule()
+    local currentModule = ModuleManager:getCurrentModule()
     currentModule:run()
     currentModule:draw()
   end

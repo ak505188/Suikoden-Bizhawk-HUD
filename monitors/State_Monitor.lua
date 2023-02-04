@@ -62,6 +62,10 @@ function StateMonitor:run()
   self:read()
 end
 
+function StateMonitor:init()
+  self:read()
+end
+
 
 -- function BattlesHUD:updateState()
 --   if self.Locked then return end

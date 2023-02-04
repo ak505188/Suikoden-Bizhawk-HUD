@@ -4,6 +4,7 @@ local EncounterLib = require "lib.Encounter"
 local RNGLib = require "lib.RNG"
 local Buttons = require "lib.Buttons"
 local MenuController = require "Menu"
+local StateMonitor = require "monitors.State_Monitor"
 
 
 -- These are options for text and how this runs, edit as needed
@@ -250,9 +251,8 @@ function RNGMonitor:draw()
   -- gui.text(GUI_X_POS, GUI_Y_POS + GUI_GAP * 3, string.format('C:%s I:%s H:%s', tostring(self.State.RNG_CHANGED), tostring(self.State.RNG_RESET_INCOMING), tostring(self.State.RNG_RESET_HAPPENED)))
 end
 
-function RNGMonitor:init(stateMonitor)
-  local rng = stateMonitor.RNG.current
-  self.StateMonitor = stateMonitor
+function RNGMonitor:init()
+  local rng = StateMonitor.RNG.current
   self.RNG = rng
   self.StartingRNG = rng
   self.RNGIndex = 0
@@ -260,13 +260,13 @@ function RNGMonitor:init(stateMonitor)
 end
 
 function RNGMonitor:run()
-  self.RNG = self.StateMonitor.RNG.current
+  self.RNG = StateMonitor.RNG.current
 
-  if (self.StateMonitor.IG_CURRENT_GAMESTATE.current == 4 and self.StateMonitor.IG_CURRENT_GAMESTATE.previous ~= 4) then
+  if (StateMonitor.IG_CURRENT_GAMESTATE.current == 4 and StateMonitor.IG_CURRENT_GAMESTATE.previous ~= 4) then
     self.State.RNG_RESET_INCOMING = true
   end
 
-  if self.State.RNG_RESET_INCOMING and self.StateMonitor.RNG.changed then
+  if self.State.RNG_RESET_INCOMING and StateMonitor.RNG.changed then
     self:handleRNGReset()
   -- Handle Natural Overflow or Loadstate
   elseif not self.State.RNG_RESET_HAPPENED and not self:getRNGTable().table[self.RNG] then
