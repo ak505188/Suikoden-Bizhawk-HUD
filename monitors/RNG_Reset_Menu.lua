@@ -1,24 +1,28 @@
-local RNG_Monitor = require "monitors.RNG_Monitor"
+local RNGLib = require "lib.RNG"
+local Address = require "lib.Address"
 local Buttons = require "lib.Buttons"
 local Utils = require "lib.Utils"
 
 local Menu = {}
 
-function Menu:init(RNG_Monitor, eventName)
-
+-- Can't import RNG_Monitor due to circular dependency, so passing it through along with other relevant data.
+function Menu:init(RNGMonitor, eventID)
+  self.RNGMonitor = RNGMonitor
+  self.eventID = eventID
+  self.resetData = RNGLib.GetResetData(eventID)
 end
 
 function Menu:draw()
   local opts = {
     x = 0,
-    y = 0,
+    y = 96,
     gap = 16,
     anchor = "topleft"
   }
   Utils.drawTable({
     "Unknown RNG, assuming RNG Reset",
-    "Event:" .. resetData.name,
-    string.format("RNG: %x", RNG_Monitor.RNG),
+    "Event:" .. self.resetData.name,
+    string.format("RNG: %x", self.RNGMonitor.RNG),
     "X: Continue",
     "O: Reset",
     "Sq: Was Load State",
@@ -28,25 +32,31 @@ function Menu:draw()
 end
 
 function Menu:run()
+  local RNGMonitor = self.RNGMonitor
+
+  -- Need to fix client.unpause() part of this, takes 2 unpauses
+  -- Properly best to properly implement exiting menus in MenuController
+
   if Buttons.Cross:pressed() then
-    RNG_Monitor.StartingRNG = RNG_Monitor.RNG
-    RNG_Monitor.RNGIndex = 0
-    memory.write_u32_le(Address.RNG, RNG_Monitor.RNG)
-    RNG_Monitor:createNewRNGTable()
-    -- handled = true
+    RNGMonitor.StartingRNG = RNGMonitor.RNG
+    RNGMonitor.RNGIndex = 0
+    memory.write_u32_le(Address.RNG, RNGMonitor.RNG)
+    RNGMonitor:createNewRNGTable()
+    return true
   elseif Buttons.Square:pressed() then
-    RNG_Monitor.StartingRNG = RNG_Monitor.RNG
-    RNG_Monitor.RNGIndex = 0
-    RNG_Monitor.RNG_RESET_INCOMING = true
-    RNG_Monitor:createNewRNGTable()
-    -- handled = true
+    RNGMonitor.StartingRNG = RNGMonitor.RNG
+    RNGMonitor.RNGIndex = 0
+    -- RNGMonitor.RNG_RESET_INCOMING = true
+    RNGMonitor:createNewRNGTable()
+    return true
   elseif Buttons.Circle:pressed() then
-    RNG_Monitor.RNG = self.resetData.rng
+    RNGMonitor.RNG = self.resetData.rng
   elseif Buttons.Up:pressed() then
-    RNG_Monitor.RNG = RNG_Monitor.RNG + 1
+    RNGMonitor.RNG = RNGMonitor.RNG + 1
   elseif Buttons.Down:pressed() then
-    RNG_Monitor.RNG = RNG_Monitor.RNG - 1
+    RNGMonitor.RNG = RNGMonitor.RNG - 1
   end
+  return false
 end
 
 return Menu

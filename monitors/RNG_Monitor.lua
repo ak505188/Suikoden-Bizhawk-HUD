@@ -5,6 +5,7 @@ local RNGLib = require "lib.RNG"
 local Buttons = require "lib.Buttons"
 local MenuController = require "Menu"
 local StateMonitor = require "monitors.State_Monitor"
+local RNGResetMenu = require "monitors.RNG_Reset_Menu"
 
 
 -- These are options for text and how this runs, edit as needed
@@ -195,55 +196,16 @@ function RNGMonitor:handleRNGOverflow()
 end
 
 function RNGMonitor:handleRNGReset()
-  client.pause()
-
-  local handled = false
   local eventID = memory.read_u8(Address.EVENT_ID)
-  local resetData = RNGLib.GetResetData(eventID)
+  RNGResetMenu:init(self, eventID)
 
-  -- Cleanup
   self.State.RNG_RESET_INCOMING = false
-  -- TODO: Better handling for start RNG not changing. Currently assuming always changes
-  self.Event = Events.START_RNG_CHANGED
+  self.State.RNG_RESET_HAPPENED = false
+  self.State.START_RNG_CHANGED = true
 
-  while not handled do
-    emu.yield()
-    gui.cleartext()
-    Buttons:update()
-    if Buttons.Cross:pressed() then
-      self.StartingRNG = self.RNG
-      self.RNGIndex = 0
-      memory.write_u32_le(Address.RNG, self.RNG)
-      self:createNewRNGTable()
-      handled = true
-    elseif Buttons.Square:pressed() then
-      self.StartingRNG = self.RNG
-      self.RNGIndex = 0
-      self.RNG_RESET_INCOMING = true
-      self:createNewRNGTable()
-      handled = true
-    elseif Buttons.Circle:pressed() then
-      self.RNG = resetData.rng
-    elseif Buttons.Up:pressed() then
-      self.RNG = self.RNG + 1
-    elseif Buttons.Down:pressed() then
-      self.RNG = self.RNG - 1
-    end
-    if not handled then
-      gui.text(GUI_X_POS, GUI_Y_POS + GUI_GAP * 0, "Unknown RNG, assuming RNG Reset")
-      gui.text(GUI_X_POS, GUI_Y_POS + GUI_GAP * 1, "Event:" .. resetData.name)
-      gui.text(GUI_X_POS, GUI_Y_POS + GUI_GAP * 2, string.format("RNG: %x", self.RNG))
-      gui.text(GUI_X_POS, GUI_Y_POS + GUI_GAP * 3, "X: Continue")
-      gui.text(GUI_X_POS, GUI_Y_POS + GUI_GAP * 4, "O: Reset")
-      gui.text(GUI_X_POS, GUI_Y_POS + GUI_GAP * 5, "Sq: Was Load State")
-      gui.text(GUI_X_POS, GUI_Y_POS + GUI_GAP * 6, "Up: Increase RNG Value")
-      gui.text(GUI_X_POS, GUI_Y_POS + GUI_GAP * 7, "Down: Decrease RNG Value")
-    end
-  end
-
-  client.unpause()
+  MenuController:open(RNGResetMenu)
 end
---
+
 function RNGMonitor:draw()
   gui.text(GUI_X_POS, GUI_Y_POS + GUI_GAP * 0, string.format('%s%x', START_RNG_LABEL, self.StartingRNG))
   gui.text(GUI_X_POS, GUI_Y_POS + GUI_GAP * 1, string.format('%s%d/%d', RNG_INDEX_LABEL, self.RNGIndex, self:getRNGTableSize()))

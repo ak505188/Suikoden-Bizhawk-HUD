@@ -43,13 +43,23 @@ function MenuController:run()
 
     local currentMenu = self:getCurrentMenu()
     currentMenu:draw()
-    currentMenu:run()
+    local menuFinished = currentMenu:run()
 
     local currentModule = ModuleManager:getCurrentModule()
     currentModule:run()
     currentModule:draw()
+
+    if menuFinished then
+      self:pop()
+      if #self.stack == 0 then
+        client.unpause()
+      end
+    end
   end
-  -- Probably want to pass this down
+
+  while not client.ispaused() and #self.stack > 0 do
+    self:pop()
+  end
 end
 
 function MenuController:draw() end

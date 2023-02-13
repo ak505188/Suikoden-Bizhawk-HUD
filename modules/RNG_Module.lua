@@ -1,6 +1,6 @@
 local Utils = require "lib.Utils"
 local Buttons = require "lib.Buttons"
-local RNG_Monitor = require "monitors.RNG_Monitor"
+local RNGMonitor = require "monitors.RNG_Monitor"
 
 local Menu = {}
 
@@ -21,13 +21,13 @@ end
 
 function Menu:run()
   if Buttons.Down:pressed() then
-    RNG_Monitor:adjustRNGIndex(-1)
+    RNGMonitor:adjustRNGIndex(-1)
   elseif Buttons.Up:pressed() then
-    RNG_Monitor:adjustRNGIndex(1)
+    RNGMonitor:adjustRNGIndex(1)
   elseif Buttons.Left:pressed() then
-    RNG_Monitor:adjustRNGIndex(-25)
+    RNGMonitor:adjustRNGIndex(-25)
   elseif Buttons.Right:pressed() then
-    RNG_Monitor:adjustRNGIndex(25)
+    RNGMonitor:adjustRNGIndex(25)
   end
 end
 
@@ -39,7 +39,7 @@ local RNG_Module = {
 function RNG_Module:run() end
 
 function RNG_Module:draw()
-  RNG_Monitor:draw()
+  RNGMonitor:draw()
 end
 
 return RNG_Module
