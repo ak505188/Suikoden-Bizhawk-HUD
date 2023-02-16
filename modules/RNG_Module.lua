@@ -12,7 +12,7 @@ function Menu.draw()
     anchor = "topright"
   }
   Utils.drawTable({
-    "Dn: RNGIndex -1",
+    "Do: RNGIndex -1",
     "Le: RNGIndex -25",
     "Up: RNGIndex +1",
     "Ri: RNGIndex +25",
