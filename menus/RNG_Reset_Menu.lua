@@ -12,13 +12,18 @@ function Menu:init(RNGMonitor, eventID)
   self.resetData = RNGLib.GetResetData(eventID)
 end
 
-function Menu:draw()
-  local opts = {
+function Menu:draw(opts)
+  local drawOpts = {
     x = 0,
     y = 96,
     gap = 16,
     anchor = "topleft"
   }
+  if opts then
+    for k,v in pairs(opts) do
+      drawOpts[k] = v
+    end
+  end
   Utils.drawTable({
     "Unknown RNG, assuming RNG Reset",
     "Event:" .. self.resetData.name,
@@ -28,14 +33,11 @@ function Menu:draw()
     "Sq: Was Load State",
     "Up: Increase RNG Value",
     "Down: Decrease RNG Value"
-  }, opts)
+  }, drawOpts)
 end
 
 function Menu:run()
   local RNGMonitor = self.RNGMonitor
-
-  -- Need to fix client.unpause() part of this, takes 2 unpauses
-  -- Properly best to properly implement exiting menus in MenuController
 
   if Buttons.Cross:pressed() then
     RNGMonitor.StartingRNG = RNGMonitor.RNG

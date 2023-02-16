@@ -38,8 +38,6 @@ local RNG_Module = {
 
 function RNG_Module:run() end
 
-function RNG_Module:draw()
-  RNGMonitor:draw()
-end
+function RNG_Module:draw(opts) return opts end
 
 return RNG_Module

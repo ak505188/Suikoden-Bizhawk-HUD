@@ -2,10 +2,10 @@ local Config = require "Config"
 local Address = require "lib.Address"
 local EncounterLib = require "lib.Encounter"
 local RNGLib = require "lib.RNG"
-local Buttons = require "lib.Buttons"
-local MenuController = require "Menu"
+local MenuController = require "menus.MenuController"
 local StateMonitor = require "monitors.State_Monitor"
-local RNGResetMenu = require "monitors.RNG_Reset_Menu"
+local RNGResetMenu = require "menus.RNG_Reset_Menu"
+local Utils = require "lib.Utils"
 
 
 -- These are options for text and how this runs, edit as needed
@@ -206,11 +206,23 @@ function RNGMonitor:handleRNGReset()
   MenuController:open(RNGResetMenu)
 end
 
-function RNGMonitor:draw()
-  gui.text(GUI_X_POS, GUI_Y_POS + GUI_GAP * 0, string.format('%s%x', START_RNG_LABEL, self.StartingRNG))
-  gui.text(GUI_X_POS, GUI_Y_POS + GUI_GAP * 1, string.format('%s%d/%d', RNG_INDEX_LABEL, self.RNGIndex, self:getRNGTableSize()))
-  gui.text(GUI_X_POS, GUI_Y_POS + GUI_GAP * 2, string.format('%s%x', RNG_VALUE_LABEL, self.RNG))
-  -- gui.text(GUI_X_POS, GUI_Y_POS + GUI_GAP * 3, string.format('C:%s I:%s H:%s', tostring(self.State.RNG_CHANGED), tostring(self.State.RNG_RESET_INCOMING), tostring(self.State.RNG_RESET_HAPPENED)))
+function RNGMonitor:draw(opts)
+  local drawOpts = {
+    x = GUI_X_POS,
+    y = GUI_Y_POS,
+    gap = GUI_GAP,
+  }
+  if opts then
+    for k,v in pairs(opts) do
+      drawOpts[k] = v
+    end
+  end
+  local textToDraw = {
+    string.format('%s%x', START_RNG_LABEL, self.StartingRNG),
+    string.format('%s%d/%d', RNG_INDEX_LABEL, self.RNGIndex, self:getRNGTableSize()),
+    string.format('%s%x', RNG_VALUE_LABEL, self.RNG)
+  }
+  return Utils.drawTable(textToDraw, drawOpts)
 end
 
 function RNGMonitor:init()

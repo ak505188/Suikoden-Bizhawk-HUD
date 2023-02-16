@@ -18,6 +18,13 @@ local function drawTable(strs, opts)
       y = y + gap
     end
   end
+  return {
+    x = x,
+    y = y + gap,
+    gap = gap,
+    anchor = anchor,
+    reverse = reverse
+  }
 end
 
 M.drawTable = drawTable;

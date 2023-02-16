@@ -6,8 +6,8 @@ local MenuController = {
   current = {},
 }
 
-function MenuController:init(moduleManager)
-  ModuleManager = moduleManager
+function MenuController:init(monitors)
+  self.monitors = monitors
 end
 
 function MenuController:push(menu)
@@ -41,14 +41,17 @@ function MenuController:run()
     gui.cleartext()
     Buttons:update()
 
+    local drawOpts = self:draw()
+
     local currentMenu = self:getCurrentMenu()
-    currentMenu:draw()
+    drawOpts = currentMenu:draw(drawOpts)
     local menuFinished = currentMenu:run()
 
     local currentModule = ModuleManager:getCurrentModule()
     currentModule:run()
-    currentModule:draw()
+    local drawOpts = currentModule:draw(drawOpts)
 
+    self:draw()
     if menuFinished then
       self:pop()
       if #self.stack == 0 then
@@ -62,7 +65,13 @@ function MenuController:run()
   end
 end
 
-function MenuController:draw() end
+function MenuController:draw()
+  local drawOpts = {}
+  for _,monitor in pairs(self.monitors) do
+    drawOpts = monitor:draw(drawOpts)
+  end
+  return drawOpts
+end
 
 return MenuController
 

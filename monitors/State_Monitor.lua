@@ -1,5 +1,6 @@
 local Address = require "lib.Address"
 local PartyLib = require "lib.Party"
+local Utils = require "lib.Utils"
 
 function table.clone(t)
   return { unpack(t) }
@@ -30,17 +31,23 @@ function StateMonitor:updateState(key, value)
   self[key].changed = value ~= previousValue
 end
 
-function StateMonitor:draw(x,y,y_offset)
-  y_offset = y_offset or 16
+function StateMonitor:draw(opts)
+  local drawOpts = {
+    x = opts.x or 0,
+    y = opts.y or 96,
+    gap = opts.gap or 16
+  }
+  if opts then
+    for k,v in pairs(opts) do
+      drawOpts[k] = v
+    end
+  end
   local textToDraw = {
     string.format("G:%d P:%d", self.IG_CURRENT_GAMESTATE.current, self.IG_PREVIOUS_GAMESTATE.current),
     string.format("W:%d A:%d S:%d", self.WM_ZONE.current, self.AREA_ZONE.current, self.SCREEN_ZONE.current),
     string.format("ER:%d C:%s PL:%d", self.ENCOUNTER_RATE.current, self.CHAMPION_RUNE_EQUIPPED.current and "T" or "F", self.PARTY_LEVEL.current),
   }
-
-  for k,v in pairs(textToDraw) do
-    gui.text(x, y+((k-1)*y_offset), v)
-  end
+  return Utils.drawTable(textToDraw, drawOpts)
 end
 
 function StateMonitor:read()
