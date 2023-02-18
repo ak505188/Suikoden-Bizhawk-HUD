@@ -1,5 +1,3 @@
-local M = {}
-
 local Gamestates = {
   ["TITLE"] = 0,
   ["WORLD_MAP"] = 1,
@@ -9,6 +7,4 @@ local Gamestates = {
   ["GAME_OVER"] = 99,
 }
 
-M.Gamestates = Gamestates
-
-return M
+return Gamestates
