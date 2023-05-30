@@ -31,11 +31,11 @@ local function isPossibleBattle(rng, isWorldmap)
   local rng2 = RNGLib.getRNG2(rng)
   local res
   if isWorldmap then
-    res = rng2 - bit.lshift(bit.rshift(rng2, 8), 8)
+    res = rng2 - ((rng2 >> 8) << 8)
     if res < 8 then return res end
     return false
   end
-  res = bit.band(math.floor(rng2/0x7f), 0xff)
+  res = math.floor(rng2/0x7f) & 0xff
   if res < 5 then return res end
   return false
 end

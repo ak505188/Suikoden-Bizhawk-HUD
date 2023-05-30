@@ -16,12 +16,8 @@ function UpdateGamestate ()
 end
 
 function GetEnemyData()
-  local enemyGroupAddr = bit.band(
-    mainmemory.read_u32_le(Address.ENEMY_STRUCT_PTR),
-    0x7fffffff)
-  local encounterTableAddr = bit.band(
-    mainmemory.read_u32_le(Address.ENEMY_ENC_TABLE_PTR),
-    0x7fffffff)
+  local enemyGroupAddr = mainmemory.read_u32_le(Address.ENEMY_STRUCT_PTR) & 0x7fffffff
+  local encounterTableAddr = mainmemory.read_u32_le(Address.ENEMY_ENC_TABLE_PTR) & 0x7fffffff
 
   local groupSize = mainmemory.read_u8(enemyGroupAddr)
   local enemies = mainmemory.read_bytes_as_array(enemyGroupAddr + 4, 6)
@@ -47,9 +43,7 @@ function ReadEnemyTable(addr)
   local enemies = {}
   for i=1, encounterTableLength, 1 do
     local enemy = {}
-    local enemyAddr = bit.band(
-      mainmemory.read_u32_le(addr + i * 4),
-      0x7fffffff)
+    local enemyAddr = mainmemory.read_u32_le(addr + i * 4) & 0x7fffffff
     local enemyRawData = mainmemory.read_bytes_as_array(enemyAddr, 60)
     enemy.Address = enemyAddr
     enemy.Name = Charmap.readStringFromList(enemyRawData, 0, 15)
@@ -85,9 +79,7 @@ function ReadEnemyTable(addr)
 end
 
 function GetItemName(id)
-  local item_name_addr = bit.band(
-      mainmemory.read_u32_le(Address.ITEM_NAME_PTR_1 + (id - 1) * 4),
-      0x7fffffff)
+  local item_name_addr = mainmemory.read_u32_le(Address.ITEM_NAME_PTR_1 + (id - 1) * 4) & 0x7fffffff
   local item_name_raw_data = mainmemory.read_bytes_as_array(item_name_addr, 16)
   return Charmap.readStringFromList(item_name_raw_data)
 end

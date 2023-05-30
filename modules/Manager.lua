@@ -27,7 +27,7 @@ end
 function ModuleManager:prevModule()
 end
 
-function ModuleManager:getCurrentModule()
+function ModuleManager:getCurrent()
   return self.modules[self.currentModule]
 end
 

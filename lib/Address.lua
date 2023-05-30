@@ -17,7 +17,7 @@ local Address = {
 }
 
 function Address.sanitize(addr)
-  return bit.band(addr, 0x001fffff)
+  return addr & 0x001fffff
 end
 
 return Address

@@ -1,5 +1,3 @@
-local M = {}
-
 local function drawTable(strs, opts)
   local x = opts.x or 0
   local y = opts.y or 0
@@ -27,5 +25,11 @@ local function drawTable(strs, opts)
   }
 end
 
-M.drawTable = drawTable;
-return M;
+local function cloneTable(t)
+  return { table.unpack(t) }
+end
+
+return {
+  drawTable = drawTable,
+  cloneTable = cloneTable
+}

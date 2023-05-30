@@ -14,11 +14,12 @@ MenuController:init({ RNGMonitor, StateMonitor })
 function draw()
   local opts = RNGMonitor:draw()
   opts = StateMonitor:draw(opts)
-  ModuleManager:getCurrentModule():draw(opts)
+  ModuleManager:getCurrent():draw(opts)
 end
 
 while true do
   emu.frameadvance()
+  if (client.ispaused()) then MenuController:run() end
   StateMonitor:run()
   RNGMonitor:run()
 

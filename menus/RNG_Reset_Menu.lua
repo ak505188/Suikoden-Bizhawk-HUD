@@ -52,7 +52,7 @@ function Menu:run()
     RNGMonitor:createNewRNGTable()
     return true
   elseif Buttons.Circle:pressed() then
-    RNGMonitor.RNG = self.resetData.rng
+    RNGMonitor.RNG = self.resetData:getRandomRNG()
   elseif Buttons.Up:pressed() then
     RNGMonitor.RNG = RNGMonitor.RNG + 1
   elseif Buttons.Down:pressed() then

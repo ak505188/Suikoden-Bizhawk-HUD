@@ -1,5 +1,3 @@
-local M = {}
-
 local eventNames = {
   "Pannu Yakuta Battle",
   "Fortress of Garan Battle",
@@ -48,7 +46,7 @@ local dragonRideRNGValues = {
 }
 
 local function getRandomResetValue(possibleValues)
-	local length = table.getn(possibleValues);
+	local length = #possibleValues;
 	return possibleValues[math.random(1, length)];
 end
 
@@ -65,8 +63,8 @@ local function getDragonRideData()
 		eventName = "Unknown Dragon Ride?"
 	end
 
-  local rng = getRandomResetValue(dragonRideRNGValues[dragonRideID + 1])
-	return { rng = rng; name = eventName }
+  local RNGResetValues = dragonRideRNGValues[dragonRideID + 1]
+	return { RNGResetValues = RNGResetValues; name = eventName }
 end
 
 local function nextRNG(rng)
@@ -79,26 +77,31 @@ local function nextRNG(rng)
 end
 
 local function getRNG2(rng)
-  return bit.band(bit.rshift(rng, 16), 0x7fff)
+  return (rng >> 16) & 0x7fff
 end
 
 local function isRun(rng2)
   return rng2 % 100 > 50
 end
 
-M.GetResetData = function(eventID)
+local function GetResetData(eventID)
+  local ResetData = {}
 	if (eventID == 9) then
-    return getDragonRideData()
+    ResetData = getDragonRideData()
 	else
 		-- rngResetVal = getRandomResetValue(eventRNGValues[eventID + 1]);
-		local rngResetVal = getRandomResetValue(eventRNGValues[eventID + 1]);
-		local eventName = eventNames[eventID + 1]
-    return { rng = rngResetVal, name = eventName }
+		ResetData.RNGResetValues = eventRNGValues[eventID + 1]
+    ResetData.name = eventNames[eventID + 1]
 	end
+
+  function ResetData:getRandomRNG() return self.RNGResetValues[math.random(1, #self.RNGResetValues)] end
+
+  return ResetData
 end
 
-M.nextRNG = nextRNG
-M.getRNG2 = getRNG2
-M.isRun = isRun
-
-return M
+return {
+  nextRNG = nextRNG,
+  getRNG2 = getRNG2,
+  isRun = isRun,
+  GetResetData = GetResetData
+}

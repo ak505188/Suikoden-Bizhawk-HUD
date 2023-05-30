@@ -28,7 +28,7 @@ function MenuController:open(menu)
   if menu then
     self:push(menu)
   else
-    local currentModule = ModuleManager:getCurrentModule()
+    local currentModule = ModuleManager:getCurrent()
     local moduleMenu = currentModule.Menu;
     self:push(moduleMenu)
   end
@@ -47,7 +47,7 @@ function MenuController:run()
     drawOpts = currentMenu:draw(drawOpts)
     local menuFinished = currentMenu:run()
 
-    local currentModule = ModuleManager:getCurrentModule()
+    local currentModule = ModuleManager:getCurrent()
     currentModule:run()
     local drawOpts = currentModule:draw(drawOpts)
 

@@ -2,10 +2,6 @@ local Address = require "lib.Address"
 local PartyLib = require "lib.Party"
 local Utils = require "lib.Utils"
 
-function table.clone(t)
-  return { unpack(t) }
-end
-
 local initVarState = {
   current = nil,
   previous = nil,
@@ -13,15 +9,15 @@ local initVarState = {
 }
 
 local StateMonitor = {
-  IG_CURRENT_GAMESTATE = table.clone(initVarState),
-  IG_PREVIOUS_GAMESTATE = table.clone(initVarState),
-  WM_ZONE = table.clone(initVarState),
-  AREA_ZONE = table.clone(initVarState),
-  SCREEN_ZONE = table.clone(initVarState),
-  ENCOUNTER_RATE = table.clone(initVarState),
-  CHAMPION_RUNE_EQUIPPED = table.clone(initVarState),
-  PARTY_LEVEL = table.clone(initVarState),
-  RNG = table.clone(initVarState),
+  IG_CURRENT_GAMESTATE = Utils.cloneTable(initVarState),
+  IG_PREVIOUS_GAMESTATE = Utils.cloneTable(initVarState),
+  WM_ZONE = Utils.cloneTable(initVarState),
+  AREA_ZONE = Utils.cloneTable(initVarState),
+  SCREEN_ZONE = Utils.cloneTable(initVarState),
+  ENCOUNTER_RATE = Utils.cloneTable(initVarState),
+  CHAMPION_RUNE_EQUIPPED = Utils.cloneTable(initVarState),
+  PARTY_LEVEL = Utils.cloneTable(initVarState),
+  RNG = Utils.cloneTable(initVarState),
 }
 
 function StateMonitor:updateState(key, value)
