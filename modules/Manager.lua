@@ -31,4 +31,8 @@ function ModuleManager:getCurrent()
   return self.modules[self.currentModule]
 end
 
+function ModuleManager:draw() end
+
+function ModuleManager:run() end
+
 return ModuleManager
