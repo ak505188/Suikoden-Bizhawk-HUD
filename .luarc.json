@@ -1,3 +1,12 @@
 {
-  "runtime.version": "Lua 5.1",
+  "$schema": "https://raw.githubusercontent.com/sumneko/vscode-lua/master/setting/schema.json",
+  "runtime.version": "Lua 5.4",
+  "diagnostics.globals": [
+    "bizstring",
+    "client",
+    "emu",
+    "gui",
+    "memory",
+    "joypad",
+  ]
 }
