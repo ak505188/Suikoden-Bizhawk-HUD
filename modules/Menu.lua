@@ -4,7 +4,7 @@ local ModuleManager = require "modules.Manager"
 
 local Menu = {}
 
-function Menu.draw()
+function Menu:draw()
   local opts = {
     x = 0,
     y = 0,

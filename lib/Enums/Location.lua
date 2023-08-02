@@ -1,7 +1,7 @@
 local Locations = {
   WORLD_MAP = "WORLD_MAP",
   OVERWORLD = "OVERWORLD",
-  UNKNOWN = "UNKNOWN"
+  OTHER = "OTHER"
 }
 
 return Locations

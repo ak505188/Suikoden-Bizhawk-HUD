@@ -1,6 +1,6 @@
 local Menu = require "modules.Battles.menu"
 local Lib = require "lib.Encounter"
-local Gamestates = require "lib.Gamestates"
+local Gamestate = require "lib.Enums.Gamestate"
 
 local RNGMonitor = require "monitors.RNG_Monitor"
 local StateMonitor = require "monitors.State_Monitor"
@@ -30,7 +30,7 @@ function Battles_Module:isUpdateRequired()
     StateMonitor.IG_PREVIOUS_GAMESTATE.current
   )
 
-  if location ~= Gamestates.WORLD_MAP and location ~= Gamestates.OVERWORLD then
+  if location ~= Gamestate.WORLD_MAP and location ~= Gamestate.OVERWORLD then
     return false
   end
 
@@ -78,12 +78,12 @@ function Battles_Module:isUpdateRequired()
   local name
   local data
 
-  if location == Gamestates.WORLD_MAP then
+  if location == Gamestate.WORLD_MAP then
     name = ZoneInfo[wm_zone].name
     data = EncounterTable[name]
     if not data then return false end
     encounterRate = 8
-  elseif location == Gamestates.OVERWORLD then
+  elseif location == Gamestate.OVERWORLD then
     name = ZoneInfo[wm_zone][area_zone]
     data = EncounterTable[name]
     if not data then return false end

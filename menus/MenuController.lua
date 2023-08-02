@@ -54,7 +54,7 @@ function MenuController:run()
 
     if not menuFinished then
       local currentMenu = self:getCurrentMenu()
-      menuDrawOpts = currentMenu.draw(menuDrawOpts)
+      menuDrawOpts = currentMenu:draw(menuDrawOpts)
       menuFinished = currentMenu:run()
     end
 

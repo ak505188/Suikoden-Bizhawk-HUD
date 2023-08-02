@@ -10,6 +10,7 @@ function Menu:init(RNGMonitor, eventID)
   self.RNGMonitor = RNGMonitor
   self.eventID = eventID
   self.resetData = RNGLib.GetResetData(eventID)
+  Utils.printDebug("RNG Reset Data", self.resetData)
 end
 
 function Menu:draw(opts)

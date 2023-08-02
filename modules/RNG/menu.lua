@@ -4,7 +4,7 @@ local RNGMonitor = require "monitors.RNG_Monitor"
 
 local Menu = {}
 
-function Menu.draw(drawOpts)
+function Menu:draw(drawOpts)
   local opts = {
     x = drawOpts.x or 0,
     y = drawOpts.y or 0,

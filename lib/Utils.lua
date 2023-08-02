@@ -52,8 +52,12 @@ local function printDebug(name, str, max)
     printDebugTable[name].count = 0
   end
 
+  if (type(str) == "table") then
+    str = tableToStr(str)
+  end
+
   if printDebugTable[name].count < printDebugTable[name].max then
-    print(name .. str)
+    print(name .. "\n" .. str .. "\n")
     printDebugTable[name].count = printDebugTable[name].count + 1
   end
 end
