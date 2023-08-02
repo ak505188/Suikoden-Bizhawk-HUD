@@ -1,7 +1,9 @@
 local RNGLib = require "lib.RNG"
 local EncounterTable = require "lib.EncounterTable"
 local Address = require "lib.Address"
-local M = {}
+
+local Gamestate = require "lib.Enums.Gamestate"
+local Location = require "lib.Enums.Location"
 
 local function onWorldMapOrOverworld(gamestate, prev_gamestate)
   gamestate = gamestate or memory.read_u8(Address.GAMESTATE)
@@ -12,9 +14,9 @@ end
 
 local function locationIntToKey(gamestate)
   gamestate = gamestate or onWorldMapOrOverworld()
-  if gamestate == 1 then return "WM" end
-  if gamestate == 2 then return "OW" end
-  return "Other"
+  if gamestate == Gamestate.WORLD_MAP then return Location.WORLD_MAP end
+  if gamestate == Gamestate.OVERWORLD then return Location.OVERWORLD end
+  return Location.OTHER
 end
 
 -- rng2 is included as an optional parameter for optimization purposes
@@ -47,23 +49,22 @@ local TableSizes = {
 
 for _,area in pairs(EncounterTable) do
   local encounterTableSize = #area.encounters
-  if area.areaType == 1 then
+  if area.areaType == Gamestate.WORLD_MAP then
     if not TableSizes.WM[encounterTableSize] then
       TableSizes.WM[encounterTableSize] = true
     end
   end
-  if area.areaType == 2 then
+  if area.areaType == Gamestate.OVERWORLD then
     if not TableSizes.OW[encounterTableSize] then
       TableSizes.OW[encounterTableSize] = true
     end
   end
 end
 
-
-M.onWorldMapOrOverworld = onWorldMapOrOverworld
-M.getEncounterIndex = getEncounterIndex
-M.isPossibleBattle = isPossibleBattle
-M.locationIntToKey = locationIntToKey
-M.TableSizes = TableSizes
-
-return M
+return {
+  getEncounterIndex = getEncounterIndex,
+  isPossibleBattle = isPossibleBattle,
+  locationIntToKey = locationIntToKey,
+  onWorldMapOrOverworld = onWorldMapOrOverworld,
+  TableSizes = TableSizes,
+}

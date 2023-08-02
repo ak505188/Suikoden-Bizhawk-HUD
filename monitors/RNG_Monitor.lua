@@ -6,6 +6,7 @@ local MenuController = require "menus.MenuController"
 local StateMonitor = require "monitors.State_Monitor"
 local RNGResetMenu = require "menus.RNG_Reset_Menu"
 local Utils = require "lib.Utils"
+local Events = require "lib.Enums.RNG_Events"
 
 
 -- These are options for text and how this runs, edit as needed
@@ -23,14 +24,6 @@ local GUI_GAP = Config.RNG_HUD.GUI_GAP
 local INITITAL_BUFFER_SIZE = Config.RNG_HUD.INITITAL_BUFFER_SIZE -- Initial look-ahead
 local BUFFER_INCREMENT_SIZE = Config.RNG_HUD.BUFFER_INCREMENT_SIZE -- Later look-ahead size per frame
 local BUFFER_MARGIN_SIZE = Config.RNG_HUD.BUFFER_MARGIN_SIZE -- When difference between current length & current RNG Index is greater than this, look ahead again.
-
-local Events = {
-  NOT_INITIALIZED=1,
-  NO_CHANGE=2,
-  RNG_INCREMENT=3,
-  RNG_DECREMENT=4,
-  START_RNG_CHANGED=5
-}
 
 local RNGMonitor = {
   RNGTables = {},
