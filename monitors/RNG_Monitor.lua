@@ -1,12 +1,15 @@
 local Config = require "Config"
+local StateMonitor = require "monitors.State_Monitor"
+
+local MenuController = require "menus.MenuController"
+local RNGResetMenu = require "menus.RNG_Reset_Menu"
+
 local Address = require "lib.Address"
 local EncounterLib = require "lib.Encounter"
 local RNGLib = require "lib.RNG"
-local MenuController = require "menus.MenuController"
-local StateMonitor = require "monitors.State_Monitor"
-local RNGResetMenu = require "menus.RNG_Reset_Menu"
 local Utils = require "lib.Utils"
 local Events = require "lib.Enums.RNG_Events"
+local Locations = require "lib.Enums.Location"
 
 
 -- These are options for text and how this runs, edit as needed
@@ -55,10 +58,10 @@ function RNGMonitor:generateRNGBuffer(RNGTable, bufferLength)
       nextRNG2 = RNGLib.getRNG2(nextRNG)
       isRun = RNGLib.isRun(RNGLib.getRNG2(RNGLib.nextRNG(nextRNG)))
 
-      for size,_ in pairs(EncounterLib.TableSizes.WM) do
+      for size,_ in pairs(EncounterLib.TableSizes[Locations.WORLD_MAP]) do
         battles[size] = EncounterLib.getEncounterIndex(nextRNG, size, nextRNG2)
       end
-      table.insert(RNGTable.WM, {
+      table.insert(RNGTable[Locations.WORLD_MAP], {
         index = index,
         rng = rng,
         value = isBattleWM,
@@ -72,10 +75,10 @@ function RNGMonitor:generateRNGBuffer(RNGTable, bufferLength)
       nextRNG2 = nextRNG2 or RNGLib.getRNG2(nextRNG)
       isRun = isRun or RNGLib.isRun(RNGLib.getRNG2(RNGLib.nextRNG(nextRNG)))
 
-      for size,_ in pairs(EncounterLib.TableSizes.OW) do
+      for size,_ in pairs(EncounterLib.TableSizes[Locations.OVERWORLD]) do
         battles[size] = EncounterLib.getEncounterIndex(nextRNG, size, nextRNG2)
       end
-      table.insert(RNGTable.OW, {
+      table.insert(RNGTable[Locations.OVERWORLD], {
         index = index,
         rng = rng,
         value = isBattleOW,
@@ -114,8 +117,8 @@ function RNGMonitor:createNewRNGTable(rng)
       },
       last = rng
     }
-    self.RNGTables[rng].WM = {}
-    self.RNGTables[rng].OW = {}
+    self.RNGTables[rng][Locations.WORLD_MAP] = {}
+    self.RNGTables[rng][Locations.OVERWORLD] = {}
     self:generateRNGBuffer(self.RNGTables[rng], INITITAL_BUFFER_SIZE)
   end
 end

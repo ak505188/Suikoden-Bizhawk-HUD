@@ -7,14 +7,14 @@ local ModuleManager = require "modules.Manager"
 local RNGModule = require "modules.RNG.module"
 local BattleModule = require "modules.Battles.module"
 
-ModuleManager:addModule(RNGModule)
 ModuleManager:addModule(BattleModule)
+ModuleManager:addModule(RNGModule)
 
 StateMonitor:init()
 RNGMonitor:init()
 MenuController:init({ RNGMonitor, StateMonitor })
 
-function draw()
+local function draw()
   local opts = RNGMonitor:draw()
   opts = StateMonitor:draw(opts)
   ModuleManager:getCurrent():draw(opts)
@@ -27,6 +27,8 @@ while true do
   RNGMonitor:run()
 
   draw()
+
+  ModuleManager:run()
 
   emu.yield()
   if client.ispaused() then

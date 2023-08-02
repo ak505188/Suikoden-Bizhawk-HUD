@@ -43,20 +43,20 @@ local function isPossibleBattle(rng, isWorldmap)
 end
 
 local TableSizes = {
-  WM = {},
-  OW = {},
+  [Location.WORLD_MAP] = {},
+  [Location.OVERWORLD] = {},
 }
 
 for _,area in pairs(EncounterTable) do
   local encounterTableSize = #area.encounters
   if area.areaType == Gamestate.WORLD_MAP then
-    if not TableSizes.WM[encounterTableSize] then
-      TableSizes.WM[encounterTableSize] = true
+    if not TableSizes[Location.WORLD_MAP][encounterTableSize] then
+      TableSizes[Location.WORLD_MAP][encounterTableSize] = true
     end
   end
   if area.areaType == Gamestate.OVERWORLD then
-    if not TableSizes.OW[encounterTableSize] then
-      TableSizes.OW[encounterTableSize] = true
+    if not TableSizes[Location.OVERWORLD][encounterTableSize] then
+      TableSizes[Location.OVERWORLD][encounterTableSize] = true
     end
   end
 end

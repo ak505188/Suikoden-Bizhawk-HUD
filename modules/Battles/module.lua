@@ -2,6 +2,7 @@ local Menu = require "modules.Battles.menu"
 local Lib = require "lib.Encounter"
 local Gamestate = require "lib.Enums.Gamestate"
 local Location = require "lib.Enums.Location"
+local RNG_Events = require "lib.Enums.RNG_Events"
 local ZoneInfo = require "lib.ZoneInfo"
 local EncounterTable = require "lib.EncounterTable"
 local Utils = require "lib.Utils"
@@ -63,12 +64,12 @@ function Battles_Module:updateState()
   local name
   local data
 
-  if StateMonitor.LOCATION == Location.WORLD_MAP then
+  if StateMonitor.LOCATION.current == Location.WORLD_MAP then
     name = ZoneInfo[StateMonitor.WM_ZONE.current].name
     data = EncounterTable[name]
     if not data then return false end
     encounterRate = 8
-  elseif StateMonitor.LOCATION == Location.OVERWORLD then
+  elseif StateMonitor.LOCATION.current == Location.OVERWORLD then
     name = ZoneInfo[StateMonitor.WM_ZONE.current][StateMonitor.AREA_ZONE.current]
     data = EncounterTable[name]
     if not data then return false end
@@ -106,15 +107,16 @@ end
 function Battles_Module:run()
   local stateChanged = self:isUpdateRequired()
 
-  -- What does this line do?
-  -- Think it checks if table is empty
-  if not next(self.State) then return end
-
-  if self.RNG_HUD.State.RNG_CHANGED or stateChanged then
-    self:updateTablePosition()
+  if not next(self.State) then
+    Utils.printDebug("Pre Battle Module State", self.State)
+    self:updateState()
+    Utils.printDebug("Battle Module State", self.State)
+    return
   end
 
+  if RNGMonitor.Event ~= RNG_Events.NO_CHANGE or stateChanged then
+    self:updateTablePosition()
+  end
 end
-
 
 return Battles_Module

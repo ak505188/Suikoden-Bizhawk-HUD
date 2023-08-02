@@ -37,6 +37,8 @@ end
 
 function ModuleManager:draw() end
 
-function ModuleManager:run() end
+function ModuleManager:run()
+  self:getCurrent():run()
+end
 
 return ModuleManager

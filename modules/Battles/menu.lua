@@ -3,12 +3,12 @@ local Buttons = require "lib.Buttons"
 
 local Menu = {}
 
-function Menu.draw()
+function Menu:draw(drawOpts)
   local opts = {
-    x = 0,
-    y = 0,
-    gap = 16,
-    anchor = "topright"
+    x = drawOpts.x or 0,
+    y = drawOpts.y or 0,
+    gap = drawOpts.gap or 16,
+    anchor = drawOpts.anchor or "topright"
   }
   return Utils.drawTable({
     "X: Go to Battle",

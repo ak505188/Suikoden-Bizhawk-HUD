@@ -52,7 +52,9 @@ local function printDebug(name, str, max)
     printDebugTable[name].count = 0
   end
 
-  if (type(str) == "table") then
+  if type(str) == "nil" then
+    str = "nil"
+  elseif (type(str) == "table") then
     str = tableToStr(str)
   end
 
