@@ -174,11 +174,11 @@ local reverseCharmap = {
 	['-']=0x5c,
 }
 
-function getChar(num)
+local function getChar(num)
 	return charmap[num]
 end
 
-function getStr(list)
+local function getStr(list)
 	local str = ""
 	for i=1,#list do
 		str = str .. getChar(list[i])
@@ -186,7 +186,7 @@ function getStr(list)
 	return str
 end
 
-function strToHex(str)
+local function strToHex(str)
 	local list = {}
 	for i=0,#str do
 		list[i] = reverseCharmap[str:sub(i,i)]
@@ -194,7 +194,7 @@ function strToHex(str)
 	return list
 end
 
-function readStringFromMemory(address, length)
+local function readStringFromMemory(address, length)
   length = length or 16
   local str = ""
   for i = 0, length-1 do
@@ -206,12 +206,11 @@ function readStringFromMemory(address, length)
   return str
 end
 
-local charmaplib = {}
-charmaplib.charmap = charmap;
-charmaplib.reverseCharmap = reverseCharmap;
-charmaplib.getChar = getChar;
-charmaplib.getStr = getStr;
-charmaplib.strToHex = strToHex;
-charmaplib.readStringFromMemory = readStringFromMemory
-
-return charmaplib;
+return {
+  charmap = charmap,
+  reverseCharmap = reverseCharmap,
+  getChar = getChar,
+  getStr = getStr,
+  strToHex = strToHex,
+  readStringFromMemory = readStringFromMemory
+}

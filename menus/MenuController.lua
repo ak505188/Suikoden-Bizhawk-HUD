@@ -1,5 +1,7 @@
 local Buttons = require "lib.Buttons"
 local ModuleManager = require "modules.Manager"
+local ModuleMenu = require "modules.Menu"
+local Utils = require "lib.Utils"
 
 local MenuController = {
   stack = {},
@@ -41,15 +43,20 @@ function MenuController:run()
     gui.cleartext()
     Buttons:update()
 
-    local drawOpts = self:draw()
-
-    local currentMenu = self:getCurrentMenu()
-    drawOpts = currentMenu:draw(drawOpts)
-    local menuFinished = currentMenu:run()
+    local monitorModuleDrawOpts = self:draw()
 
     local currentModule = ModuleManager:getCurrent()
     currentModule:run()
-    local drawOpts = currentModule:draw(drawOpts)
+    monitorModuleDrawOpts = currentModule:draw(monitorModuleDrawOpts)
+
+    local menuDrawOpts = ModuleMenu:draw()
+    local menuFinished = ModuleMenu:run()
+
+    if not menuFinished then
+      local currentMenu = self:getCurrentMenu()
+      menuDrawOpts = currentMenu.draw(menuDrawOpts)
+      menuFinished = currentMenu:run()
+    end
 
     self:draw()
     if menuFinished then

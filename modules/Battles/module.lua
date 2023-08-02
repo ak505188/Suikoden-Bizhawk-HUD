@@ -11,7 +11,7 @@ local Battles_Module = {
 }
 
 function Battles_Module:run()
-  local stateChanged = stateChanged = self:updateState()
+  local stateChanged = self:updateState()
 
   -- What does this line do?
   if not next(self.State) then return end
@@ -24,14 +24,11 @@ end
 
 function Battles_Module:draw(opts) return opts end
 
-return Battles_Module
-
-
-function BattlesHUD:isUpdateRequired()
-  local gameState = StateMonitor.IG_CURRENT_GAMESTATE.current
-  local prevGameState = StateMonitor.IG_PREVIOUS_GAMESTATE.current
-
-  local location = Lib.onWorldMapOrOverworld(gameState, prevGameState)
+function Battles_Module:isUpdateRequired()
+  local location = Lib.onWorldMapOrOverworld(
+    StateMonitor.IG_CURRENT_GAMESTATE.current,
+    StateMonitor.IG_PREVIOUS_GAMESTATE.current
+  )
 
   if location ~= Gamestates.WORLD_MAP and location ~= Gamestates.OVERWORLD then
     return false
@@ -111,7 +108,7 @@ function BattlesHUD:isUpdateRequired()
   return true
 end
 
-function BattlesHUD:switchArea(areaName)
+function Battles_Module:switchArea(areaName)
   local areaData = EncounterTable[areaName]
 
   self.State.Location = areaData.areaType
@@ -121,3 +118,5 @@ function BattlesHUD:switchArea(areaName)
   self.State.EncounterRate = areaData.encounterRate or 8
   self.State.EncounterTableSize = #areaData.encounters
 end
+
+return Battles_Module

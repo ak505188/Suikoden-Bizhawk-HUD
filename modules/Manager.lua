@@ -25,6 +25,10 @@ function ModuleManager:nextModule()
 end
 
 function ModuleManager:prevModule()
+  -- TODO: Implement, this is just copy of nextModule
+  if #self.modules > 1 then
+    self.currentModule = self.currentModule % #self.modules + 1
+  end
 end
 
 function ModuleManager:getCurrent()

@@ -5,8 +5,11 @@ local MenuController = require "menus.MenuController"
 
 local ModuleManager = require "modules.Manager"
 local RNGModule = require "modules.RNG.module"
+local BattleModule = require "modules.Battles.module"
 
 ModuleManager:addModule(RNGModule)
+ModuleManager:addModule(BattleModule)
+
 StateMonitor:init()
 RNGMonitor:init()
 MenuController:init({ RNGMonitor, StateMonitor })

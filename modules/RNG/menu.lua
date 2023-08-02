@@ -4,19 +4,20 @@ local RNGMonitor = require "monitors.RNG_Monitor"
 
 local Menu = {}
 
-function Menu.draw()
+function Menu.draw(drawOpts)
   local opts = {
-    x = 0,
-    y = 0,
-    gap = 16,
-    anchor = "topright"
+    x = drawOpts.x or 0,
+    y = drawOpts.y or 0,
+    gap = drawOpts.gap or 16,
+    anchor = drawOpts.anchor or "topright"
   }
-  Utils.drawTable({
+  local newDrawOpts = Utils.drawTable({
     "Do: RNGIndex -1",
     "Le: RNGIndex -25",
     "Up: RNGIndex +1",
     "Ri: RNGIndex +25",
   }, opts)
+  return newDrawOpts
 end
 
 function Menu:run()

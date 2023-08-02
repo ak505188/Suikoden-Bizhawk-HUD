@@ -29,7 +29,38 @@ local function cloneTable(t)
   return { table.unpack(t) }
 end
 
+local function tableToStr(o)
+  if type(o) == 'table' then
+    local s = '{ '
+    for k,v in pairs(o) do
+      if type(k) ~= 'number' then k = '"'..k..'"' end
+      s = s .. '['..k..'] = ' .. tableToStr(v) .. ','
+    end
+    return s .. '} '
+  else
+    return tostring(o)
+  end
+end
+
+local printDebugTable = {}
+
+-- Prints a limited amount of times, so you don't infinite loop prints
+local function printDebug(name, str, max)
+  if printDebugTable[name] == nil then
+    printDebugTable[name] = {}
+    printDebugTable[name].max = max or 1
+    printDebugTable[name].count = 0
+  end
+
+  if printDebugTable[name].count < printDebugTable[name].max then
+    print(name .. str)
+    printDebugTable[name].count = printDebugTable[name].count + 1
+  end
+end
+
 return {
   drawTable = drawTable,
-  cloneTable = cloneTable
+  cloneTable = cloneTable,
+  printDebug = printDebug,
+  tableToStr = tableToStr
 }
