@@ -32,5 +32,7 @@ while true do
   emu.yield()
   if client.ispaused() then
     MenuController:open()
+  else
+    MenuController:onClose()
   end
 end

@@ -19,12 +19,20 @@ function Menu:draw(drawOpts)
   }, opts)
 end
 
+function Menu:init() end
+
+function Menu:onClose() end
+
 function Menu:run()
   if Buttons.Cross:pressed() then
   elseif Buttons.Down:pressed() then
+    self.Module:adjustPos(-1)
   elseif Buttons.Up:pressed() then
+    self.Module:adjustPos(1)
   elseif Buttons.Left:pressed() then
+    self.Module:adjustPos(-10)
   elseif Buttons.Right:pressed() then
+    self.Module:adjustPos(10)
   end
 end
 

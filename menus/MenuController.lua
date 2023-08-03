@@ -1,11 +1,11 @@
 local Buttons = require "lib.Buttons"
 local ModuleManager = require "modules.Manager"
 local ModuleMenu = require "modules.Menu"
-local Utils = require "lib.Utils"
 
 local MenuController = {
   stack = {},
   current = {},
+  onCloseDone = true
 }
 
 function MenuController:init(monitors)
@@ -24,6 +24,14 @@ function MenuController:getCurrentMenu()
   return self.stack[#self.stack]
 end
 
+function MenuController:onClose()
+  if self.onCloseDone == false then
+    self.stack = {}
+    self.current = {}
+    ModuleManager:onMenuClose()
+  end
+end
+
 function MenuController:open(menu)
   client.pause()
   emu.yield()
@@ -32,6 +40,7 @@ function MenuController:open(menu)
   else
     local currentModule = ModuleManager:getCurrent()
     local moduleMenu = currentModule.Menu;
+    moduleMenu:init()
     self:push(moduleMenu)
   end
   self:run()

@@ -16,10 +16,11 @@ local Battles_Module = {
     EnemyDrawTableLength = 10
   },
   State = {},
+  TableState = {}
 }
 
 function Battles_Module:draw(drawOpts)
-  if self.State.Enemies == nil or self:getTable() == nil then
+  if not self:shouldDraw() then
     return drawOpts
   end
 
@@ -40,7 +41,16 @@ function Battles_Module:draw(drawOpts)
   }
 
   local battleListTable = self:generateBattlesDrawTable()
+
+  -- if client.ispaused() and self.TableState.cursor < #battleListTable then
+  --   battleListTable[self.TableState.cursor + 1] = string.format("> %s", battleListTable[self.TableState.cursor + 1])
+  -- end
+
   return Utils.drawTable(battleListTable, battleListOpts)
+end
+
+function Battles_Module:shouldDraw()
+  return self.State.Enemies ~= nil and self:getTable() ~= nil
 end
 
 function Battles_Module:isUpdateRequired()
@@ -51,10 +61,8 @@ function Battles_Module:isUpdateRequired()
   local stateChanged = false
 
   if StateMonitor.LOCATION.changed then
-    -- print("Location changed")
     stateChanged = true
   elseif StateMonitor.WM_ZONE.changed then
-    -- print("WM Zone changed")
     stateChanged = true
   elseif StateMonitor.AREA_ZONE.changed then
     stateChanged = true
@@ -150,8 +158,6 @@ function Battles_Module:run()
   end
 end
 
-------------------------------------------------------------------
-
 function Battles_Module:getTable(location)
   if self.Tables == nil then
     return nil
@@ -160,14 +166,10 @@ function Battles_Module:getTable(location)
   return self.Tables[location]
 end
 
-function Battles_Module:getRNGIndex()
-  return RNGMonitor.RNGIndex
-end
-
 function Battles_Module:findTablePosition(table, RNGIndex)
   table = table or self:getTable()
   if #table <= 0 then return end
-  RNGIndex = RNGIndex or self:getRNGIndex()
+  RNGIndex = RNGIndex or RNGMonitor:getRNGIndex()
 
   if RNGIndex < table[1].index or RNGIndex > table[#table].index then return 0 end
 
@@ -176,8 +178,8 @@ function Battles_Module:findTablePosition(table, RNGIndex)
   local pos = 1
 
   -- Shortcut if RNGIndex >= current position index, which should be most common scenario
-  if RNGIndex >= table[self.cur].index then
-    pos = self.cur
+  if RNGIndex >= table[self.TableState.position].index then
+    pos = self.TableState.position
   end
   repeat
     -- This only works because we're going in order.
@@ -190,24 +192,39 @@ function Battles_Module:findTablePosition(table, RNGIndex)
 end
 
 function Battles_Module:updateTablePosition(RNGIndex)
-  RNGIndex = RNGIndex or self:getRNGIndex()
+  RNGIndex = RNGIndex or RNGMonitor:getRNGIndex()
   local pos = self:findTablePosition(nil, RNGIndex)
   if pos < 1 then return end
-  if self.pos == self.cur then
-    self.pos = pos
+  if self.TableState.cursor == self.TableState.position then
+    self.TableState.cursor = pos
   end
-  self.cur = pos
+  self.TableState.position = pos
 end
 
 function Battles_Module:adjustPos(amount)
-  local newPos = self.pos + amount
-  if newPos < 1 then self.pos = 1
-  elseif newPos > #self:getTable() then self.pos = #self:getTable()
-  else self.pos = newPos end
+  local newPos = self.TableState.cursor + amount
+  if newPos < 1 then self.TableState.cursor = 1
+  elseif newPos > #self:getTable() then self.TableState.cursor = #self:getTable()
+  else self.TableState.cursor = newPos end
+end
+
+function Battles_Module:jumpToBattle(pos)
+  pos = pos or self.TableState.cursor
+  local battle
+
+  battle, pos = self:getValidEncounter(pos)
+  if not battle then return end
+
+  local newRNGIndex = battle.index - 1
+  if newRNGIndex < 0 then newRNGIndex = 0 end
+
+  self.TableState.position = pos
+  self.TableState.cursor = pos
+  RNGMonitor:goToRNGIndex(newRNGIndex)
 end
 
 function Battles_Module:getEncounter(tableIndex)
-  tableIndex = tableIndex or self.cur
+  tableIndex = tableIndex or self.TableState.position
   local table = self:getTable()
   if table == nil or #table <= 0 then return end
   local possibleBattle = table[tableIndex]
@@ -231,7 +248,7 @@ function Battles_Module:getEncounter(tableIndex)
 end
 
 function Battles_Module:getValidEncounter(tableIndex)
-  tableIndex = tableIndex or self.cur
+  tableIndex = tableIndex or self.TableState.position
   local table = self:getTable()
   if table == nil or #table <= 0 then return end
 
@@ -265,7 +282,7 @@ function Battles_Module:getValidEncounter(tableIndex)
 end
 
 function Battles_Module:generateBattlesDrawTable()
-  local cur = self.cur
+  local cur = self.TableState.position
 
   local i = 0
   local d = 0 -- Number of entries displayed
@@ -307,8 +324,7 @@ function Battles_Module:init()
     [Location.WORLD_MAP] = RNGMonitor:getRNGTable()[Location.WORLD_MAP],
     [Location.OVERWORLD] = RNGMonitor:getRNGTable()[Location.OVERWORLD],
   }
-  self.pos = 1
-  self.cur = 1
+  self.TableState.position = 1
   self:updateState()
 end
 

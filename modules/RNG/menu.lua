@@ -20,6 +20,10 @@ function Menu:draw(drawOpts)
   return newDrawOpts
 end
 
+function Menu:init() end
+
+function Menu:onClose() end
+
 function Menu:run()
   if Buttons.Down:pressed() then
     RNGMonitor:adjustRNGIndex(-1)

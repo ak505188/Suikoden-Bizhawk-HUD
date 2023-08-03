@@ -33,6 +33,12 @@ function ModuleManager:prevModule()
   self:getCurrent():onChange()
 end
 
+function ModuleManager:onMenuClose()
+  for _,module in pairs(self.modules) do
+    module.Menu:onClose()
+  end
+end
+
 function ModuleManager:getCurrent()
   return self.modules[self.currentModule]
 end
