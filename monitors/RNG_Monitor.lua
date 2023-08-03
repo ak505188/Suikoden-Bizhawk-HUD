@@ -81,6 +81,7 @@ function RNGMonitor:generateRNGBuffer(RNGTable, bufferLength)
       table.insert(RNGTable[Locations.OVERWORLD], {
         index = index,
         rng = rng,
+        -- value is the encounter roll. if lower than encounter rate, is battle
         value = isBattleOW,
         run = isRun,
         battles = battles,

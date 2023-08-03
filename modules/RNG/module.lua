@@ -8,6 +8,8 @@ local RNG_Module = {
 
 function RNG_Module:run() end
 
+function RNG_Module:onChange() end
+
 function RNG_Module:draw(drawOpts)
   local opts = {
     x = drawOpts.x or 0,
