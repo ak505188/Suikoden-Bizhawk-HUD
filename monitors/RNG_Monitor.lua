@@ -121,6 +121,7 @@ function RNGMonitor:createNewRNGTable(rng)
     self.RNGTables[rng][Locations.WORLD_MAP] = {}
     self.RNGTables[rng][Locations.OVERWORLD] = {}
     self:generateRNGBuffer(self.RNGTables[rng], INITITAL_BUFFER_SIZE)
+    self.Event = Events.START_RNG_CHANGED
   end
 end
 
@@ -199,6 +200,7 @@ function RNGMonitor:handleRNGReset()
   self.State.RNG_RESET_INCOMING = false
   self.State.RNG_RESET_HAPPENED = false
   self.State.START_RNG_CHANGED = true
+  self.Event = Events.START_RNG_CHANGED
 
   MenuController:open(RNGResetMenu)
 end
