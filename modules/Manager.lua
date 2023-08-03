@@ -22,7 +22,7 @@ function ModuleManager:nextModule()
   if #self.modules > 1 then
     self.currentModule = self.currentModule % #self.modules + 1
   end
-  self:getCurrent():onChange()
+  self:getCurrent().Worker:onChange()
 end
 
 function ModuleManager:prevModule()
@@ -30,7 +30,7 @@ function ModuleManager:prevModule()
   if #self.modules > 1 then
     self.currentModule = self.currentModule % #self.modules + 1
   end
-  self:getCurrent():onChange()
+  self:getCurrent().Worker:onChange()
 end
 
 function ModuleManager:onMenuClose()
@@ -44,11 +44,11 @@ function ModuleManager:getCurrent()
 end
 
 function ModuleManager:draw(opts)
-  return self:getCurrent():draw(opts)
+  return self:getCurrent().Worker:draw(opts)
 end
 
 function ModuleManager:run()
-  self:getCurrent():run()
+  self:getCurrent().Worker:run()
 end
 
 return ModuleManager

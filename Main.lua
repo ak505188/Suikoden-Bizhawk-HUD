@@ -8,7 +8,7 @@ local RNGModule = require "modules.RNG.module"
 local BattleModule = require "modules.Battles.module"
 
 ModuleManager:addModule(RNGModule)
-ModuleManager:addModule(BattleModule)
+-- ModuleManager:addModule(BattleModule)
 
 StateMonitor:init()
 RNGMonitor:init()

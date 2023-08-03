@@ -54,9 +54,9 @@ function MenuController:run()
 
     local monitorModuleDrawOpts = self:draw()
 
-    local currentModule = ModuleManager:getCurrent()
-    currentModule:run()
-    monitorModuleDrawOpts = currentModule:draw(monitorModuleDrawOpts)
+    local worker = ModuleManager:getCurrent().Worker
+    worker:run()
+    monitorModuleDrawOpts = worker:draw(monitorModuleDrawOpts)
 
     local menuDrawOpts = ModuleMenu:draw()
     local menuFinished = ModuleMenu:run()

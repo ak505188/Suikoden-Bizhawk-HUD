@@ -1,6 +1,6 @@
 local Utils = require "lib.Utils"
 local Buttons = require "lib.Buttons"
-local RNGMonitor = require "monitors.RNG_Monitor"
+local RNGWorker = require "modules.RNG.worker"
 
 local Menu = {}
 
@@ -26,13 +26,13 @@ function Menu:onClose() end
 
 function Menu:run()
   if Buttons.Down:pressed() then
-    RNGMonitor:adjustRNGIndex(-1)
+    RNGWorker:adjustRNGIndex(-1)
   elseif Buttons.Up:pressed() then
-    RNGMonitor:adjustRNGIndex(1)
+    RNGWorker:adjustRNGIndex(1)
   elseif Buttons.Left:pressed() then
-    RNGMonitor:adjustRNGIndex(-25)
+    RNGWorker:adjustRNGIndex(-25)
   elseif Buttons.Right:pressed() then
-    RNGMonitor:adjustRNGIndex(25)
+    RNGWorker:adjustRNGIndex(25)
   end
 end
 
