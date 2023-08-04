@@ -64,9 +64,30 @@ local function printDebug(name, str, max)
   end
 end
 
+local function concatTables(...)
+  local tables = {...}
+
+  if #tables <= 1 then return tables end
+
+  repeat
+    local t2 = table.remove(tables)
+    local t1 = table.remove(tables)
+
+    for i=1, #t2 do
+      t1[#t1+1] = t2[i]
+    end
+
+    table.insert(tables, t1)
+  until #tables == 1
+
+  return table.remove(tables)
+end
+
+
 return {
   drawTable = drawTable,
   cloneTable = cloneTable,
+  concatTables = concatTables,
   printDebug = printDebug,
   tableToStr = tableToStr
 }

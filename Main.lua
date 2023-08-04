@@ -4,11 +4,11 @@ local RNGMonitor = require "monitors.RNG_Monitor"
 local MenuController = require "menus.MenuController"
 
 local ModuleManager = require "modules.Manager"
-local RNGModule = require "modules.RNG.module"
-local BattleModule = require "modules.Battles.module"
+local RNG_Module = require "modules.RNG.module"
+local Battles_Module = require "modules.Battles.module"
 
-ModuleManager:addModule(RNGModule)
--- ModuleManager:addModule(BattleModule)
+ModuleManager:addModule(Battles_Module)
+ModuleManager:addModule(RNG_Module)
 
 StateMonitor:init()
 RNGMonitor:init()

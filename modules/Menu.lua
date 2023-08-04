@@ -20,9 +20,9 @@ end
 
 function Menu:run()
   if Buttons.L1:pressed() then
-    ModuleManager:nextModule()
-  elseif Buttons.R1:pressed() then
     ModuleManager:prevModule()
+  elseif Buttons.R1:pressed() then
+    ModuleManager:nextModule()
   end
 end
 

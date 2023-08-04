@@ -1,5 +1,6 @@
 local Utils = require "lib.Utils"
 local Buttons = require "lib.Buttons"
+local Worker = require "modules.Battles.worker"
 
 local Menu = {}
 
@@ -26,13 +27,13 @@ function Menu:onClose() end
 function Menu:run()
   if Buttons.Cross:pressed() then
   elseif Buttons.Down:pressed() then
-    self.Module:adjustPos(-1)
+    Worker:adjustPos(-1)
   elseif Buttons.Up:pressed() then
-    self.Module:adjustPos(1)
+    Worker:adjustPos(1)
   elseif Buttons.Left:pressed() then
-    self.Module:adjustPos(-10)
+    Worker:adjustPos(-10)
   elseif Buttons.Right:pressed() then
-    self.Module:adjustPos(10)
+    Worker:adjustPos(10)
   end
 end
 
