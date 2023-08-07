@@ -22,10 +22,10 @@ local OctoshockButtons = {
   R1 = "P1 R1",
   R2 = "P1 R2",
   R3 = "P1 R3",
-  ["LStick X"] = "P1 LStick X",
-  ["LStick Y"] = "P1 LStick Y",
-  ["RStick X"] = "P1 RStick X",
-  ["RStick Y"] = "P1 RStick Y",
+  LStickX = "P1 LStick X",
+  LStickY = "P1 LStick Y",
+  RStickX = "P1 RStick X",
+  RStickY = "P1 RStick Y",
 }
 
 local NymashockButtons = {
@@ -45,10 +45,10 @@ local NymashockButtons = {
   R1 = "P1 R1",
   R2 = "P1 R2",
   R3 = "P1 Right Stick, Button",
-  ["LStick X"] = "P1 Left Stick Left / Right",
-  ["LStick Y"] = "P1 Left Stick Up / Down",
-  ["RStick X"] = "P1 Right Stick Left / Right",
-  ["RStick Y"] = "P1 Right Stick Up / Down",
+  LStickX = "P1 Left Stick Left / Right",
+  LStickY = "P1 Left Stick Up / Down",
+  RStickX = "P1 Right Stick Left / Right",
+  RStickY = "P1 Right Stick Up / Down",
 }
 
 local buttonNames = OctoshockButtons

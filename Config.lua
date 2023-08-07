@@ -7,10 +7,10 @@ Config.Plugins = {
   BATTLES_HUD = true
 }
 
-Config.RNG_HUD = {
-  START_RNG_LABEL = "S: ",
-  RNG_INDEX_LABEL = "I: ",
-  RNG_VALUE_LABEL = "R: ",
+Config.RNG_MONITOR = {
+  START_RNG_LABEL = "S:",
+  RNG_INDEX_LABEL = "I:",
+  RNG_VALUE_LABEL = "R:",
   GUI_X_POS = 0,
   GUI_Y_POS = 32,
   GUI_GAP = 16,
