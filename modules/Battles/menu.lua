@@ -2,7 +2,10 @@ local Utils = require "lib.Utils"
 local Buttons = require "lib.Buttons"
 local Worker = require "modules.Battles.worker"
 
-local Menu = {}
+local Menu = {
+  CursorPos = 1,
+
+}
 
 function Menu:draw(drawOpts)
   local opts = {
@@ -20,9 +23,10 @@ function Menu:draw(drawOpts)
   }, opts)
 end
 
-function Menu:init() end
-
-function Menu:onClose() end
+function Menu:init()
+  self.CursorPos = 1
+  self.WorkerOriginalTablePos = Worker.TablePosition
+end
 
 function Menu:run()
   if Buttons.Cross:pressed() then

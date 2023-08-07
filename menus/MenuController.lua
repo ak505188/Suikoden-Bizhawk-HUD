@@ -32,6 +32,11 @@ function MenuController:onClose()
   end
 end
 
+-- Perhaps should have methods open and push, and get rid of onclose
+-- open will work the same as before + initialize stack/current/other variables
+-- push will add a menu to the stack without clearing everything
+-- already have a push though, so different name?
+
 function MenuController:open(menu)
   client.pause()
   emu.yield()

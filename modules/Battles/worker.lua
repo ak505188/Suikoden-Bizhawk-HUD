@@ -310,6 +310,7 @@ end
 
 function Worker:onChange()
   self:updateState()
+  self:updateDrawdata()
 end
 
 function Worker:run()
