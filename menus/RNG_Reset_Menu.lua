@@ -42,14 +42,12 @@ function Menu:run()
   if Buttons.Cross:pressed() then
     RNGMonitor.StartingRNG = RNGMonitor.RNG
     RNGMonitor.RNGIndex = 0
-    memory.write_u32_le(Address.RNG, RNGMonitor.RNG)
-    RNGMonitor:createNewRNGTable()
+    -- memory.write_u32_le(Address.RNG, RNGMonitor.RNG)
+    -- RNGMonitor:createNewRNGTable()
+    RNGMonitor:setRNG()
     return true
   elseif Buttons.Square:pressed() then
-    RNGMonitor.StartingRNG = RNGMonitor.RNG
-    RNGMonitor.RNGIndex = 0
-    -- RNGMonitor.RNG_RESET_INCOMING = true
-    RNGMonitor:createNewRNGTable()
+    RNGMonitor:switchTable()
     return true
   elseif Buttons.Circle:pressed() then
     RNGMonitor.RNG = self.resetData:getRandomRNG()

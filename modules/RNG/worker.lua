@@ -20,8 +20,8 @@ function Worker:draw(drawOpts)
   return newDrawOpts
 end
 
-function Worker:adjustRNGIndex(amount)
-  RNGMonitor:adjustRNGIndex(amount)
+function Worker:adjustIndex(amount)
+  RNGMonitor:adjustIndex(amount)
 end
 
 return Worker

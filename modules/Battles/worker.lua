@@ -140,7 +140,7 @@ end
 function Worker:findTablePosition(table, RNGIndex)
   table = table or self:getTable()
   if #table <= 0 then return end
-  RNGIndex = RNGIndex or RNGMonitor:getRNGIndex()
+  RNGIndex = RNGIndex or RNGMonitor:getIndex()
 
   if RNGIndex < table[1].index or RNGIndex > table[#table].index then return 0 end
 
@@ -163,7 +163,7 @@ function Worker:findTablePosition(table, RNGIndex)
 end
 
 function Worker:updateTablePosition(RNGIndex)
-  RNGIndex = RNGIndex or RNGMonitor:getRNGIndex()
+  RNGIndex = RNGIndex or RNGMonitor:getIndex()
   local pos = self:findTablePosition(nil, RNGIndex)
   if pos < 1 then return end
   self.TablePosition = pos
@@ -300,8 +300,8 @@ end
 
 function Worker:init()
   self.Tables = {
-    [Location.WORLD_MAP] = RNGMonitor:getRNGTable()[Location.WORLD_MAP],
-    [Location.OVERWORLD] = RNGMonitor:getRNGTable()[Location.OVERWORLD],
+    [Location.WORLD_MAP] = RNGMonitor:getTable()[Location.WORLD_MAP],
+    [Location.OVERWORLD] = RNGMonitor:getTable()[Location.OVERWORLD],
   }
   self.TablePosition = 1
   self:updateState()

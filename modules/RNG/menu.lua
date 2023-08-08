@@ -26,13 +26,13 @@ function Menu:onClose() end
 
 function Menu:run()
   if Buttons.Down:pressed() then
-    RNGWorker:adjustRNGIndex(-1)
+    RNGWorker:adjustIndex(-1)
   elseif Buttons.Up:pressed() then
-    RNGWorker:adjustRNGIndex(1)
+    RNGWorker:adjustIndex(1)
   elseif Buttons.Left:pressed() then
-    RNGWorker:adjustRNGIndex(-25)
+    RNGWorker:adjustIndex(-25)
   elseif Buttons.Right:pressed() then
-    RNGWorker:adjustRNGIndex(25)
+    RNGWorker:adjustIndex(25)
   end
 end
 

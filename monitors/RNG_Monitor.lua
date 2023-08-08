@@ -5,34 +5,25 @@ local MenuController = require "menus.MenuController"
 local RNGResetMenu = require "menus.RNG_Reset_Menu"
 
 local Address = require "lib.Address"
-local EncounterLib = require "lib.Encounter"
-local RNGLib = require "lib.RNG"
+local RNGTable = require "lib.RNGTable"
 local Utils = require "lib.Utils"
 local Events = require "lib.Enums.RNG_Events"
-local Locations = require "lib.Enums.Location"
-
 
 -- These are options for text and how this runs, edit as needed
 -----------------------------------------------------------
 -- These are text labels for data printed on screen
-local START_RNG_LABEL = Config.RNG_HUD.START_RNG_LABEL
-local RNG_INDEX_LABEL = Config.RNG_HUD.RNG_INDEX_LABEL
-local RNG_VALUE_LABEL = Config.RNG_HUD.RNG_VALUE_LABEL
-local GUI_X_POS = Config.RNG_HUD.GUI_X_POS
-local GUI_Y_POS = Config.RNG_HUD.GUI_Y_POS
-local GUI_GAP = Config.RNG_HUD.GUI_GAP
-
--- These affect how far ahead in the RNG the script looks. Don't touch if things are working well.
--- If you set these too small, the script might stop working if RNG advances too quickly.
-local INITITAL_BUFFER_SIZE = Config.RNG_HUD.INITITAL_BUFFER_SIZE -- Initial look-ahead
-local BUFFER_INCREMENT_SIZE = Config.RNG_HUD.BUFFER_INCREMENT_SIZE -- Later look-ahead size per frame
-local BUFFER_MARGIN_SIZE = Config.RNG_HUD.BUFFER_MARGIN_SIZE -- When difference between current length & current RNG Index is greater than this, look ahead again.
+local START_RNG_LABEL = Config.RNG_MONITOR.START_RNG_LABEL
+local RNG_INDEX_LABEL = Config.RNG_MONITOR.RNG_INDEX_LABEL
+local RNG_VALUE_LABEL = Config.RNG_MONITOR.RNG_VALUE_LABEL
+local GUI_X_POS = Config.RNG_MONITOR.GUI_X_POS
+local GUI_Y_POS = Config.RNG_MONITOR.GUI_Y_POS
+local GUI_GAP = Config.RNG_MONITOR.GUI_GAP
 
 local RNGMonitor = {
   RNGTables = {},
   StartingRNG = nil,
   RNG = nil,
-  RNGIndex = nil,
+  RNGIndex = nil, -- should this even be a variable? can just get from table. might be more expensive though
   Event = Events.NOT_INITIALIZED,
   State = {
     RNG_RESET_INCOMING = false,
@@ -40,157 +31,118 @@ local RNGMonitor = {
     START_RNG_CHANGED = false,
   }
 }
-
-function RNGMonitor:generateRNGBuffer(RNGTable, bufferLength)
-  -- This handles the base RNG
-  bufferLength = bufferLength or INITITAL_BUFFER_SIZE
-  RNGTable = RNGTable or self:getRNGTable()
-  local rng = RNGTable.last
-  local index = RNGTable.table[rng]
-
-  local function handleEncounterRNG()
-    local isBattleWM = EncounterLib.isPossibleBattle(rng, true)
-    local isBattleOW = EncounterLib.isPossibleBattle(rng, false)
-    local nextRNG, nextRNG2, isRun
-    if isBattleWM then
-      local battles = {}
-      nextRNG = RNGLib.nextRNG(rng)
-      nextRNG2 = RNGLib.getRNG2(nextRNG)
-      isRun = RNGLib.isRun(RNGLib.getRNG2(RNGLib.nextRNG(nextRNG)))
-
-      for size,_ in pairs(EncounterLib.TableSizes[Locations.WORLD_MAP]) do
-        battles[size] = EncounterLib.getEncounterIndex(nextRNG, size, nextRNG2)
-      end
-      table.insert(RNGTable[Locations.WORLD_MAP], {
-        index = index,
-        rng = rng,
-        value = isBattleWM,
-        run = isRun,
-        battles = battles,
-      })
-    end
-    if isBattleOW then
-      local battles = {}
-      nextRNG = nextRNG or RNGLib.nextRNG(rng)
-      nextRNG2 = nextRNG2 or RNGLib.getRNG2(nextRNG)
-      isRun = isRun or RNGLib.isRun(RNGLib.getRNG2(RNGLib.nextRNG(nextRNG)))
-
-      for size,_ in pairs(EncounterLib.TableSizes[Locations.OVERWORLD]) do
-        battles[size] = EncounterLib.getEncounterIndex(nextRNG, size, nextRNG2)
-      end
-      table.insert(RNGTable[Locations.OVERWORLD], {
-        index = index,
-        rng = rng,
-        -- value is the encounter roll. if lower than encounter rate, is battle
-        value = isBattleOW,
-        run = isRun,
-        battles = battles,
-      })
-    end
-  end
-
-  -- Initial call
-  handleEncounterRNG()
-
-  local startingTableSize = #self:getRNGTable().byIndex
-
-  for i = 1, bufferLength do
-    rng = RNGLib.nextRNG(rng)
-    index = index + 1
-    RNGTable.table[rng] = index
-    RNGTable.byIndex[startingTableSize + i] = rng
-
-    handleEncounterRNG()
-  end
-
-  RNGTable.last = rng
-end
-
-function RNGMonitor:createNewRNGTable(rng)
-  rng = rng or self.RNG
-  if (not self.RNGTables[rng]) then
-    self.RNGTables[rng] = {
-      table = {
-        [rng] = 0
-      },
-      byIndex = {
-        [0] = rng
-      },
-      last = rng
-    }
-    self.RNGTables[rng][Locations.WORLD_MAP] = {}
-    self.RNGTables[rng][Locations.OVERWORLD] = {}
-    self:generateRNGBuffer(self.RNGTables[rng], INITITAL_BUFFER_SIZE)
-    self.Event = Events.START_RNG_CHANGED
-  end
-end
-
-function RNGMonitor:getRNGTable(startingRNG)
+function RNGMonitor:getTable(startingRNG)
   startingRNG = startingRNG or self.StartingRNG
   return self.RNGTables[startingRNG]
 end
 
-function RNGMonitor:getRNGTableSize(startingRNG)
-  local currentTable = self:getRNGTable(startingRNG)
-  return currentTable.table[currentTable.last]
-end
+function RNGMonitor:setRNG(rng)
+  rng = rng or self.RNG
+  memory.write_u32_le(Address.RNG, rng)
 
-function RNGMonitor:getRNGIndex(startingRNG)
-  startingRNG = startingRNG or self.StartingRNG
-  local currentTable = self:getRNGTable(startingRNG)
-  return currentTable.table[self.RNG]
-end
+  local table = self:getTable()
+  local index = nil
 
-function RNGMonitor:goToRNGIndex(index)
-  if index == self.RNGIndex then return end
-
-  if index < 0 then
-    index = 0
-  elseif index > #self:getRNGTable().byIndex then
-    index = #self:getRNGTable().byIndex
+  if table then
+    index = table:getIndex(rng)
   end
 
-  self.RNGIndex = index
-  self.RNG = self:getRNGTable().byIndex[index]
-  memory.write_u32_le(Address.RNG, self.RNG)
-  self.State.RNG_CHANGED = true
-
-  -- Increase buffer size if needed
-  if (self:getRNGTableSize() - self.RNGIndex < BUFFER_MARGIN_SIZE) then
-    self:generateRNGBuffer(self:getRNGTable(), BUFFER_INCREMENT_SIZE)
+  if index then
+    self:goToIndex(index)
+  else
+    self:switchTable(rng)
   end
 end
 
-function RNGMonitor:adjustRNGIndex(amount)
-  self:goToRNGIndex(self.RNGIndex + amount)
-end
+--- @param rng number? RNG Value
+--- @return number? Start RNG of best matching table
+function RNGMonitor:findTableContainingRNG(rng)
+  rng = rng or StateMonitor.RNG.current
 
-function RNGMonitor:handleRNGOverflow()
-  local rng = self.RNG
-  self.Event = Events.START_RNG_CHANGED
-
-  local start,index
-  for startingRNG, RNGTable in pairs(self.RNGTables) do
-    if (RNGTable.table[rng]) then
-      local t_index = RNGTable.table[rng]
-      if (not index or t_index > index) then
-        index = t_index
-        start = startingRNG
+  -- Checks all existing tables to see if RNG exists
+  -- If multiple tables contain RNG value, returns table where RNG table is at highest index
+  local start_rng = nil
+  local highest_index = 0
+  for current_start_rng, rng_table in pairs(self.RNGTables) do
+    local table_index = rng_table:getIndex(rng)
+    if table_index then
+      if (table_index > highest_index) then
+        highest_index = table_index
+        start_rng = current_start_rng
       end
     end
   end
 
-  if (start) then
-    self.StartingRNG = start
-    self.RNGIndex = self:getRNGTable().table[rng]
-    return
+  return start_rng
+end
+
+function RNGMonitor:switchTable(rng, create_new_table)
+  rng = rng or StateMonitor.RNG.current
+  create_new_table = create_new_table or false -- Used to force create a start rng table, even if one already exists
+
+  local original_starting_rng = self.StartingRNG
+
+  -- Force create new table, even if there is an existing appropriate table
+  if create_new_table and not self.RNGTables[rng] then
+    self.RNGTables[rng] = RNGTable(rng)
+    self.StartingRNG = rng
+    self.RNG = rng
+    self.RNGIndex = self:getTable():getIndex(rng)
+    self.Event = Events.START_RNG_CHANGED
+    self.State.START_RNG_CHANGED = true
   end
 
-  -- Else, create a new table
-  -- No matches, so create new StartingRNG and Buffer
-  self.StartingRNG = rng
-  self.RNGIndex = 0
-  self:createNewRNGTable(rng)
+  local found_starting_rng = self:findTableContainingRNG(rng)
+
+  if found_starting_rng == nil then
+    -- Make new table
+    self.RNGTables[rng] = RNGTable(rng)
+    self.StartingRNG = rng
+    self.RNG = rng
+    self.RNGIndex = self:getTable():getIndex(rng)
+    self.Event = Events.START_RNG_CHANGED
+    self.State.START_RNG_CHANGED = true
+  elseif original_starting_rng ~= found_starting_rng then
+    self.StartingRNG = found_starting_rng
+    self.RNG = rng
+    self.RNGIndex = self:getTable():getIndex(rng)
+    self.Event = Events.START_RNG_CHANGED
+    self.State.START_RNG_CHANGED = true
+  end
+end
+
+function RNGMonitor:getTableSize(startingRNG)
+  return self:getTable(startingRNG):getSize()
+end
+
+function RNGMonitor:getIndex(startingRNG)
+  startingRNG = startingRNG or self.StartingRNG
+  return self:getTable(startingRNG):getIndex(self.RNG)
+end
+
+function RNGMonitor:goToIndex(index)
+  if index == self.RNGIndex then return end
+
+  if index < 0 then
+    index = 0
+  elseif index > #self:getTable().byIndex then
+    index = #self:getTable().byIndex
+  end
+
+  self.RNGIndex = index
+  self.RNG = self:getTable().byIndex[index]
+  memory.write_u32_le(Address.RNG, self.RNG)
+  self.State.RNG_CHANGED = true
+  -- TODO: Should fire event here
+
+  self:getTable():increaseBuffer(self.RNG)
+end
+
+function RNGMonitor:adjustIndex(amount)
+  self:goToIndex(self.RNGIndex + amount)
+  -- TODO: Should I fire an event here?
+  -- Since in RNG Menu, probably not relevant.
+  -- But probably won't hurt either
 end
 
 function RNGMonitor:handleRNGReset()
@@ -212,13 +164,13 @@ function RNGMonitor:draw(opts)
     gap = GUI_GAP,
   }
   if opts then
-    for k,v in pairs(opts) do
+    for k, v in pairs(opts) do
       drawOpts[k] = v
     end
   end
   local textToDraw = {
     string.format('%s%x', START_RNG_LABEL, self.StartingRNG),
-    string.format('%s%d/%d', RNG_INDEX_LABEL, self.RNGIndex, self:getRNGTableSize()),
+    string.format('%s%d/%d', RNG_INDEX_LABEL, self.RNGIndex, self:getTableSize()),
     string.format('%s%x', RNG_VALUE_LABEL, self.RNG)
   }
   return Utils.drawTable(textToDraw, drawOpts)
@@ -229,7 +181,7 @@ function RNGMonitor:init()
   self.RNG = rng
   self.StartingRNG = rng
   self.RNGIndex = 0
-  self:createNewRNGTable()
+  self.RNGTables[rng] = RNGTable(rng)
 end
 
 function RNGMonitor:run()
@@ -241,12 +193,12 @@ function RNGMonitor:run()
 
   if self.State.RNG_RESET_INCOMING and StateMonitor.RNG.changed then
     self:handleRNGReset()
-  -- Handle Natural Overflow or Loadstate
-  elseif not self.State.RNG_RESET_HAPPENED and not self:getRNGTable().table[self.RNG] then
-    self:handleRNGOverflow()
+    -- Handle Natural Overflow or Loadstate
+  elseif not self.State.RNG_RESET_HAPPENED and not self:getTable():getIndex(self.RNG) then
+    self:switchTable(self.RNG)
   else
     local prevRNGIndex = self.RNGIndex
-    self.RNGIndex = self:getRNGIndex()
+    self.RNGIndex = self:getIndex()
 
     -- Check if RNG Index changed for Event Tracking
     if self.RNGIndex == prevRNGIndex then
@@ -258,10 +210,7 @@ function RNGMonitor:run()
     end
   end
 
-  -- Increase buffer size if needed
-  if (self:getRNGTableSize() - self.RNGIndex < BUFFER_MARGIN_SIZE) then
-    self:generateRNGBuffer(self:getRNGTable(), BUFFER_INCREMENT_SIZE)
-  end
+  self:getTable():increaseBuffer(self.RNG)
 end
 
 return RNGMonitor
