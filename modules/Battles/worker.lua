@@ -3,7 +3,7 @@ local Location = require "lib.Enums.Location"
 local RNG_Events = require "lib.Enums.RNG_Events"
 local ZoneInfo = require "lib.ZoneInfo"
 local EncounterTable = require "lib.EncounterTable"
-local Utils = require "lib.Utils"
+local Drawer = require "controllers.drawer"
 
 local RNGMonitor = require "monitors.RNG_Monitor"
 local StateMonitor = require "monitors.State_Monitor"
@@ -22,32 +22,14 @@ local Worker = {
   TablePosition = 1,
 }
 
-function Worker:draw(drawOpts)
+function Worker:draw()
   if not self:shouldDraw() then
-    return drawOpts
+    return
   end
 
-  local enemyListOpts = {
-    x = 0,
-    y = 0,
-    gap = 16,
-    anchor = "bottomleft",
-    reverse = true
-  }
-  Utils.drawTable(self.Drawdata.Enemies, enemyListOpts);
-
-  local battleListOpts = {
-    x = drawOpts.x or 0,
-    y = drawOpts.y or 0,
-    gap = drawOpts.gap or 16,
-    anchor = drawOpts.anchor or "topright"
-  }
-
-  -- This should be cheaper than combining the tables or inserting AreaStr to the front
-  gui.text(battleListOpts.x, battleListOpts.y, self.Drawdata.Area, nil, battleListOpts.anchor)
-  battleListOpts.y = battleListOpts.y + 16
-
-  return Utils.drawTable(self.Drawdata.Battles, battleListOpts)
+  Drawer:draw(self.Drawdata.Enemies, Drawer.anchors.BOTTOM_LEFT, true)
+  Drawer:draw({ self.Drawdata.Area }, Drawer.anchors.TOP_LEFT, nil, true)
+  Drawer:draw(self.Drawdata.Battles, Drawer.anchors.TOP_LEFT)
 end
 
 function Worker:shouldDraw()

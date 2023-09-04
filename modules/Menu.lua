@@ -1,21 +1,14 @@
-local Utils = require "lib.Utils"
+local Drawer = require "controllers.drawer"
 local Buttons = require "lib.Buttons"
 local ModuleManager = require "modules.Manager"
 
 local Menu = {}
 
 function Menu:draw()
-  local opts = {
-    x = 0,
-    y = 0,
-    gap = 16,
-    anchor = "topright"
-  }
-  local drawOpts = Utils.drawTable({
+  Drawer:draw({
     "L1: Previous Module",
     "R1: Next Module"
-  }, opts)
-  return drawOpts
+  }, Drawer.anchors.TOP_RIGHT)
 end
 
 function Menu:run()

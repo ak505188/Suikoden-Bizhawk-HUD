@@ -1,6 +1,7 @@
 local Config = require "Config"
 local StateMonitor = require "monitors.State_Monitor"
 
+local Drawer = require "controllers.drawer"
 local MenuController = require "menus.MenuController"
 local RNGResetMenu = require "menus.RNG_Reset_Menu"
 
@@ -157,23 +158,13 @@ function RNGMonitor:handleRNGReset()
   MenuController:open(RNGResetMenu)
 end
 
-function RNGMonitor:draw(opts)
-  local drawOpts = {
-    x = GUI_X_POS,
-    y = GUI_Y_POS,
-    gap = GUI_GAP,
-  }
-  if opts then
-    for k, v in pairs(opts) do
-      drawOpts[k] = v
-    end
-  end
+function RNGMonitor:draw()
   local textToDraw = {
     string.format('%s%x', START_RNG_LABEL, self.StartingRNG),
     string.format('%s%d/%d', RNG_INDEX_LABEL, self.RNGIndex, self:getTableSize()),
     string.format('%s%x', RNG_VALUE_LABEL, self.RNG)
   }
-  return Utils.drawTable(textToDraw, drawOpts)
+  return Drawer:draw(textToDraw, Drawer.anchors.TOP_LEFT)
 end
 
 function RNGMonitor:init()

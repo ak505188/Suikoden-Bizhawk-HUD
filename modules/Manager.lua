@@ -1,3 +1,5 @@
+local Drawer = require "controllers.drawer"
+
 local ModuleManager = {
   modules = {},
   modulePositionsByName = {},

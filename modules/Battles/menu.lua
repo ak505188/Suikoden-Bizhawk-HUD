@@ -1,26 +1,20 @@
-local Utils = require "lib.Utils"
 local Buttons = require "lib.Buttons"
 local Worker = require "modules.Battles.worker"
+local Drawer = require "controllers.drawer"
 
 local Menu = {
   CursorPos = 1,
 
 }
 
-function Menu:draw(drawOpts)
-  local opts = {
-    x = drawOpts.x or 0,
-    y = drawOpts.y or 0,
-    gap = drawOpts.gap or 16,
-    anchor = drawOpts.anchor or "topright"
-  }
-  return Utils.drawTable({
+function Menu:draw()
+  Drawer:draw({
     "X: Go to Battle",
     "Up: Up 1",
     "Do: Down 1",
     "Le: Up 10",
     "Ri: Down 10",
-  }, opts)
+  }, Drawer.anchors.TOP_RIGHT)
 end
 
 function Menu:init()

@@ -1,4 +1,5 @@
 local Buttons = require "lib.Buttons"
+local Drawer = require "controllers.drawer"
 local ModuleManager = require "modules.Manager"
 local ModuleMenu = require "modules.Menu"
 
@@ -54,25 +55,24 @@ end
 function MenuController:run()
   while client.ispaused() do
     emu.yield()
-    gui.cleartext()
+    Drawer:clear()
     Buttons:update()
 
-    local monitorModuleDrawOpts = self:draw()
+    self:draw()
 
     local worker = ModuleManager:getCurrent().Worker
     worker:run()
-    monitorModuleDrawOpts = worker:draw(monitorModuleDrawOpts)
+    worker:draw()
 
-    local menuDrawOpts = ModuleMenu:draw()
+    ModuleMenu:draw()
     local menuFinished = ModuleMenu:run()
 
     if not menuFinished then
       local currentMenu = self:getCurrentMenu()
-      menuDrawOpts = currentMenu:draw(menuDrawOpts)
-      menuFinished = currentMenu:run()
+      currentMenu:draw()
+      currentMenu:run()
     end
 
-    self:draw()
     if menuFinished then
       self:pop()
       if #self.stack == 0 then
@@ -87,11 +87,7 @@ function MenuController:run()
 end
 
 function MenuController:draw()
-  local drawOpts = {}
-  for _,monitor in pairs(self.monitors) do
-    drawOpts = monitor:draw(drawOpts)
-  end
-  return drawOpts
+  return self.monitors:draw()
 end
 
 return MenuController

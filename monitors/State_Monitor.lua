@@ -4,6 +4,8 @@ local Utils = require "lib.Utils"
 local Location = require "lib.Enums.Location"
 local Gamestate = require "lib.Enums.Gamestate"
 
+local Drawer = require "controllers.drawer"
+
 local initVarState = {
   current = nil,
   previous = nil,
@@ -30,24 +32,14 @@ function StateMonitor:updateState(key, value)
   self[key].changed = value ~= previousValue
 end
 
-function StateMonitor:draw(opts)
-  local drawOpts = {
-    x = opts.x or 0,
-    y = opts.y or 96,
-    gap = opts.gap or 16
-  }
-  if opts then
-    for k,v in pairs(opts) do
-      drawOpts[k] = v
-    end
-  end
+function StateMonitor:draw()
   local textToDraw = {
     string.format("G:%d P:%d", self.IG_CURRENT_GAMESTATE.current, self.IG_PREVIOUS_GAMESTATE.current),
     string.format("W:%d A:%d S:%d", self.WM_ZONE.current, self.AREA_ZONE.current, self.SCREEN_ZONE.current),
     string.format("ER:%d C:%s PL:%d", self.ENCOUNTER_RATE.current, self.CHAMPION_RUNE_EQUIPPED.current and "T" or "F", self.PARTY_LEVEL.current),
     string.format("L:%s", self.LOCATION.current),
   }
-  return Utils.drawTable(textToDraw, drawOpts)
+  return Drawer:draw(textToDraw, Drawer.anchors.TOP_LEFT)
 end
 
 function StateMonitor:read()
