@@ -7,7 +7,6 @@ local RNGResetMenu = require "menus.RNG_Reset_Menu"
 
 local Address = require "lib.Address"
 local RNGTable = require "lib.RNGTable"
-local Utils = require "lib.Utils"
 local Events = require "lib.Enums.RNG_Events"
 
 -- These are options for text and how this runs, edit as needed
@@ -16,9 +15,6 @@ local Events = require "lib.Enums.RNG_Events"
 local START_RNG_LABEL = Config.RNG_MONITOR.START_RNG_LABEL
 local RNG_INDEX_LABEL = Config.RNG_MONITOR.RNG_INDEX_LABEL
 local RNG_VALUE_LABEL = Config.RNG_MONITOR.RNG_VALUE_LABEL
-local GUI_X_POS = Config.RNG_MONITOR.GUI_X_POS
-local GUI_Y_POS = Config.RNG_MONITOR.GUI_Y_POS
-local GUI_GAP = Config.RNG_MONITOR.GUI_GAP
 
 local RNGMonitor = {
   RNGTables = {},
