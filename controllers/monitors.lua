@@ -1,5 +1,7 @@
 local StateMonitor = require "monitors.State_Monitor"
 local RNGMonitor = require "monitors.RNG_Monitor"
+local MenuController = require "menus.MenuController"
+local RNGResetMenu = require "menus.RNG_Reset_Menu"
 
 StateMonitor:init()
 RNGMonitor:init()
@@ -17,9 +19,13 @@ function MonitorsController:init()
 end
 
 function MonitorsController:run()
-  for _,monitor in ipairs(self.monitors) do
-    monitor:run()
+  local RNGMonitorEvent = self.RNG:run()
+  if RNGMonitorEvent then
+    RNGResetMenu:init()
+    MenuController:open(RNGResetMenu)
   end
+
+  self.State:run()
 end
 
 function MonitorsController:draw()

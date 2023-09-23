@@ -2,8 +2,6 @@ local Config = require "Config"
 local StateMonitor = require "monitors.State_Monitor"
 
 local Drawer = require "controllers.drawer"
-local MenuController = require "menus.MenuController"
-local RNGResetMenu = require "menus.RNG_Reset_Menu"
 
 local Address = require "lib.Address"
 local RNGTable = require "lib.RNGTable"
@@ -142,18 +140,6 @@ function RNGMonitor:adjustIndex(amount)
   -- But probably won't hurt either
 end
 
-function RNGMonitor:handleRNGReset()
-  local eventID = memory.read_u8(Address.EVENT_ID)
-  RNGResetMenu:init(self, eventID)
-
-  self.State.RNG_RESET_INCOMING = false
-  self.State.RNG_RESET_HAPPENED = false
-  self.State.START_RNG_CHANGED = true
-  self.Event = Events.START_RNG_CHANGED
-
-  MenuController:open(RNGResetMenu)
-end
-
 function RNGMonitor:draw()
   local textToDraw = {
     string.format('%s%x', START_RNG_LABEL, self.StartingRNG),
@@ -179,8 +165,11 @@ function RNGMonitor:run()
   end
 
   if self.State.RNG_RESET_INCOMING and StateMonitor.RNG.changed then
-    self:handleRNGReset()
-    -- Handle Natural Overflow or Loadstate
+    self.State.RNG_RESET_INCOMING = false
+    self.State.RNG_RESET_HAPPENED = false
+    self.State.START_RNG_CHANGED = true
+    self.Event = Events.START_RNG_CHANGED
+    return self.Event
   elseif not self.State.RNG_RESET_HAPPENED and not self:getTable():getIndex(self.RNG) then
     self:switchTable(self.RNG)
   else
@@ -198,6 +187,7 @@ function RNGMonitor:run()
   end
 
   self:getTable():increaseBuffer(self.RNG)
+  return nil
 end
 
 return RNGMonitor
