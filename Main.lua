@@ -1,10 +1,17 @@
-local Monitors = require "controllers.monitors"
-local Drawer = require "controllers.drawer"
+local StateMonitor = require "monitors.State_Monitor"
+local RNGMonitor = require "monitors.RNG_Monitor"
+
+StateMonitor:init()
+RNGMonitor:init()
+
 local MenuController = require "menus.MenuController"
+
+local Drawer = require "controllers.drawer"
+local RNGResetMenu = require "menus.RNG_Reset_Menu"
 
 -- This is required due to a circular dependancy.
 -- RNG_Monitor require MenuController so it can open RNG_Reset_Menu
-MenuController:init(Monitors)
+-- MenuController:init(Monitors)
 
 local ModuleManager = require "modules.Manager"
 local RNG_Module = require "modules.RNG.module"
@@ -14,14 +21,25 @@ ModuleManager:addModule(Battles_Module)
 ModuleManager:addModule(RNG_Module)
 
 local function draw()
-  local opts = Monitors:draw()
-  ModuleManager:draw(opts)
+  RNGMonitor:draw()
+  StateMonitor:draw()
+  -- local opts = Monitors:draw()
+  ModuleManager:draw()
 end
 
 while true do
   emu.frameadvance()
   -- if (client.ispaused()) then MenuController:run() end
-  Monitors:run()
+
+  -- Monitors:run()
+  local RNGMonitorEvent = RNGMonitor:run()
+  if RNGMonitorEvent then
+    RNGResetMenu:init()
+    MenuController:open(RNGResetMenu)
+  end
+
+  StateMonitorEvent = StateMonitor:run()
+
   ModuleManager:run()
 
   Drawer:clear()
@@ -30,7 +48,6 @@ while true do
   emu.yield()
   if client.ispaused() then
     MenuController:open()
-    Monitors:draw()
   else
     MenuController:onClose()
   end
