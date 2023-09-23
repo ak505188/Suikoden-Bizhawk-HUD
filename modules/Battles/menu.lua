@@ -1,10 +1,13 @@
 local Buttons = require "lib.Buttons"
 local Worker = require "modules.Battles.worker"
 local Drawer = require "controllers.drawer"
+local MenuProperties = require "menus.Properties"
 
 local Menu = {
+  properties = {
+    type = MenuProperties.TYPES.worker,
+  },
   CursorPos = 1,
-
 }
 
 function Menu:draw()

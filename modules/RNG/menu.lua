@@ -1,8 +1,13 @@
 local Drawer = require "controllers.drawer"
 local Buttons = require "lib.Buttons"
 local RNGWorker = require "modules.RNG.worker"
+local MenuProperties = require "menus.Properties"
 
-local Menu = {}
+local Menu = {
+  properties = {
+    type = MenuProperties.TYPES.module
+  }
+}
 
 function Menu:draw()
   Drawer:draw({

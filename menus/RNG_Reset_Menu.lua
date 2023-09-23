@@ -3,9 +3,13 @@ local RNGLib = require "lib.RNG"
 local Buttons = require "lib.Buttons"
 local Address = require "lib.Address"
 local RNGMonitor = require "monitors.RNG_Monitor"
+local MenuProperties = require "menus.Properties"
 
-local Menu = {}
-
+local Menu = {
+  properties = {
+    type = MenuProperties.TYPES.custom
+  }
+}
 
 function Menu:init()
   local eventID = memory.read_u8(Address.EVENT_ID)
