@@ -2,13 +2,23 @@ local Buttons = require "lib.Buttons"
 local Drawer = require "controllers.drawer"
 local ModuleManager = require "modules.Manager"
 local ModuleMenu = require "modules.Menu"
+local MenuProperties = require "menus.Properties"
 
 local RNGMonitor = require "monitors.RNG_Monitor"
-local StateMonitor = require "monitors.RNG_Monitor"
+local StateMonitor = require "monitors.State_Monitor"
+
+-- Exposed methods should be:
+-- open()
+-- close() but never really used
+-- how should closing menus be handled?
+-- can do stuff on close, or can initialize on first run
+-- i think just have init method that's called for every method before running
+-- call it in MenuController:open?
+-- how do i handle nested menus?
+-- will there be issues if I call one menu from another?
 
 local MenuController = {
   stack = {},
-  current = {},
   onCloseDone = true
 }
 
@@ -28,7 +38,6 @@ function MenuController:onClose()
   if self.onCloseDone == false then
     self.stack = {}
     self.current = {}
-    ModuleManager:onMenuClose()
   end
 end
 
@@ -41,6 +50,7 @@ function MenuController:open(menu)
   client.pause()
   emu.yield()
   if menu then
+    menu:init()
     self:push(menu)
   else
     local currentModule = ModuleManager:getCurrent()
@@ -62,18 +72,25 @@ function MenuController:run()
 
     self:draw()
 
-    local worker = ModuleManager:getCurrent().Worker
-    worker:run()
-    worker:draw()
+    local currentMenu = self:getCurrentMenu()
 
-    ModuleMenu:draw()
-    local menuFinished = ModuleMenu:run()
+    if currentMenu.properties.type == MenuProperties.TYPES.module then
+      ModuleMenu:draw()
+      local moduleChanged = ModuleMenu:run()
+      if moduleChanged then
+        self.stack = {}
+        currentMenu = ModuleManager:getCurrent().Menu
+        currentMenu:init()
+        self:push(currentMenu)
+      end
 
-    if not menuFinished then
-      local currentMenu = self:getCurrentMenu()
-      currentMenu:draw()
-      currentMenu:run()
+      -- should I be running this here, or in Menu:run()?
+      local worker = ModuleManager:getCurrent().Worker
+      worker:run()
     end
+
+    currentMenu:draw()
+    local menuFinished = currentMenu:run()
 
     if menuFinished then
       self:pop()

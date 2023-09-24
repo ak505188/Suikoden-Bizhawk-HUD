@@ -7,7 +7,8 @@ local MenuProperties = require "menus.Properties"
 
 local Menu = {
   properties = {
-    type = MenuProperties.TYPES.custom
+    type = MenuProperties.TYPES.custom,
+    name = 'RNG_RESET_MENU'
   }
 }
 

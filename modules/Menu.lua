@@ -2,7 +2,11 @@ local Drawer = require "controllers.drawer"
 local Buttons = require "lib.Buttons"
 local ModuleManager = require "modules.Manager"
 
-local Menu = {}
+local Menu = {
+  properties = {
+    name = 'MODULE_HANDLER_MENU'
+  }
+}
 
 function Menu:draw()
   Drawer:draw({
@@ -14,9 +18,12 @@ end
 function Menu:run()
   if Buttons.L1:pressed() then
     ModuleManager:prevModule()
+    return true
   elseif Buttons.R1:pressed() then
     ModuleManager:nextModule()
+    return true
   end
+  return false
 end
 
 return Menu

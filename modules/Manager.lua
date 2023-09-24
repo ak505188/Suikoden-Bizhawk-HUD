@@ -1,5 +1,3 @@
-local Drawer = require "controllers.drawer"
-
 local ModuleManager = {
   modules = {},
   modulePositionsByName = {},
@@ -33,12 +31,6 @@ function ModuleManager:prevModule()
     self.currentModule = self.currentModule % #self.modules + 1
   end
   self:getCurrent().Worker:onChange()
-end
-
-function ModuleManager:onMenuClose()
-  for _,module in pairs(self.modules) do
-    module.Menu:onClose()
-  end
 end
 
 function ModuleManager:getCurrent()

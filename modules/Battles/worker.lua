@@ -151,29 +151,16 @@ function Worker:updateTablePosition(RNGIndex)
   self.TablePosition = pos
 end
 
---[[
-function Worker:adjustPos(amount)
-  local newPos = self.Tablestate.cursor + amount
-  if newPos < 1 then self.Tablestate.cursor = 1
-  elseif newPos > #self:getTable() then self.Tablestate.cursor = #self:getTable()
-  else self.Tablestate.cursor = newPos end
-end
-
 function Worker:jumpToBattle(pos)
-  pos = pos or self.Tablestate.cursor
-  local battle
-
-  battle, pos = self:getValidEncounter(pos)
+  local battle = self:getTable()[pos]
   if not battle then return end
 
   local newRNGIndex = battle.index - 1
   if newRNGIndex < 0 then newRNGIndex = 0 end
 
   self.TablePosition = pos
-  self.Tablestate.cursor = pos
-  RNGMonitor:goToRNGIndex(newRNGIndex)
+  RNGMonitor:goToIndex(newRNGIndex)
 end
-]]--
 
 function Worker:getEncounter(tableIndex)
   tableIndex = tableIndex or self.TablePosition
@@ -243,8 +230,14 @@ function Worker:genAreaStr()
   return areaNameStr
 end
 
-function Worker:genBattlesTable()
-  local cur = self.TablePosition
+function Worker:genBattlesDrawTable(options)
+  local table_position, cursor
+  if options then
+    table_position = options.table_position
+    cursor = options.cursor
+  end
+
+  local current_table_position = table_position or self.TablePosition
 
   local i = 0
   local d = 0 -- Number of entries displayed
@@ -253,7 +246,7 @@ function Worker:genBattlesTable()
   local drawTable = {}
 
   repeat
-    local battle = self:getEncounter(cur + i)
+    local battle = self:getEncounter(current_table_position + i)
     if battle then
       local run = "F"
       if battle.run then run = "R" end
@@ -261,12 +254,16 @@ function Worker:genBattlesTable()
       d = d + 1
     end
     i = i + 1
-  until d >= self.Config.EnemyDrawTableLength or (cur + i) > tableLength
+  until d >= self.Config.EnemyDrawTableLength or (current_table_position + i) > tableLength
+
+  if cursor and cursor < tableLength then
+    drawTable[cursor] = string.format("> %s", drawTable[cursor])
+  end
 
   return drawTable
 end
 
-function Worker:genEnemiesTable()
+function Worker:genEnemiesDrawTable()
   local enemiesTable = {}
   for index,enemy in ipairs(self.Gamestate.Enemies) do
     table.insert(enemiesTable, string.format("%d:%s", index, enemy))
@@ -274,10 +271,22 @@ function Worker:genEnemiesTable()
   return enemiesTable
 end
 
+-- Only used internally since it modifies state
 function Worker:updateDrawdata()
-  self.Drawdata.Battles = self:genBattlesTable()
-  self.Drawdata.Enemies = self:genEnemiesTable()
+  self.Drawdata.Battles = self:genBattlesDrawTable()
+  self.Drawdata.Enemies = self:genEnemiesDrawTable()
   self.Drawdata.Area = self:genAreaStr()
+end
+
+function Worker:genDrawData(options)
+  local Battles = self:genBattlesDrawTable(options)
+  local Enemies = self:genEnemiesDrawTable()
+  local Area = self:genAreaStr()
+  return {
+    Battles = Battles,
+    Enemies = Enemies,
+    Area = Area
+  }
 end
 
 function Worker:init()

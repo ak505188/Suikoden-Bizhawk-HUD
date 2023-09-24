@@ -29,16 +29,11 @@ end
 
 while true do
   emu.frameadvance()
-  -- if (client.ispaused()) then MenuController:run() end
 
-  -- Monitors:run()
   local RNGMonitorEvent = RNGMonitor:run()
-  if RNGMonitorEvent then
-    RNGResetMenu:init()
-    MenuController:open(RNGResetMenu)
-  end
+  if RNGMonitorEvent then MenuController:open(RNGResetMenu) end
 
-  StateMonitorEvent = StateMonitor:run()
+  StateMonitor:run()
 
   ModuleManager:run()
 
