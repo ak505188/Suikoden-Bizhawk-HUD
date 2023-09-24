@@ -38,7 +38,7 @@ local function isPossibleBattle(rng, isWorldmap)
     return false
   end
   res = math.floor(rng2/0x7f) & 0xff
-  if res < 5 then return res end
+  if res < 4 then return res end
   return false
 end
 

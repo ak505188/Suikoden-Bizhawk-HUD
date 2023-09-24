@@ -186,6 +186,24 @@ function Worker:getEncounter(tableIndex)
   return encounterData
 end
 
+function Worker:isValidEncounter(tableIndex)
+  tableIndex = tableIndex or self.TablePosition
+  local battle = self:getTable()[tableIndex]
+
+  if battle.value >= self.Gamestate.EncounterRate then
+    return false
+  end
+
+  if not self.Gamestate.IsChampion then
+    return true
+  end
+
+  local battleChampVal = battle.battles[self.Gamestate.EncounterTableSize]
+  return self.Gamestate.PartyLevel <= battleChampVal
+end
+
+-- This should probably be split into 2 functions
+-- and have clearer return values and name
 function Worker:getValidEncounter(tableIndex)
   tableIndex = tableIndex or self.TablePosition
   local table = self:getTable()
@@ -196,16 +214,9 @@ function Worker:getValidEncounter(tableIndex)
 
   repeat
     possibleBattle = table[tableIndex]
-    if possibleBattle.value < self.Gamestate.EncounterRate then
-      if self.Gamestate.IsChampion then
-        local champVal = possibleBattle.battles[self.Gamestate.EncounterTableSize]
-        if self.Gamestate.PartyLevel > champVal then
-          validBattleFound = true
-        end
-      else
-        validBattleFound = true
-      end
-    else
+    validBattleFound = self:isValidEncounter(tableIndex)
+
+    if not validBattleFound then
       tableIndex = tableIndex + 1
     end
   until validBattleFound or tableIndex > #table

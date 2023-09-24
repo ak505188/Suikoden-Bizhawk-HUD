@@ -2,6 +2,7 @@ local Buttons = require "lib.Buttons"
 local Worker = require "modules.Battles.worker"
 local Drawer = require "controllers.drawer"
 local MenuProperties = require "menus.Properties"
+local Utils = require "lib.Utils"
 
 local Menu = {
   properties = {
@@ -34,19 +35,54 @@ end
 
 function Menu:init()
   self.cursor_position = 1
-  self.worker_table_position = Worker.TablePosition
+  -- this isn't actually accurate, because there can be hidden battles
+  -- want this to go to index of first valid battle
+  self.worker_table_position = self:getAdjustedTablePosition(0, Worker.TablePosition)
 end
 
+function Menu:getAdjustedTablePosition(amount, pos)
+  pos = pos or self.worker_table_position
 
--- This doesn't match up properly due to skipped battles
-function Menu:adjustTablePosition(amount)
-  local new_pos = self.worker_table_position + amount
-  if new_pos < 1 then
-    new_pos = 1
-  elseif new_pos > #Worker:getTable() then
-    new_pos = #Worker:getTable()
+  -- if amount = 0 check if current position is valid and if not find first valid one
+  -- can get this behavior by setting it to 1 if invalid battle
+  if amount == 0 then
+    if Worker:isValidEncounter(pos) then
+      return pos
+    else
+      amount = 1
+    end
   end
-  self.worker_table_position = new_pos
+
+  local direction = 1
+  local tableLength = #Worker:getTable()
+  local last_good_pos = pos
+
+  if amount < 0 then
+    direction = -1
+  end
+
+  if direction == 1 and pos == tableLength - 1 then return pos end
+  if direction == -1 and pos == 1 then return pos end
+
+  repeat
+    pos = pos + direction
+    local isValid = Worker:isValidEncounter(pos)
+
+    if isValid then
+      last_good_pos = pos
+      amount = amount - direction
+    end
+    if amount == 0 then
+      return pos
+    end
+  until pos == 1 or pos == tableLength - 1
+
+  return last_good_pos
+end
+
+-- bug: going up puts you at top of list
+function Menu:adjustTablePosition(amount)
+  self.worker_table_position = self:getAdjustedTablePosition(amount)
 end
 
 function Menu:run()
