@@ -1,9 +1,9 @@
-local Gamestate = require "lib.Enums.Gamestate"
 local Location = require "lib.Enums.Location"
 local RNG_Events = require "lib.Enums.RNG_Events"
-local ZoneInfo = require "lib.ZoneInfo"
-local EncounterTable = require "lib.EncounterTable"
 local Drawer = require "controllers.drawer"
+local Utils = require "lib.Utils"
+
+local Gamestate = require "modules.Battles.Gamestate"
 
 local RNGMonitor = require "monitors.RNG_Monitor"
 local StateMonitor = require "monitors.State_Monitor"
@@ -13,7 +13,7 @@ local Worker = {
   Config = {
     EnemyDrawTableLength = 10
   },
-  Gamestate = {},
+  Gamestate = Gamestate,
   Drawdata = {
     Battles = {},
     Enemies = {},
@@ -36,92 +36,18 @@ function Worker:shouldDraw()
   return self.Gamestate.Enemies ~= nil and self:getTable() ~= nil
 end
 
-function Worker:isUpdateRequired()
-  if StateMonitor.LOCATION == Location.OTHER then
-    return false
-  end
-
-  local stateChanged = false
-
-  if StateMonitor.LOCATION.changed then
-    stateChanged = true
-  elseif StateMonitor.WM_ZONE.changed then
-    stateChanged = true
-  elseif StateMonitor.AREA_ZONE.changed then
-    stateChanged = true
-  elseif StateMonitor.ENCOUNTER_RATE.changed then
-    stateChanged = true
-  elseif StateMonitor.CHAMPION_RUNE_EQUIPPED.changed then
-    stateChanged = true
-  elseif StateMonitor.CHAMPION_RUNE_EQUIPPED and StateMonitor.PARTY_LEVEL.changed then
-    stateChanged = true
-  end
-
-  if not stateChanged then
-    return false
-  end
-
-  return true
-end
-
-function Worker:updateState()
-  if StateMonitor.LOCATION.current == Location.OTHER then
-    return
-  end
-
-  local encounterRate
-  local name
-  local data
-
-  if StateMonitor.LOCATION.current == Location.WORLD_MAP then
-    name = ZoneInfo[StateMonitor.WM_ZONE.current].name
-    data = EncounterTable[name]
-    if not data then return false end
-    encounterRate = 8
-  elseif StateMonitor.LOCATION.current == Location.OVERWORLD then
-    name = ZoneInfo[StateMonitor.WM_ZONE.current][StateMonitor.AREA_ZONE.current]
-    data = EncounterTable[name]
-    if not data then return false end
-    encounterRate = math.min(StateMonitor.ENCOUNTER_RATE.current, data.encounterRate)
-  end
-
-  self.Gamestate = {
-    Location = StateMonitor.LOCATION.current,
-    AreaName = name,
-    EncounterTable = data.encounters,
-    Enemies = data.enemies,
-    EncounterRate = encounterRate,
-    EncounterTableSize = #data.encounters,
-    ChampVals = data.champVals,
-  }
-end
-
-function Worker:switchArea(areaName)
-  local areaData = EncounterTable[areaName]
-  local location = Location.WORLD_MAP
-  if areaData.areaType == Gamestate.OVERWORLD then
-    location = Location.OVERWORLD
-  end
-
-  self.Gamestate.Location = location
-  self.Gamestate.AreaName = areaName
-  self.Gamestate.EncounterTable = areaData.encounters
-  self.Gamestate.Enemies = areaData.enemies
-  self.Gamestate.EncounterRate = areaData.encounterRate or 8
-  self.Gamestate.EncounterTableSize = #areaData.encounters
-end
-
 function Worker:getTable(location)
   if self.Tables == nil then
     return nil
   end
   location = location or self.Gamestate.Location
-  return self.Tables[location]
+  local table = self.Tables[location]
+  return table
 end
 
 function Worker:findTablePosition(table, RNGIndex)
   table = table or self:getTable()
-  if #table <= 0 then return end
+  if table == nil or #table <= 0 then return nil end
   RNGIndex = RNGIndex or RNGMonitor:getIndex()
 
   if RNGIndex < table[1].index or RNGIndex > table[#table].index then return 0 end
@@ -141,13 +67,13 @@ function Worker:findTablePosition(table, RNGIndex)
     if RNGIndex < table[pos].index then return pos end
     pos = pos + 1
   until pos > #table
-  return -1
+  return nil
 end
 
 function Worker:updateTablePosition(RNGIndex)
   RNGIndex = RNGIndex or RNGMonitor:getIndex()
   local pos = self:findTablePosition(nil, RNGIndex)
-  if pos < 1 then return end
+  if pos == nil then return end
   self.TablePosition = pos
 end
 
@@ -241,7 +167,12 @@ function Worker:genAreaStr()
   return areaNameStr
 end
 
-function Worker:genBattlesDrawTable(options)
+function Worker:genBattlesDrawTable(options, battle_table)
+  battle_table = battle_table or self:getTable()
+  if battle_table == nil then
+    return
+  end
+
   local table_position, cursor
   if options then
     table_position = options.table_position
@@ -252,7 +183,7 @@ function Worker:genBattlesDrawTable(options)
 
   local i = 0
   local d = 0 -- Number of entries displayed
-  local tableLength = #self:getTable()
+  local tableLength = #battle_table
 
   local drawTable = {}
 
@@ -284,6 +215,7 @@ end
 
 -- Only used internally since it modifies state
 function Worker:updateDrawdata()
+  if self:getTable() == nil then return end
   self.Drawdata.Battles = self:genBattlesDrawTable()
   self.Drawdata.Enemies = self:genEnemiesDrawTable()
   self.Drawdata.Area = self:genAreaStr()
@@ -306,25 +238,25 @@ function Worker:init()
     [Location.OVERWORLD] = RNGMonitor:getTable()[Location.OVERWORLD],
   }
   self.TablePosition = 1
-  self:updateState()
+  self.Gamestate:updateState()
   self:updateDrawdata()
 end
 
 function Worker:onChange()
-  self:updateState()
+  self.Gamestate:updateState()
   self:updateDrawdata()
 end
 
 function Worker:run()
-  local stateChanged = self:isUpdateRequired()
+  local stateChanged = self.Gamestate:isUpdateRequired()
 
-  if not next(self.Gamestate) then
-    self:updateState()
+  if not self.Gamestate.Location then
+    self.Gamestate:updateState()
     return
   end
 
   if stateChanged then
-    self:updateState()
+    self.Gamestate:updateState()
     self:updateDrawdata()
   end
 

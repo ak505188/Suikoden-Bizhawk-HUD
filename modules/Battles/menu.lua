@@ -2,7 +2,37 @@ local Buttons = require "lib.Buttons"
 local Worker = require "modules.Battles.worker"
 local Drawer = require "controllers.drawer"
 local MenuProperties = require "menus.Properties"
+local MenuController = require "menus.MenuController"
 local Utils = require "lib.Utils"
+
+local CustomStateMenu = {
+  properties = {
+    type = MenuProperties.TYPES.module,
+    name = 'BATTLE_HANDLER_MENU'
+  },
+}
+
+function CustomStateMenu:init() end
+
+function CustomStateMenu:draw()
+  Drawer:draw({
+    "Area",
+    "Champ Rune",
+    "Champ Val",
+  }, Drawer.anchors.TOP_RIGHT)
+  if Worker:shouldDraw() then
+    local options = {
+      cursor = self.cursor_position,
+      table_position = self.worker_table_position
+    }
+    local drawData = Worker:genDrawData(options)
+    Drawer:draw(drawData.Enemies, Drawer.anchors.BOTTOM_LEFT, true)
+    Drawer:draw({ drawData.Area }, Drawer.anchors.TOP_LEFT, nil, true)
+    Drawer:draw(drawData.Battles, Drawer.anchors.TOP_LEFT)
+  end
+end
+
+function CustomStateMenu:run() end
 
 local Menu = {
   properties = {
@@ -16,6 +46,7 @@ function Menu:draw()
   Drawer:draw({
     "X: Go to Battle",
     "O: Exit Menu",
+    "□: Customize",
     "Up: Up 1",
     "Do: Down 1",
     "Le: Up 10",
@@ -41,6 +72,7 @@ function Menu:init()
 end
 
 function Menu:getAdjustedTablePosition(amount, pos)
+  if Worker:getTable() == nil then return end
   pos = pos or self.worker_table_position
 
   -- if amount = 0 check if current position is valid and if not find first valid one
@@ -90,6 +122,8 @@ function Menu:run()
     return true
   elseif Buttons.Cross:pressed() then
     Worker:jumpToBattle(self.worker_table_position)
+  elseif Buttons.Square:pressed() then
+    MenuController:open(CustomStateMenu)
   elseif Buttons.Down:pressed() then
     self:adjustTablePosition(1)
   elseif Buttons.Up:pressed() then
