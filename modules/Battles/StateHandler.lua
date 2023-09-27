@@ -30,27 +30,30 @@ function WorkerState:getCustomState()
   return self.custom_state
 end
 
-function WorkerState:updateCustomState() end
+function WorkerState:updateCustomState(new_custom_state)
+  self.custom_state = new_custom_state
+end
 
 function WorkerState:useRealState()
   self.use_custom = false
-  self.getState = self.real_state
+end
+
+function WorkerState:initCustomState()
+  if next(self.custom_state) == nil then
+    self.custom_state = Utils.cloneTableShallow(self.real_state)
+  end
 end
 
 function WorkerState:useCustomState()
+  self:initCustomState()
   self.use_custom = true
-  if next(self.custom_state) == nil then
-    self.custom_state = Utils.cloneTable(self.real_state)
-  end
-  self.getState = self.custom_state
 end
 
 function WorkerState:toggleCustomState()
   self.use_custom = not self.use_custom
-  if self.use_custom then
-    self.getState = self.custom_state
+  if self.use_custom then self:useCustomState()
   else
-    self.getState = self.real_state
+    self:useRealState()
   end
 end
 
@@ -110,7 +113,9 @@ function WorkerState:updateState()
     Enemies = data.enemies,
     EncounterRate = encounterRate,
     EncounterTableSize = #data.encounters,
-    ChampVals = data.champVals
+    ChampVals = data.champVals,
+    PartyLevel = StateMonitor.PARTY_LEVEL.current,
+    IsChampion = StateMonitor.CHAMPION_RUNE_EQUIPPED.current,
   }
 end
 

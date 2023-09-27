@@ -29,6 +29,41 @@ local function cloneTable(t)
   return { table.unpack(t) }
 end
 
+local function cloneTableShallow(orig)
+  local orig_type = type(orig)
+  local copy
+  if orig_type == 'table' then
+      copy = {}
+      for orig_key, orig_value in pairs(orig) do
+          copy[orig_key] = orig_value
+      end
+  else -- number, string, boolean, etc
+      copy = orig
+  end
+  return copy
+end
+
+local function cloneTableDeep(orig, copies)
+  copies = copies or {}
+  local orig_type = type(orig)
+  local copy
+  if orig_type == 'table' then
+    if copies[orig] then
+      copy = copies[orig]
+    else
+      copy = {}
+      copies[orig] = copy
+      for orig_key, orig_value in next, orig, nil do
+        copy[cloneTableDeep(orig_key, copies)] = cloneTableDeep(orig_value, copies)
+      end
+      setmetatable(copy, cloneTableDeep(getmetatable(orig), copies))
+    end
+  else -- number, string, boolean, etc
+    copy = orig
+  end
+  return copy
+end
+
 local function tableToStr(o)
   if type(o) == 'table' then
     local s = '{ '
@@ -87,6 +122,8 @@ end
 return {
   drawTable = drawTable,
   cloneTable = cloneTable,
+  cloneTableShallow = cloneTableShallow,
+  cloneTableDeep = cloneTableDeep,
   concatTables = concatTables,
   printDebug = printDebug,
   tableToStr = tableToStr

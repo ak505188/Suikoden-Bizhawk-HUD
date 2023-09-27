@@ -14,11 +14,6 @@ local Worker = {
     EnemyDrawTableLength = 10
   },
   StateHandler = StateHandler,
-  Drawdata = {
-    Battles = {},
-    Enemies = {},
-    Area = {},
-  },
   TablePosition = nil,
 }
 
@@ -27,14 +22,15 @@ function Worker:draw(options)
     return
   end
 
-  local battles = self.Drawdata.Battles
-  if options and options.table_position then
-    battles = self:genBattlesDrawTable(options)
-  end
+  -- local battles = self.Drawdata.Battles
+  -- if options and options.table_position then
+  --   battles = self:genBattlesDrawTable(options)
+  -- end
+  local draw_data = self:genDrawData(options)
 
-  Drawer:draw(self.Drawdata.Enemies, Drawer.anchors.BOTTOM_LEFT, true)
-  Drawer:draw({ self.Drawdata.Area }, Drawer.anchors.TOP_LEFT, nil, true)
-  Drawer:draw(battles, Drawer.anchors.TOP_LEFT)
+  Drawer:draw(draw_data.Enemies, Drawer.anchors.BOTTOM_LEFT, true)
+  Drawer:draw({ draw_data.Area }, Drawer.anchors.TOP_LEFT, nil, true)
+  Drawer:draw(draw_data.Battles, Drawer.anchors.TOP_LEFT)
 end
 
 function Worker:shouldDraw()
@@ -93,48 +89,24 @@ function Worker:jumpToBattle(pos)
   RNGMonitor:goToIndex(newRNGIndex)
 end
 
-function Worker:getEncounter(tableIndex)
-  tableIndex = tableIndex or self.TablePosition
-  local table = self:getTable()
-  if table == nil or #table <= 0 then return end
-  local possibleBattle = table[tableIndex]
-
-  if possibleBattle.value and possibleBattle.value >= self.StateHandler:getState().EncounterRate then return nil end
-  if StateMonitor.CHAMPION_RUNE_EQUIPPED.current then
-    local champVal = self.StateHandler:getState().ChampVals[possibleBattle.battles[self.StateHandler:getState().EncounterTableSize]]
-    if StateMonitor.PARTY_LEVEL.current > champVal then return nil end
-  end
-
-  local group = self.StateHandler:getState().EncounterTable[table[tableIndex].battles[self.StateHandler:getState().EncounterTableSize]]
-
-  local encounterData = {
-    index = possibleBattle.index,
-    rng = possibleBattle.rng,
-    run = possibleBattle.run,
-    group = group
-  }
-
-  return encounterData
-end
-
 function Worker:isValidEncounter(tableIndex)
   tableIndex = tableIndex or self.TablePosition
+  local game_state = self.StateHandler:getState()
   local battle = self:getTable()[tableIndex]
 
-  if battle.value >= self.StateHandler:getState().EncounterRate then
+  if battle.value >= game_state.EncounterRate then
     return false
   end
 
-  if not self.StateHandler:getState().IsChampion then
+  if not game_state.IsChampion then
     return true
   end
 
-  local battleChampVal = battle.battles[self.StateHandler:getState().EncounterTableSize]
-  return self.StateHandler:getState().PartyLevel <= battleChampVal
+  local encounter_table_index = battle.battles[#game_state.EncounterTable]
+  local battle_champion_lvl = game_state.ChampVals[encounter_table_index]
+  return game_state.PartyLevel <= battle_champion_lvl
 end
 
--- This should probably be split into 2 functions
--- and have clearer return values and name
 function Worker:getValidEncounter(tableIndex)
   tableIndex = tableIndex or self.TablePosition
   local table = self:getTable()
@@ -150,9 +122,11 @@ function Worker:getValidEncounter(tableIndex)
     if not validBattleFound then
       tableIndex = tableIndex + 1
     end
-  until validBattleFound or tableIndex > #table
+    if tableIndex > #table then return nil, tableIndex end
+  until validBattleFound
 
-  local group = self.StateHandler:getState().EncounterTable[table[tableIndex].battles[self.StateHandler:getState().EncounterTableSize]]
+  local encounter_table = self.StateHandler:getState().EncounterTable
+  local group = encounter_table[table[tableIndex].battles[#encounter_table]]
 
   return {
     index = possibleBattle.index,
@@ -184,24 +158,23 @@ function Worker:genBattlesDrawTable(options, battle_table)
     cursor = options.cursor
   end
 
+  local battle = nil
   local current_table_position = table_position or self.TablePosition
 
-  local i = 0
   local d = 0 -- Number of entries displayed
   local tableLength = #battle_table
 
   local drawTable = {}
 
   repeat
-    local battle = self:getEncounter(current_table_position + i)
+    battle, current_table_position = self:getValidEncounter(current_table_position)
     if battle then
-      local run = "F"
-      if battle.run then run = "R" end
+      local run = battle.run and "R" or "F"
       table.insert(drawTable, string.format("%d: %s %s", battle.index, run, battle.group))
       d = d + 1
     end
-    i = i + 1
-  until d >= self.Config.EnemyDrawTableLength or (current_table_position + i) > tableLength
+    current_table_position = current_table_position + 1
+  until d >= self.Config.EnemyDrawTableLength or current_table_position > tableLength
 
   if cursor and cursor < tableLength then
     drawTable[cursor] = string.format("> %s", drawTable[cursor])
@@ -216,14 +189,6 @@ function Worker:genEnemiesDrawTable()
     table.insert(enemiesTable, string.format("%d:%s", index, enemy))
   end
   return enemiesTable
-end
-
--- Only used internally since it modifies state
-function Worker:updateDrawdata()
-  if self:getTable() == nil then return end
-  self.Drawdata.Battles = self:genBattlesDrawTable()
-  self.Drawdata.Enemies = self:genEnemiesDrawTable()
-  self.Drawdata.Area = self:genAreaStr()
 end
 
 function Worker:genDrawData(options)
@@ -244,25 +209,23 @@ function Worker:init()
   }
   self.StateHandler:updateState()
   self.TablePosition = 1
-  self:updateDrawdata()
+  if self:getTable() then self:findTablePosition() end
 end
 
 function Worker:onChange()
   self.StateHandler:updateState()
-  self:updateDrawdata()
 end
 
 function Worker:run()
   local stateChanged = self.StateHandler:isUpdateRequired()
 
+  if stateChanged then
+    self.StateHandler:updateState()
+  end
+
   if not self.StateHandler:getState().Location then
     self.StateHandler:updateState()
     return
-  end
-
-  if stateChanged then
-    self.StateHandler:updateState()
-    self:updateDrawdata()
   end
 
   if self.StateHandler:getState().Location == Location.OTHER then
@@ -276,7 +239,6 @@ function Worker:run()
   -- TODO: Handle Start RNG Change
   elseif RNGMonitor.Event ~= RNG_Events.NO_CHANGE or stateChanged then
     self:updateTablePosition()
-    self:updateDrawdata()
   end
 end
 

@@ -35,7 +35,6 @@ end
 function Menu:init()
   self.cursor = 1
   self.table_position = self:getAdjustedTablePosition(0, Worker.TablePosition)
-  print("bm init")
 end
 
 function Menu:getAdjustedTablePosition(amount, pos)
