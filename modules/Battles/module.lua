@@ -1,4 +1,4 @@
-local Menu = require "modules.Battles.menu"
+local Menu = require "modules.Battles.menus.menu"
 local Worker = require "modules.Battles.worker"
 
 local Battles_Module = {

@@ -2,8 +2,57 @@ local StateMonitor = require "monitors.State_Monitor"
 local ZoneInfo = require "lib.ZoneInfo"
 local Location = require "lib.Enums.Location"
 local EncounterTable = require "lib.EncounterTable"
+local Utils = require "lib.Utils"
 
-local WorkerState = {}
+local WorkerState = {
+  real_state = {},
+  custom_state = {},
+  -- has_battles = {
+  --   random = false,
+  --   forced = false
+  -- },
+  use_custom = false
+}
+
+-- function WorkerState:hasRandomBattles() return self.has_battles.random end
+-- function WorkerState:hasForcedBattles() return self.has_battles.forced end
+
+function WorkerState:getState()
+  if self.use_custom then return self.custom_state end
+  return self.real_state
+end
+
+function WorkerState:getRealState()
+  return self.real_state
+end
+
+function WorkerState:getCustomState()
+  return self.custom_state
+end
+
+function WorkerState:updateCustomState() end
+
+function WorkerState:useRealState()
+  self.use_custom = false
+  self.getState = self.real_state
+end
+
+function WorkerState:useCustomState()
+  self.use_custom = true
+  if next(self.custom_state) == nil then
+    self.custom_state = Utils.cloneTable(self.real_state)
+  end
+  self.getState = self.custom_state
+end
+
+function WorkerState:toggleCustomState()
+  self.use_custom = not self.use_custom
+  if self.use_custom then
+    self.getState = self.custom_state
+  else
+    self.getState = self.real_state
+  end
+end
 
 function WorkerState:isUpdateRequired()
   if StateMonitor.LOCATION == Location.OTHER then
@@ -54,13 +103,15 @@ function WorkerState:updateState()
     encounterRate = math.min(StateMonitor.ENCOUNTER_RATE.current, data.encounterRate)
   end
 
-  self.Location = StateMonitor.LOCATION.current
-  self.AreaName = name
-  self.EncounterTable = data.encounters
-  self.Enemies = data.enemies
-  self.EncounterRate = encounterRate
-  self.EncounterTableSize = #data.encounters
-  self.ChampVals = data.champVals
+  self.real_state = {
+    Location = StateMonitor.LOCATION.current,
+    AreaName = name,
+    EncounterTable = data.encounters,
+    Enemies = data.enemies,
+    EncounterRate = encounterRate,
+    EncounterTableSize = #data.encounters,
+    ChampVals = data.champVals
+  }
 end
 
 return WorkerState

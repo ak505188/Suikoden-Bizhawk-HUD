@@ -3,7 +3,7 @@ local RNG_Events = require "lib.Enums.RNG_Events"
 local Drawer = require "controllers.drawer"
 local Utils = require "lib.Utils"
 
-local Gamestate = require "modules.Battles.Gamestate"
+local StateHandler = require "modules.Battles.StateHandler"
 
 local RNGMonitor = require "monitors.RNG_Monitor"
 local StateMonitor = require "monitors.State_Monitor"
@@ -13,34 +13,39 @@ local Worker = {
   Config = {
     EnemyDrawTableLength = 10
   },
-  Gamestate = Gamestate,
+  StateHandler = StateHandler,
   Drawdata = {
     Battles = {},
     Enemies = {},
     Area = {},
   },
-  TablePosition = 1,
+  TablePosition = nil,
 }
 
-function Worker:draw()
+function Worker:draw(options)
   if not self:shouldDraw() then
     return
   end
 
+  local battles = self.Drawdata.Battles
+  if options and options.table_position then
+    battles = self:genBattlesDrawTable(options)
+  end
+
   Drawer:draw(self.Drawdata.Enemies, Drawer.anchors.BOTTOM_LEFT, true)
   Drawer:draw({ self.Drawdata.Area }, Drawer.anchors.TOP_LEFT, nil, true)
-  Drawer:draw(self.Drawdata.Battles, Drawer.anchors.TOP_LEFT)
+  Drawer:draw(battles, Drawer.anchors.TOP_LEFT)
 end
 
 function Worker:shouldDraw()
-  return self.Gamestate.Enemies ~= nil and self:getTable() ~= nil
+  return self.StateHandler:getState().Enemies ~= nil and self:getTable() ~= nil
 end
 
 function Worker:getTable(location)
   if self.Tables == nil then
     return nil
   end
-  location = location or self.Gamestate.Location
+  location = location or self.StateHandler:getState().Location
   local table = self.Tables[location]
   return table
 end
@@ -50,7 +55,7 @@ function Worker:findTablePosition(table, RNGIndex)
   if table == nil or #table <= 0 then return nil end
   RNGIndex = RNGIndex or RNGMonitor:getIndex()
 
-  if RNGIndex < table[1].index or RNGIndex > table[#table].index then return 0 end
+  if RNGIndex < table[1].index or RNGIndex > table[#table].index then return nil end
 
   -- Eventually want to do a binary or ternary search here
   -- For now, just going to iterate through the list
@@ -94,13 +99,13 @@ function Worker:getEncounter(tableIndex)
   if table == nil or #table <= 0 then return end
   local possibleBattle = table[tableIndex]
 
-  if possibleBattle.value and possibleBattle.value >= self.Gamestate.EncounterRate then return nil end
+  if possibleBattle.value and possibleBattle.value >= self.StateHandler:getState().EncounterRate then return nil end
   if StateMonitor.CHAMPION_RUNE_EQUIPPED.current then
-    local champVal = self.Gamestate.ChampVals[possibleBattle.battles[self.Gamestate.EncounterTableSize]]
+    local champVal = self.StateHandler:getState().ChampVals[possibleBattle.battles[self.StateHandler:getState().EncounterTableSize]]
     if StateMonitor.PARTY_LEVEL.current > champVal then return nil end
   end
 
-  local group = self.Gamestate.EncounterTable[table[tableIndex].battles[self.Gamestate.EncounterTableSize]]
+  local group = self.StateHandler:getState().EncounterTable[table[tableIndex].battles[self.StateHandler:getState().EncounterTableSize]]
 
   local encounterData = {
     index = possibleBattle.index,
@@ -116,16 +121,16 @@ function Worker:isValidEncounter(tableIndex)
   tableIndex = tableIndex or self.TablePosition
   local battle = self:getTable()[tableIndex]
 
-  if battle.value >= self.Gamestate.EncounterRate then
+  if battle.value >= self.StateHandler:getState().EncounterRate then
     return false
   end
 
-  if not self.Gamestate.IsChampion then
+  if not self.StateHandler:getState().IsChampion then
     return true
   end
 
-  local battleChampVal = battle.battles[self.Gamestate.EncounterTableSize]
-  return self.Gamestate.PartyLevel <= battleChampVal
+  local battleChampVal = battle.battles[self.StateHandler:getState().EncounterTableSize]
+  return self.StateHandler:getState().PartyLevel <= battleChampVal
 end
 
 -- This should probably be split into 2 functions
@@ -147,7 +152,7 @@ function Worker:getValidEncounter(tableIndex)
     end
   until validBattleFound or tableIndex > #table
 
-  local group = self.Gamestate.EncounterTable[table[tableIndex].battles[self.Gamestate.EncounterTableSize]]
+  local group = self.StateHandler:getState().EncounterTable[table[tableIndex].battles[self.StateHandler:getState().EncounterTableSize]]
 
   return {
     index = possibleBattle.index,
@@ -158,7 +163,7 @@ function Worker:getValidEncounter(tableIndex)
 end
 
 function Worker:genAreaStr()
-  local areaNameStr = self.Gamestate.AreaName
+  local areaNameStr = self.StateHandler:getState().AreaName
 
   if StateMonitor.CHAMPION_RUNE_EQUIPPED.current then
     areaNameStr = string.format("%s PL:%d", areaNameStr, StateMonitor.PARTY_LEVEL.current)
@@ -170,7 +175,7 @@ end
 function Worker:genBattlesDrawTable(options, battle_table)
   battle_table = battle_table or self:getTable()
   if battle_table == nil then
-    return
+    return {}
   end
 
   local table_position, cursor
@@ -207,7 +212,7 @@ end
 
 function Worker:genEnemiesDrawTable()
   local enemiesTable = {}
-  for index,enemy in ipairs(self.Gamestate.Enemies) do
+  for index,enemy in ipairs(self.StateHandler:getState().Enemies) do
     table.insert(enemiesTable, string.format("%d:%s", index, enemy))
   end
   return enemiesTable
@@ -237,30 +242,30 @@ function Worker:init()
     [Location.WORLD_MAP] = RNGMonitor:getTable()[Location.WORLD_MAP],
     [Location.OVERWORLD] = RNGMonitor:getTable()[Location.OVERWORLD],
   }
+  self.StateHandler:updateState()
   self.TablePosition = 1
-  self.Gamestate:updateState()
   self:updateDrawdata()
 end
 
 function Worker:onChange()
-  self.Gamestate:updateState()
+  self.StateHandler:updateState()
   self:updateDrawdata()
 end
 
 function Worker:run()
-  local stateChanged = self.Gamestate:isUpdateRequired()
+  local stateChanged = self.StateHandler:isUpdateRequired()
 
-  if not self.Gamestate.Location then
-    self.Gamestate:updateState()
+  if not self.StateHandler:getState().Location then
+    self.StateHandler:updateState()
     return
   end
 
   if stateChanged then
-    self.Gamestate:updateState()
+    self.StateHandler:updateState()
     self:updateDrawdata()
   end
 
-  if self.Gamestate.Location == Location.OTHER then
+  if self.StateHandler:getState().Location == Location.OTHER then
     return
   end
 
