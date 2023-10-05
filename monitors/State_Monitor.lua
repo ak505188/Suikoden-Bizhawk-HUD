@@ -42,7 +42,7 @@ function StateMonitor:draw()
   return Drawer:draw(textToDraw, Drawer.anchors.TOP_LEFT)
 end
 
-function StateMonitor:read()
+function StateMonitor:run()
   local buffer = mainmemory.read_bytes_as_array(Address.GAMESTATE_BASE, 16)
   local partySize = buffer[4]
   self:updateState("AREA_ZONE", buffer[1])
@@ -58,12 +58,8 @@ function StateMonitor:read()
   self:updateLocation()
 end
 
-function StateMonitor:run()
-  self:read()
-end
-
 function StateMonitor:init()
-  self:read()
+  self:run()
 end
 
 -- More complex state logic goes into seperate functions here

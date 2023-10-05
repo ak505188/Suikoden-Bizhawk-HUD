@@ -14,6 +14,10 @@ local Address = {
   GAMESTATE_BASE = 0x1b8000,
   PARTY_SIZE = 0x1b8003,
   CHARACTER_OFFSETS = 0x1b800e,
+  HERO_X = 0x17BD74,
+  HERO_Y = 0x17BD75,
+  HERO_DIRECTION = 0x18b4c0,
+  ROOM_POINTER = 0x17daa0,
 }
 
 function Address.sanitize(addr)

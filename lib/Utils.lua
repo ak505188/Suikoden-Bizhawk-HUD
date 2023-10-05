@@ -118,6 +118,14 @@ local function concatTables(...)
   return table.remove(tables)
 end
 
+local function readFromByteTable(tbl, starting_pos, size)
+  local value = 0
+  for i = 0, size - 1 do
+    value = value + (tbl[starting_pos + i] << (i * 8))
+  end
+  return value
+end
+
 
 return {
   drawTable = drawTable,
@@ -126,5 +134,6 @@ return {
   cloneTableDeep = cloneTableDeep,
   concatTables = concatTables,
   printDebug = printDebug,
+  readFromByteTable = readFromByteTable,
   tableToStr = tableToStr
 }

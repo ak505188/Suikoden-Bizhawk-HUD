@@ -1,3 +1,5 @@
+local Utils = require "lib.Utils"
+
 local ModuleManager = {
   modules = {},
   modulePositionsByName = {},
@@ -26,9 +28,9 @@ function ModuleManager:nextModule()
 end
 
 function ModuleManager:prevModule()
-  -- TODO: Implement, this is just copy of nextModule
   if #self.modules > 1 then
-    self.currentModule = self.currentModule % #self.modules + 1
+    self.currentModule = self.currentModule - 1
+    if self.currentModule == 0 then self.currentModule = #self.modules end
   end
   self:getCurrent().Worker:onChange()
 end

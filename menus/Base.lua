@@ -1,5 +1,4 @@
 local MenuProperties = require "menus.Properties"
-local Utils = require "lib.Utils"
 
 local BaseMenu = {
   properties = {
