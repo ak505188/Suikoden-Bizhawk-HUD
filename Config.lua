@@ -1,4 +1,3 @@
-local ButtonNames = require "lib.Buttons"
 local Config = {}
 
 --- Plugins On/Off
@@ -20,21 +19,5 @@ Config.RNG_MONITOR = {
   BUFFER_INCREMENT_SIZE = 500, -- Later look-ahead size per frame
   BUFFER_MARGIN_SIZE = 30000, -- When difference between current length & current RNG Index is greater than this, look ahead again.
 }
-
-Config.Battle_HUD = {
-  REFRESH_RATE = 60, -- Refresh data every X frames
-  GUI_GAP = 16,
-  GUI_X = 0,
-  GUI_Y = 16 * 6,
-  NUM_TO_DISPLAY = 15,
-}
-
-Config.Controls = {
-  GUI_X = 0,
-  GUI_Y = 0,
-  GUI_GAP = 16,
-}
-
-Config.ButtonNames = ButtonNames
 
 return Config
