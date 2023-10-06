@@ -9,8 +9,8 @@ local BaseMenu = require "menus.Base"
 
 local Menu = BaseMenu:new({
   properties = {
-    type = MenuProperties.TYPES.module,
-    name = 'BATTLE_HANDLER_MENU'
+    type = MenuProperties.MENU_TYPES.module,
+    name = 'BATTLE_HANDLER_MENU',
   },
   cursor = 1,
 })

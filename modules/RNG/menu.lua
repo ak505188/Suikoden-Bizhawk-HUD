@@ -5,8 +5,9 @@ local MenuProperties = require "menus.Properties"
 
 local Menu = {
   properties = {
-    type = MenuProperties.TYPES.module,
-    name = 'RNG_HANDLER_MENU'
+    type = MenuProperties.MENU_TYPES.module,
+    name = 'RNG_HANDLER_MENU',
+    control = MenuProperties.CONTROL_TYPES.buttons,
   }
 }
 

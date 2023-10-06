@@ -1,5 +1,3 @@
-local Utils = require "lib.Utils"
-
 local ModuleManager = {
   modules = {},
   modulePositionsByName = {},

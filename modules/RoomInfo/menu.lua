@@ -6,7 +6,7 @@ local BaseMenu = require "menus.Base"
 
 local Menu = BaseMenu:new({
   properties = {
-    type = MenuProperties.TYPES.module,
+    type = MenuProperties.MENU_TYPES.module,
     name = 'ROOM_INFO_MENU'
   },
 })

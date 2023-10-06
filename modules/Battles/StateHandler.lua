@@ -3,6 +3,8 @@ local ZoneInfo = require "lib.ZoneInfo"
 local Location = require "lib.Enums.Location"
 local EncounterTable = require "lib.EncounterTable"
 local Utils = require "lib.Utils"
+local EncounterLib = require "lib.Encounter"
+local AreasWithRandomBattles = require "lib.Enums.Areas.Areas_Random"
 
 local WorkerState = {
   real_state = {},
@@ -12,6 +14,21 @@ local WorkerState = {
   --   forced = false
   -- },
   use_custom = false
+}
+
+local defaultCustomStateAreaName = AreasWithRandomBattles.CAVE_OF_THE_PAST
+local defaultCustomStateAreaData = EncounterTable[defaultCustomStateAreaName]
+
+local defaultCustomState = {
+  Location = Location.OVERWORLD,
+  AreaName = AreasWithRandomBattles.CAVE_OF_THE_PAST,
+  EncounterTable = defaultCustomStateAreaData.encounters,
+  Enemies = defaultCustomStateAreaData.enemies,
+  EncounterRate = defaultCustomStateAreaData.encounterRate,
+  EncounterTableSize = #defaultCustomStateAreaData.encounters,
+  ChampVals = defaultCustomStateAreaData.champVals,
+  PartyLevel = 1,
+  IsChampion = false,
 }
 
 -- function WorkerState:hasRandomBattles() return self.has_battles.random end
@@ -34,13 +51,28 @@ function WorkerState:updateCustomState(new_custom_state)
   self.custom_state = new_custom_state
 end
 
+function WorkerState:updateCustomStateArea(area_name)
+  local new_custom_state = self:getCustomState()
+  local area_data = EncounterTable[area_name]
+
+  new_custom_state.LOCATION = EncounterLib.locationIntToKey(area_data.areaType)
+  new_custom_state.AreaName = area_name
+  new_custom_state.EncounterTable = area_data.encounters
+  new_custom_state.Enemies = area_data.enemies
+  new_custom_state.EncounterRate = area_data.encounterRate or 8
+  new_custom_state.EncounterTableSize = #area_data.encounters
+  new_custom_state.ChampVals = area_data.champVals
+
+  self:updateCustomState(new_custom_state)
+end
+
 function WorkerState:useRealState()
   self.use_custom = false
 end
 
 function WorkerState:initCustomState()
   if next(self.custom_state) == nil then
-    self.custom_state = Utils.cloneTableShallow(self.real_state)
+    self.custom_state = Utils.combineTables(defaultCustomState, self.real_state)
   end
 end
 

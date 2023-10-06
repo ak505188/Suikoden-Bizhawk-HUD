@@ -74,7 +74,7 @@ function MenuController:run()
 
     local currentMenu = self:getCurrentMenu()
 
-    if currentMenu.properties.type == MenuProperties.TYPES.module then
+    if currentMenu.properties.type == MenuProperties.MENU_TYPES.module then
       ModuleMenu:draw()
       local moduleChanged = ModuleMenu:run()
       if moduleChanged then

@@ -1,9 +1,16 @@
-local TYPES = {
+local MENU_TYPES = {
   base = 'BASE',
   module = 'MODULE',
-  custom = 'CUSTOM'
+  custom = 'CUSTOM',
+}
+
+local CONTROL_TYPES = {
+  cursor = 'CURSOR',
+  buttons = 'BUTTONS',
+  scrolling_cursor = 'SCROLLING_CURSOR',
 }
 
 return {
-  TYPES = TYPES
+  CONTROL_TYPES = CONTROL_TYPES,
+  MENU_TYPES = MENU_TYPES,
 }

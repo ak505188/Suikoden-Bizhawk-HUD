@@ -2,7 +2,7 @@ local MenuProperties = require "menus.Properties"
 
 local BaseMenu = {
   properties = {
-    type = MenuProperties.TYPES.base,
+    type = MenuProperties.MENU_TYPES.base,
     name = 'BASE'
   }
 }

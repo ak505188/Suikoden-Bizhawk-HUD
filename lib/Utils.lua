@@ -118,6 +118,14 @@ local function concatTables(...)
   return table.remove(tables)
 end
 
+local function combineTables(base_table, other_table)
+  local new_table = cloneTableDeep(base_table)
+  for key, value in pairs(other_table) do
+    new_table[key] = value
+  end
+  return new_table
+end
+
 local function readFromByteTable(tbl, starting_pos, size)
   local value = 0
   for i = 0, size - 1 do
@@ -132,6 +140,7 @@ return {
   cloneTable = cloneTable,
   cloneTableShallow = cloneTableShallow,
   cloneTableDeep = cloneTableDeep,
+  combineTables = combineTables,
   concatTables = concatTables,
   printDebug = printDebug,
   readFromByteTable = readFromByteTable,

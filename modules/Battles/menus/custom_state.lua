@@ -3,12 +3,15 @@ local Worker = require "modules.Battles.worker"
 local MenuProperties = require "menus.Properties"
 local Buttons = require "lib.Buttons"
 local BaseMenu = require "menus.Base"
+local MenuController = require "menus.MenuController"
+local AreaSelectionMenu = require "modules.Battles.menus.area_selection"
 local Utils = require "lib.Utils"
 
 local CustomStateMenu = BaseMenu:new({
   properties = {
-    type = MenuProperties.TYPES.module,
-    name = 'BATTLE_HANDLER_MENU'
+    type = MenuProperties.MENU_TYPES.module,
+    name = 'BATTLE_HANDLER_MENU',
+    control = MenuProperties.CONTROL_TYPES.buttons
   },
 })
 
@@ -52,6 +55,8 @@ function CustomStateMenu:run()
     customState.IsChampion = not customState.IsChampion
     Worker.StateHandler:updateCustomState(customState)
   elseif Buttons.Square:pressed() then
+    local area_selection_menu = self:new(AreaSelectionMenu)
+    MenuController:open(area_selection_menu)
   elseif Buttons.Down:pressed() then
     self.adjustCustomPartyLevel(-1)
   elseif Buttons.Up:pressed() then
