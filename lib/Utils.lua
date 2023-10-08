@@ -94,7 +94,7 @@ local function printDebug(name, str, max)
   end
 
   if printDebugTable[name].count < printDebugTable[name].max then
-    print(name .. " C:" .. printDebugTable[name].count .. "\n" .. str .. "\n")
+    print(name .. " C:" .. printDebugTable[name].count .. "\n" .. tostring(str) .. "\n")
     printDebugTable[name].count = printDebugTable[name].count + 1
   end
 end

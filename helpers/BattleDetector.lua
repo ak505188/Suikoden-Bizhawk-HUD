@@ -62,7 +62,7 @@ function ReadEnemyTable(addr)
       if id ~= 0 then
         local item_name = ItemNames[id]
         if not item_name then
-          item_name = GetItemName(id)
+          item_name = getItemName(id)
           ItemNames[id] = item_name
         end
         local chance = enemyRawData[53 + j * 2 + 1]
@@ -78,7 +78,7 @@ function ReadEnemyTable(addr)
   return enemies
 end
 
-function GetItemName(id)
+function getItemName(id)
   local item_name_addr = mainmemory.read_u32_le(Address.ITEM_NAME_PTR_1 + (id - 1) * 4) & 0x7fffffff
   local item_name_raw_data = mainmemory.read_bytes_as_array(item_name_addr, 16)
   return Charmap.readStringFromList(item_name_raw_data)

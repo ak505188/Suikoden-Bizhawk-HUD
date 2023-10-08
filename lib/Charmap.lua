@@ -194,6 +194,19 @@ local function strToHex(str)
 	return list
 end
 
+local function readStringFromList(list, startOfStr, endOfStr)
+  startOfStr = startOfStr or 1
+  endOfStr = endOfStr or #list
+  local str = ""
+  for i = 1,endOfStr,1 do
+    local code = list[i]
+    if code == 0 then return str end
+    local char = getChar(code)
+    str = str .. char
+  end
+  return str
+end
+
 local function readStringFromMemory(address, length)
   length = length or 16
   local str = ""
@@ -212,5 +225,6 @@ return {
   getChar = getChar,
   getStr = getStr,
   strToHex = strToHex,
+  readStringFromList = readStringFromList,
   readStringFromMemory = readStringFromMemory
 }

@@ -23,6 +23,8 @@ local StateMonitor = {
   PARTY_LEVEL = Utils.cloneTable(initVarState),
   RNG = Utils.cloneTable(initVarState),
   LOCATION = Utils.cloneTable(initVarState),
+  ENCOUNTER_TABLE_PTR = Utils.cloneTable(initVarState),
+  ENEMY_GROUP_PTR = Utils.cloneTable(initVarState),
 }
 
 function StateMonitor:updateState(key, value)
@@ -55,6 +57,8 @@ function StateMonitor:run()
   self:updateState("ENCOUNTER_RATE", memory.read_u8(Address.ENCOUNTER_RATE))
   self:updateState("CHAMPION_RUNE_EQUIPPED", PartyLib.isChampionsRuneEquipped())
   self:updateState("PARTY_LEVEL", PartyLib.getPartyLVL(partySize))
+  self:updateState("ENCOUNTER_TABLE_PTR", memory.read_u32_le(Address.ENCOUNTER_TABLE_PTR))
+  self:updateState("ENEMY_GROUP_PTR", memory.read_u32_le(Address.ENEMY_GROUP_PTR))
   self:updateLocation()
 end
 
