@@ -18,8 +18,8 @@ local RNG_Module = require "modules.RNG.module"
 local Battles_Module = require "modules.Battles.module"
 local RoomInfo_Module = require "modules.RoomInfo.module"
 
-ModuleManager:addModule(Battles_Module)
 ModuleManager:addModule(RNG_Module)
+ModuleManager:addModule(Battles_Module)
 ModuleManager:addModule(RoomInfo_Module)
 
 local function draw()

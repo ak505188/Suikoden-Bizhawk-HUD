@@ -7,6 +7,8 @@ function Worker:run() end
 
 function Worker:onChange() end
 
+function Worker:init() end
+
 function Worker:draw()
   Drawer:draw({ "RNG Module Draw" }, Drawer.anchors.TOP_LEFT)
 end
