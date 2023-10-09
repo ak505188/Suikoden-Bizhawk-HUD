@@ -14,6 +14,8 @@ function Worker:run()
   self.RoomData = Worker:getRoomData()
 end
 
+function Worker:init() end
+
 function Worker:onChange() end
 
 function Worker:draw()

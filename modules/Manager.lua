@@ -5,6 +5,7 @@ local ModuleManager = {
 }
 
 function ModuleManager:addModule(module)
+  module.Worker:init()
   table.insert(self.modules, module)
   self.modulePositionsByName[module.Name] = #self.modules
   if self.currentModule == nil then
