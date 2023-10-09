@@ -100,6 +100,10 @@ local function RNGTable(start_rng, table_size)
     return self.byRNG[rng]
   end
 
+  function rngTable:getRNG(index)
+    return self.byIndex[index]
+  end
+
   function rngTable:getSize()
     return self.byRNG[self.last]
   end

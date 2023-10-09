@@ -6,6 +6,7 @@ local Gamestate = require "lib.Enums.Gamestate"
 local Address = require "lib.Address"
 
 local Worker = {
+  Drops = {},
   EnemyTablesByAddr = {},
   State = {
     Battle = {},
@@ -13,6 +14,8 @@ local Worker = {
     EnemyGroupPtr = nil,
   }
 }
+
+function Worker:init() end
 
 function Worker:run()
   -- This doesn't work. Need to implement delay
@@ -25,10 +28,16 @@ function Worker:run()
 
   if self:isUpdateRequired() then
     self:updateBattle()
+    self:updateDrops()
+    Utils.printDebug('drops', self.Drops, 1)
   end
 end
 
 function Worker:onChange() end
+
+function Worker:updateDrops()
+  self.Drops = Battle.calculateDrops(self.State.Battle)
+end
 
 function Worker:isUpdateRequired()
   if not next(self.State.Battle) then return true end

@@ -1,3 +1,5 @@
+local Utils = require "lib.Utils"
+
 local eventNames = {
   "Pannu Yakuta Battle",
   "Fortress of Garan Battle",

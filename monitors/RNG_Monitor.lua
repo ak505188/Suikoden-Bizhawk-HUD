@@ -110,9 +110,14 @@ function RNGMonitor:getTableSize(startingRNG)
   return self:getTable(startingRNG):getSize()
 end
 
-function RNGMonitor:getIndex(startingRNG)
-  startingRNG = startingRNG or self.StartingRNG
-  return self:getTable(startingRNG):getIndex(self.RNG)
+function RNGMonitor:getIndex(rng)
+  rng = rng or self.RNG
+  return self:getTable():getIndex(self.RNG)
+end
+
+function RNGMonitor:getRNG(index)
+  index = index or self.RNGIndex
+  return self:getTable():getRNG(index)
 end
 
 function RNGMonitor:goToIndex(index)

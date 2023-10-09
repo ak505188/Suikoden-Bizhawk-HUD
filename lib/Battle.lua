@@ -1,6 +1,8 @@
 local Charmap = require "lib.Charmap"
 local Address = require "lib.Address"
 local Utils = require "lib.Utils"
+local RNGLib = require "lib.RNG"
+local RNGMonitor = require "monitors.RNG_Monitor"
 
 local BattleStruct = nil
 local EnemyTablesByAddr = {}
@@ -112,7 +114,53 @@ end
 -- Read what different enemies are in group, and add to Set
 -- Maybe make list as well?
 
+local function calculateDrop(battle, rng_index)
+  local rng = RNGMonitor:getRNG(rng_index)
+  for i = 1, #battle.Enemies do
+    local enemy = battle.Enemies[i]
+    rng_index = rng_index + 1
+    -- Because rng_index can be greater than RNGMonitor table size by up to 12
+    -- For those instances we calculate the RNG manually
+    -- This lets us calculate for full RNGMonitor table size
+    -- We can't update RNGMonitor table with calculated values
+    -- Because that would put us into an infinite loop
+    rng = RNGMonitor:getRNG(rng_index) or RNGLib.nextRNG(rng)
+    local drop_index_roll = RNGLib.getRNG2(rng)
+    local drop_index = (drop_index_roll % 3) + 1
+    if drop_index <= #enemy.Drops then
+      local drop_data = enemy.Drops[drop_index]
+      rng_index = rng_index + 1
+      rng = RNGMonitor:getRNG(rng_index) or RNGLib.nextRNG(rng)
+      local drop_chance_roll = RNGLib.getRNG2(rng)
+      if drop_chance_roll % 100 < drop_data.Chance then
+        return drop_data.Name
+      end
+    end
+  end
+  return nil
+end
+
+local function calculateDrops(battle, rng_index, iterations, drops)
+  drops = drops or {}
+  -- TODO: Change iterations back to real logic
+  iterations = 10000
+  rng_index = rng_index or 0
+  for _ = 1, iterations do
+    local drop = calculateDrop(battle, rng_index)
+    if drop ~= nil then
+      drops[rng_index] = { name = drop, rng = string.format("0x%x", RNGMonitor:getRNG(rng_index)) }
+    end
+    rng_index = rng_index + 1
+    -- calculateDrop can advance RNG by up to 12 times, which can go outside table bounds
+    -- adding 12 prevents out of bounds
+    if rng_index >= RNGMonitor:getTableSize() then return drops end
+  end
+  return drops
+end
+
 return {
+  calculateDrop = calculateDrop,
+  calculateDrops = calculateDrops,
   getEnemyData = getEnemyData,
   getItemName = getItemName,
   readEnemyTable = readEnemyTable
