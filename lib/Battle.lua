@@ -4,11 +4,8 @@ local Utils = require "lib.Utils"
 local RNGLib = require "lib.RNG"
 local RNGMonitor = require "monitors.RNG_Monitor"
 
-local BattleStruct = nil
 local EnemyTablesByAddr = {}
 local ItemNames = {}
-local UpdateBattleStructWait = -1
-local UpdateBattleStructTimer = 1
 
 local function getItemName(id)
   local item_name_addr = memory.read_u32_le(Address.ITEM_NAME_PTR_1 + (id - 1) * 4) & 0x7fffffff

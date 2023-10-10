@@ -19,7 +19,7 @@ local Battles_Module = require "modules.Battles.module"
 local RoomInfo_Module = require "modules.RoomInfo.module"
 local Drops_Module = require "modules.Drops.module"
 
-ModuleManager:addModule(Drops_Module)
+-- ModuleManager:addModule(Drops_Module)
 ModuleManager:addModule(RNG_Module)
 ModuleManager:addModule(Battles_Module)
 ModuleManager:addModule(RoomInfo_Module)
