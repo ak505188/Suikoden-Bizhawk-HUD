@@ -1,12 +1,12 @@
 local Drawer = require "controllers.drawer"
 local Utils = require "lib.Utils"
 local Battle = require "lib.Battle"
+local DropTable = require "lib.DropTable"
 local StateMonitor = require "monitors.State_Monitor"
 local Gamestate = require "lib.Enums.Gamestate"
 local Address = require "lib.Address"
 
 local Worker = {
-  Drops = {},
   EnemyTablesByAddr = {},
   State = {
     Battle = {},
@@ -28,16 +28,15 @@ function Worker:run()
 
   if self:isUpdateRequired() then
     self:updateBattle()
-    self:updateDrops()
-    Utils.printDebug('drops', self.Drops, 1)
+    self.DropTable = DropTable:new(self.State.Battle)
+  end
+
+  if self.DropTable then
+    self.DropTable:run()
   end
 end
 
 function Worker:onChange() end
-
-function Worker:updateDrops()
-  self.Drops = Battle.calculateDrops(self.State.Battle)
-end
 
 function Worker:isUpdateRequired()
   if not next(self.State.Battle) then return true end
@@ -45,9 +44,9 @@ function Worker:isUpdateRequired()
 end
 
 function Worker:draw()
-  Drawer:draw({ "Drops Module Draw" }, Drawer.anchors.TOP_LEFT, nil, true)
   if not next(self.State.Battle) then return end
   Drawer:draw({ self.State.Battle.Enemies[1].Name }, Drawer.anchors.TOP_LEFT)
+  self.DropTable:draw()
 end
 
 function Worker:updateBattle()

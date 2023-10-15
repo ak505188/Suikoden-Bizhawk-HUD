@@ -1,6 +1,6 @@
 local Drawer = require "controllers.drawer"
 local Buttons = require "lib.Buttons"
-local Worker = require "modules.RNG.worker"
+local Worker = require "modules.Drops.worker"
 local MenuProperties = require "menus.Properties"
 
 local Menu = {
@@ -17,7 +17,6 @@ end
 
 function Menu:init() end
 
-function Menu:run()
-end
+function Menu:run() end
 
 return Menu

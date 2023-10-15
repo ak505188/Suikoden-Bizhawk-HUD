@@ -1,7 +1,5 @@
 local Location = require "lib.Enums.Location"
-local RNG_Events = require "lib.Enums.RNG_Events"
 local Drawer = require "controllers.drawer"
-local Utils = require "lib.Utils"
 
 local StateHandler = require "modules.Battles.StateHandler"
 
