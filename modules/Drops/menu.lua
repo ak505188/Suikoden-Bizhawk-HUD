@@ -14,7 +14,7 @@ local Menu = {
 function Menu:draw()
   Drawer:draw({
     "[]: Filter Drops",
-    "^: Lock Table Position",
+    string.format("^: %s Table Position", Worker.DropTable.locked_pos == -1 and "Lock" or "Unlock"),
     "O: Back",
     "Up: Scroll 1 Up",
     "Do: Scroll 1 Down",
@@ -25,7 +25,11 @@ function Menu:draw()
 end
 
 function Menu:init()
-  self.table_pos = Worker.DropTable.cur_table_pos
+  if Worker.DropTable.locked_pos == -1 then
+    self.table_pos = Worker.DropTable.cur_table_pos
+  else
+    self.table_pos = Worker.DropTable.locked_pos
+  end
 end
 
 function Menu:adjustTablePos(amount)
@@ -35,12 +39,20 @@ function Menu:adjustTablePos(amount)
   elseif self.table_pos > #Worker.DropTable.drops then
     self.table_pos = #Worker.DropTable.drops
   end
+  if Worker.DropTable.locked_pos ~= -1 then
+    Worker.DropTable.locked_pos = self.table_pos
+  end
 end
 
 function Menu:run()
   if Buttons.Circle:pressed() then
     return true
   elseif Buttons.Triangle:pressed() then
+    if Worker.DropTable.locked_pos == -1 then
+      Worker.DropTable.locked_pos = self.table_pos
+    else
+      Worker.DropTable.locked_pos = -1
+    end
   elseif Buttons.Square:pressed() then
   elseif Buttons.Up:pressed() then
     self:adjustTablePos(-1)

@@ -46,7 +46,6 @@ end
 
 function Worker:draw(table_pos)
   if not next(self.State.Battle) then return end
-  Drawer:draw({ self.State.Battle.Enemies[1].Name }, Drawer.anchors.TOP_LEFT)
   self.DropTable:draw(table_pos)
 end
 

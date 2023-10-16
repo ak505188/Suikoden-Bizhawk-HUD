@@ -12,6 +12,7 @@ function DropTable:new(battle)
   self.battle = battle
   self.drops = {}
   self:generateDrops()
+  self.locked_pos = -1
   self.cur_rng_index = RNGMonitor.RNGIndex
   self.cur_table_pos = self:findTablePosition(self.cur_rng_index)
   return tbl
@@ -19,8 +20,11 @@ end
 
 function DropTable:draw(pos)
   pos = pos or self:findTablePosition()
+  if self.locked_pos > -1 then
+    pos = self.locked_pos
+  end
   local draw_table = {}
-  local draw_table_len = 10
+  local draw_table_len = 15
   local count = 0
 
   repeat
