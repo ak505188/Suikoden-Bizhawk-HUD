@@ -39,14 +39,15 @@ end
 function Worker:onChange() end
 
 function Worker:isUpdateRequired()
+  -- TODO: Handle start RNG change
   if not next(self.State.Battle) then return true end
   return StateMonitor.ENEMY_GROUP_PTR.changed or StateMonitor.ENCOUNTER_TABLE_PTR.changed
 end
 
-function Worker:draw()
+function Worker:draw(table_pos)
   if not next(self.State.Battle) then return end
   Drawer:draw({ self.State.Battle.Enemies[1].Name }, Drawer.anchors.TOP_LEFT)
-  self.DropTable:draw()
+  self.DropTable:draw(table_pos)
 end
 
 function Worker:updateBattle()

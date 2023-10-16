@@ -12,6 +12,8 @@ function DropTable:new(battle)
   self.battle = battle
   self.drops = {}
   self:generateDrops()
+  self.cur_rng_index = RNGMonitor.RNGIndex
+  self.cur_table_pos = self:findTablePosition(self.cur_rng_index)
   return tbl
 end
 
@@ -20,7 +22,6 @@ function DropTable:draw(pos)
   local draw_table = {}
   local draw_table_len = 10
   local count = 0
-
 
   repeat
     local drop = self.drops[pos]
@@ -41,6 +42,10 @@ end
 
 function DropTable:run()
   self:generateAdditionalDrops()
+  if self.cur_rng_index ~= RNGMonitor.RNGIndex then
+    self.cur_rng_index = RNGMonitor.RNGIndex
+    self.cur_table_pos = self:findTablePosition(self.cur_rng_index)
+  end
 end
 
 function DropTable:generateDrops(pos)
