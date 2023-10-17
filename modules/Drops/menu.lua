@@ -1,15 +1,18 @@
 local Drawer = require "controllers.drawer"
 local Buttons = require "lib.Buttons"
+local BaseMenu = require "menus.Base"
 local Worker = require "modules.Drops.worker"
+local DropFilterMenu = require "modules.Drops.menus.drop_filter"
 local MenuProperties = require "menus.Properties"
+local MenuController = require "menus.MenuController"
 
-local Menu = {
+local Menu = BaseMenu:new({
   properties = {
     type = MenuProperties.MENU_TYPES.module,
     name = 'DROPS_MENU',
     control = MenuProperties.CONTROL_TYPES.buttons,
   }
-}
+})
 
 function Menu:draw()
   Drawer:draw({
@@ -25,6 +28,7 @@ function Menu:draw()
 end
 
 function Menu:init()
+  -- TODO: Handle there not being a battle. Currently crashes.
   if Worker.DropTable.locked_pos == -1 then
     self.table_pos = Worker.DropTable.cur_table_pos
   else
@@ -54,6 +58,8 @@ function Menu:run()
       Worker.DropTable.locked_pos = -1
     end
   elseif Buttons.Square:pressed() then
+    local drop_filter_menu = self:new(DropFilterMenu)
+    MenuController:open(drop_filter_menu)
   elseif Buttons.Up:pressed() then
     self:adjustTablePos(-1)
   elseif Buttons.Down:pressed() then

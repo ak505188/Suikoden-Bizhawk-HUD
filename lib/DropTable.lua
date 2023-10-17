@@ -1,6 +1,5 @@
 local Drawer = require "controllers.drawer"
 local RNGMonitor = require "monitors.RNG_Monitor"
-local Utils = require "lib.Utils"
 local Battle = require "lib.Battle"
 
 local DropTable = {}
@@ -12,10 +11,28 @@ function DropTable:new(battle)
   self.battle = battle
   self.drops = {}
   self:generateDrops()
+  self:generateDropsListForFilters()
   self.locked_pos = -1
   self.cur_rng_index = RNGMonitor.RNGIndex
   self.cur_table_pos = self:findTablePosition(self.cur_rng_index)
   return tbl
+end
+
+function DropTable:generateDropsListForFilters()
+  local drops_list_for_filters = {}
+  for _, enemy in ipairs(self.battle.Enemies) do
+    for _, drop in ipairs(enemy.Drops) do
+      if drops_list_for_filters[drop.id] == nil then
+        drops_list_for_filters[drop.id] = {
+          chance = drop.chance,
+          id = drop.id,
+          name = drop.name,
+          show = true,
+        }
+      end
+    end
+  end
+  self.drops_list_for_filters = drops_list_for_filters
 end
 
 function DropTable:draw(pos)
@@ -29,8 +46,10 @@ function DropTable:draw(pos)
 
   repeat
     local drop = self.drops[pos]
-    table.insert(draw_table, string.format("%d: %s", drop.rng_index, drop.name))
-    count = count + 1
+    if self.drops_list_for_filters[drop.id].show then
+      table.insert(draw_table, string.format("%d: %s", drop.rng_index, drop.name))
+      count = count + 1
+    end
     pos = pos + 1
   until pos > #self.drops or count >= draw_table_len
 
@@ -45,28 +64,32 @@ function DropTable:findTablePosition(rng_index)
 end
 
 function DropTable:run()
-  self:generateAdditionalDrops()
+  self:generateDrops()
   if self.cur_rng_index ~= RNGMonitor.RNGIndex then
     self.cur_rng_index = RNGMonitor.RNGIndex
     self.cur_table_pos = self:findTablePosition(self.cur_rng_index)
   end
 end
 
-function DropTable:generateDrops(pos)
-  pos = pos or 0
+function DropTable:generateDrops()
   local table_size = RNGMonitor:getTableSize()
+  local pos
+
+  if self.last == nil then
+    pos = 0
+  elseif self.last == table_size then
+    return
+  else
+    pos = self.last
+  end
+
   for i = pos,table_size do
-    local drop = Battle.calculateDrop(self.battle, i)
-    if drop ~= nil then
-      table.insert(self.drops, { rng_index = i, name = drop })
+    local drop_data = Battle.calculateDrop(self.battle, i)
+    if drop_data ~= nil then
+      table.insert(self.drops, { rng_index = i, name = drop_data.name, id = drop_data.id })
     end
   end
   self.last = table_size
-end
-
-function DropTable:generateAdditionalDrops()
-  if RNGMonitor:getTableSize() == self.last then return end
-  self:generateDrops(self.last + 1)
 end
 
 return DropTable

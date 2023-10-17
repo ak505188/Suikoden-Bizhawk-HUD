@@ -1,5 +1,3 @@
-local Drawer = require "controllers.drawer"
-local Utils = require "lib.Utils"
 local Battle = require "lib.Battle"
 local DropTable = require "lib.DropTable"
 local StateMonitor = require "monitors.State_Monitor"

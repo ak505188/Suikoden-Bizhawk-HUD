@@ -42,9 +42,9 @@ local function readEnemyTable(addr)
         end
         local chance = enemyRawData[53 + j * 2 + 1]
         enemy.Drops[j] = {
-          Id = id,
-          Chance = chance,
-          Name = item_name
+          id = id,
+          chance = chance,
+          name = item_name
         }
       end
     end
@@ -129,8 +129,8 @@ local function calculateDrop(battle, rng_index)
       rng_index = rng_index + 1
       rng = RNGMonitor:getRNG(rng_index) or RNGLib.nextRNG(rng)
       local drop_chance_roll = RNGLib.getRNG2(rng)
-      if drop_chance_roll % 100 < drop_data.Chance then
-        return drop_data.Name
+      if drop_chance_roll % 100 < drop_data.chance then
+        return drop_data
       end
     end
   end
