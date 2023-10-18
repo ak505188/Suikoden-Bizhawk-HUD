@@ -10,7 +10,7 @@ function DropTable:new(battle)
   self.__index = self
   self.battle = battle
   self.drops = {}
-  self:generateDrops()
+  self:generateDrops(0)
   self:generateDropsListForFilters()
   self.locked_pos = -1
   self.cur_rng_index = RNGMonitor.RNGIndex
@@ -36,6 +36,7 @@ function DropTable:generateDropsListForFilters()
 end
 
 function DropTable:draw(pos)
+  if #self.drops <= 0 then return end
   pos = pos or self:findTablePosition()
   if self.locked_pos > -1 then
     pos = self.locked_pos
@@ -64,24 +65,17 @@ function DropTable:findTablePosition(rng_index)
 end
 
 function DropTable:run()
-  self:generateDrops()
+  if self.last < RNGMonitor:getTableSize() then
+    self:generateDrops(self.last)
+  end
   if self.cur_rng_index ~= RNGMonitor.RNGIndex then
     self.cur_rng_index = RNGMonitor.RNGIndex
     self.cur_table_pos = self:findTablePosition(self.cur_rng_index)
   end
 end
 
-function DropTable:generateDrops()
+function DropTable:generateDrops(pos)
   local table_size = RNGMonitor:getTableSize()
-  local pos
-
-  if self.last == nil then
-    pos = 0
-  elseif self.last == table_size then
-    return
-  else
-    pos = self.last
-  end
 
   for i = pos,table_size do
     local drop_data = Battle.calculateDrop(self.battle, i)

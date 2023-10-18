@@ -19,22 +19,29 @@ function Worker:init() end
 function Worker:onChange() end
 
 function Worker:draw()
+  if RoomMonitor.NUM_SLOTS.current == nil then return end
   local textToDraw = {}
   table.insert(textToDraw, string.format("A:0x%x N:%d %d %d", RoomMonitor.ROOM_ADDRESS.current, RoomMonitor.NUM_SLOTS.current, RoomMonitor.HERO_X.current, RoomMonitor.HERO_Y.current))
-  for i = 0, RoomMonitor.NUM_SLOTS.current do
-    local slot = self.RoomData[i]
-    local str = string.format("%d X:%d Y:%d", slot.Slot, slot.X, slot.Y)
-    table.insert(textToDraw, str)
+
+  if RoomMonitor.NUM_SLOTS.current > 0 then
+    for i = 1, RoomMonitor.NUM_SLOTS.current do
+      local slot = self.RoomData[i]
+      local str = string.format("%d X:%d Y:%d", slot.Slot, slot.X, slot.Y)
+      table.insert(textToDraw, str)
+    end
   end
   return Drawer:draw(textToDraw, Drawer.anchors.TOP_LEFT)
 end
 
-function Worker:getRoomData(room_address, num_slots)
-  room_address = room_address or RoomMonitor.ROOM_ADDRESS.current
-  num_slots = num_slots or RoomMonitor.NUM_SLOTS.current
+function Worker:getRoomData()
+  if RoomMonitor.NUM_SLOTS.current == nil then
+    return {}
+  end
+
+  local room_address = Address.sanitize(RoomMonitor.ROOM_ADDRESS.current)
   local room_data = {}
-  for i = 0, num_slots, 1 do
-    local address = room_address + (i * CHARACTER_STRUCT_SIZE)
+  for i = 1, RoomMonitor.NUM_SLOTS.current, 1 do
+    local address = room_address + ((i - 1) * CHARACTER_STRUCT_SIZE)
     local buffer = mainmemory.read_bytes_as_array(address, 0x18)
     local slot_data = {
       Slot = i,

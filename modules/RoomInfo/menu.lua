@@ -13,18 +13,17 @@ local Menu = BaseMenu:new({
 
 function Menu:draw()
   Drawer:draw({
-    "X: Go to Battle",
-    "O: Back",
-    "[]: Customize",
-    "Up: Up 1",
-    "Do: Down 1",
-    "Le: Up 10",
-    "Ri: Down 10",
+    "Up: Up 1 Slot",
+    "Do: Down 1 Slot",
+    "Le: Up 10 Slots",
+    "Ri: Down 10 Slots",
   }, Drawer.anchors.TOP_RIGHT)
   Worker:draw()
 end
 
-function Menu:init() end
+function Menu:init()
+  self.slot = 0
+end
 
 function Menu:run()
   if Buttons.Circle:pressed() then
@@ -37,6 +36,10 @@ function Menu:run()
   elseif Buttons.Right:pressed() then
   end
   return false
+end
+
+function Menu:adjustSlot()
+
 end
 
 return Menu

@@ -3,6 +3,7 @@ local DropTable = require "lib.DropTable"
 local StateMonitor = require "monitors.State_Monitor"
 local Gamestate = require "lib.Enums.Gamestate"
 local Address = require "lib.Address"
+local Utils = require "lib.Utils"
 
 local Worker = {
   EnemyTablesByAddr = {},

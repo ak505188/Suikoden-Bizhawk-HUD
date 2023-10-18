@@ -19,7 +19,7 @@ function Menu:draw()
   local drawtable = {
     "O: Back",
   }
-  if Worker.DropTable ~= nil then
+  if self:hasDrops() then
     drawtable = Utils.concatTables(drawtable, {
       "[]: Filter Drops",
       string.format("^: %s Table Position", Worker.DropTable.locked_pos == -1 and "Lock" or "Unlock"),
@@ -56,10 +56,16 @@ function Menu:adjustTablePos(amount)
   end
 end
 
+function Menu:hasDrops()
+  if Worker.DropTable == nil then return false end
+  if not next(Worker.DropTable.drops) then return false end
+  return true
+end
+
 function Menu:run()
   if Buttons.Circle:pressed() then
     return true
-  elseif Worker.DropTable == nil then
+  elseif not self:hasDrops() then
     return false
   elseif Buttons.Triangle:pressed() then
     if Worker.DropTable.locked_pos == -1 then
