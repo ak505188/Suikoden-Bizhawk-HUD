@@ -1,5 +1,6 @@
 local Drawer = require "controllers.drawer"
 local Buttons = require "lib.Buttons"
+local Utils = require "lib.Utils"
 local BaseMenu = require "menus.Base"
 local Worker = require "modules.Drops.worker"
 local DropFilterMenu = require "modules.Drops.menus.drop_filter"
@@ -15,21 +16,28 @@ local Menu = BaseMenu:new({
 })
 
 function Menu:draw()
-  Drawer:draw({
-    "[]: Filter Drops",
-    string.format("^: %s Table Position", Worker.DropTable.locked_pos == -1 and "Lock" or "Unlock"),
+  local drawtable = {
     "O: Back",
-    "Up: Scroll 1 Up",
-    "Do: Scroll 1 Down",
-    "Le: Scroll 10 Up",
-    "Ri: Scroll 10 Down",
-  }, Drawer.anchors.TOP_RIGHT)
+  }
+  if Worker.DropTable ~= nil then
+    drawtable = Utils.concatTables(drawtable, {
+      "[]: Filter Drops",
+      string.format("^: %s Table Position", Worker.DropTable.locked_pos == -1 and "Lock" or "Unlock"),
+      "Up: Scroll 1 Up",
+      "Do: Scroll 1 Down",
+      "Le: Scroll 10 Up",
+      "Ri: Scroll 10 Down",
+      "Se: Print Battle to Console"
+    })
+  end
+  Drawer:draw(drawtable, Drawer.anchors.TOP_RIGHT)
   Worker:draw(self.table_pos)
 end
 
 function Menu:init()
-  -- TODO: Handle there not being a battle. Currently crashes.
-  if Worker.DropTable.locked_pos == -1 then
+  if Worker.DropTable == nil then
+    self.table_pos = 1
+  elseif Worker.DropTable.locked_pos == -1 then
     self.table_pos = Worker.DropTable.cur_table_pos
   else
     self.table_pos = Worker.DropTable.locked_pos
@@ -51,6 +59,8 @@ end
 function Menu:run()
   if Buttons.Circle:pressed() then
     return true
+  elseif Worker.DropTable == nil then
+    return false
   elseif Buttons.Triangle:pressed() then
     if Worker.DropTable.locked_pos == -1 then
       Worker.DropTable.locked_pos = self.table_pos
@@ -68,6 +78,8 @@ function Menu:run()
     self:adjustTablePos(-10)
   elseif Buttons.Right:pressed() then
     self:adjustTablePos(10)
+  elseif Buttons.Select:pressed() then
+    print(Utils.tableToStr(Worker.State.Battle))
   end
   return false
 end

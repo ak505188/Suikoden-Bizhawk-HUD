@@ -139,8 +139,7 @@ end
 
 local function calculateDrops(battle, rng_index, iterations, drops)
   drops = drops or {}
-  -- TODO: Change iterations back to real logic
-  iterations = 10000
+  iterations = iterations or 10000
   rng_index = rng_index or 0
   for _ = 1, iterations do
     local drop = calculateDrop(battle, rng_index)

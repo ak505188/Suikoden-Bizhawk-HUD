@@ -243,27 +243,11 @@ function Worker:run()
     return
   end
 
-
   if self.Tables == nil or startRNGChanged then
     self:init()
-  -- TODO: Handle Start RNG Change
   elseif RNGIndexChanged or stateChanged then
     self:updateTablePosition()
   end
-
-
-
-  --[[
-  -- Make RNG Tables if they don't exist
-  -- So init here
-  if self.Tables == nil or RNGMonitor.Event == RNG_Events.START_RNG_CHANGED then
-    self:init()
-  -- TODO: Handle Start RNG Change
-  elseif RNGMonitor.Event ~= RNG_Events.NO_CHANGE or stateChanged then
-    Utils.printDebug('Battle Worker RNG Event', RNGMonitor.Event, 1000)
-    self:updateTablePosition()
-  end
-  ]]--
 end
 
 return Worker
