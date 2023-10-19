@@ -2,7 +2,6 @@ local RoomMonitor = require "monitors.Room_Monitor"
 local Address = require "lib.Address"
 local Drawer = require "controllers.drawer"
 local Utils = require "lib.Utils"
-local Charmap = require "lib.Charmap"
 
 local CHARACTER_STRUCT_SIZE = 0x18
 
@@ -19,14 +18,16 @@ function Worker:init() end
 function Worker:onChange() end
 
 function Worker:draw()
+  RoomMonitor:draw()
   if RoomMonitor.NUM_SLOTS.current == nil then return end
   local textToDraw = {}
-  table.insert(textToDraw, string.format("A:0x%x N:%d %d %d", RoomMonitor.ROOM_ADDRESS.current, RoomMonitor.NUM_SLOTS.current, RoomMonitor.HERO_X.current, RoomMonitor.HERO_Y.current))
+  -- table.insert(textToDraw, string.format("A:0x%x N:%d %d %d", RoomMonitor.ROOM_ADDRESS.current, RoomMonitor.NUM_SLOTS.current, RoomMonitor.HERO_X.current, RoomMonitor.HERO_Y.current))
 
   if RoomMonitor.NUM_SLOTS.current > 0 then
     for i = 1, RoomMonitor.NUM_SLOTS.current do
       local slot = self.RoomData[i]
-      local str = string.format("%d X:%d Y:%d", slot.Slot, slot.X, slot.Y)
+      -- local str = string.format("%d X:%d Y:%d", slot.Slot, slot.X, slot.Y)
+      local str = string.format("%d X:%d Y:%d 0x%x", slot.Slot, slot.X, slot.Y, slot.Address)
       table.insert(textToDraw, str)
     end
   end
@@ -50,8 +51,8 @@ function Worker:getRoomData()
       Y = buffer[2],
       SubpixelX = buffer[3],
       SubpixelY = buffer[4],
-      Direction = buffer[5],
-      MovementSpeed = buffer[6],
+      -- Direction = buffer[5], -- This isn't actually direction, has some correlation though
+      Moves = buffer[6], -- This seems constant, might actually be flag for movement
       Unknown1 = Utils.readFromByteTable(buffer, 7, 2),
       MemAddress1 = Utils.readFromByteTable(buffer, 9, 4),
       MemAddress2 = Utils.readFromByteTable(buffer, 13, 4),
@@ -59,6 +60,7 @@ function Worker:getRoomData()
       Unknown2 = Utils.readFromByteTable(buffer, 21, 2),
       Unknown3 = Utils.readFromByteTable(buffer, 23, 2),
     }
+    slot_data.Direction = memory.read_u8(Address.sanitize(slot_data.MemAddress2))
     room_data[i] = slot_data
   end
   return room_data

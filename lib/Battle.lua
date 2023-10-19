@@ -9,7 +9,7 @@ local ItemNames = {}
 
 local function getItemName(id)
   local item_name_addr = memory.read_u32_le(Address.ITEM_NAME_PTR_1 + (id - 1) * 4) & 0x7fffffff
-  local item_name_raw_data = memory.read_bytes_as_array(item_name_addr, 16)
+  local item_name_raw_data = memory.read_bytes_as_array(item_name_addr, 24)
   return Charmap.readStringFromList(item_name_raw_data)
 end
 

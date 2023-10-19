@@ -68,6 +68,10 @@ function MenuController:run()
   while client.ispaused() do
     emu.yield()
     Drawer:clear()
+
+    StateMonitor:run()
+    RNGMonitor:run()
+
     Buttons:update()
 
     self:draw()

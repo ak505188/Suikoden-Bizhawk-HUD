@@ -54,11 +54,11 @@ function Drawer:clear()
 end
 
 function Drawer:draw(table, anchor, reverse, skip_gap)
+  local opts = self.anchorOpts[anchor]
   anchor = anchor or ANCHOR_POSITIONS.TOP_LEFT
-  reverse = reverse or false
+  opts.reverse = reverse or false
   skip_gap = skip_gap or false
 
-  local opts = self.anchorOpts[anchor]
   local newOpts = Utils.drawTable(table, opts);
 
   if skip_gap then
