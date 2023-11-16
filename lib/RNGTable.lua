@@ -2,7 +2,6 @@ local Config = require "Config"
 local Locations = require "lib.Enums.Location"
 local EncounterLib = require "lib.Encounter"
 local RNGLib = require "lib.RNG"
-local Utils = require "lib.Utils"
 
 -- These affect how far ahead in the RNG the script looks. Don't touch if things are working well.
 -- If you set these too small, the script might stop working if RNG advances too quickly.

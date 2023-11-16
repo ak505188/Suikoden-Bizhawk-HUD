@@ -1,5 +1,7 @@
 local Config = {}
 
+local bizhawk_dir = "/home/alex/Apps/BizHawk-2.9.1/"
+
 --- Plugins On/Off
 Config.Plugins = {
   --- If disabled, using features breaks the script
@@ -18,6 +20,14 @@ Config.RNG_MONITOR = {
   INITITAL_BUFFER_SIZE = 5000, -- Initial look-ahead
   BUFFER_INCREMENT_SIZE = 500, -- Later look-ahead size per frame
   BUFFER_MARGIN_SIZE = 30000, -- When difference between current length & current RNG Index is greater than this, look ahead again.
+}
+
+Config.Saves = {
+  SAVE_DIRECTORY = bizhawk_dir .. "PSX/State/Suikoden/Saves", -- Will make/use a folder names saves in this folder.
+  CATEGORY_DIRECTORY = "Testing", -- If blank will use Hero name
+  AUTOSAVE_ENABLED = true,
+  AUTOSAVE_DIRECTORY = bizhawk_dir .. "PSX/State/Suikoden/Autosaves",
+  AUTOSAVE_INTERVAL = 300 -- In seconds. Save at every IGT interval
 }
 
 return Config

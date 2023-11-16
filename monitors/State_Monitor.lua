@@ -25,6 +25,9 @@ local StateMonitor = {
   LOCATION = Utils.cloneTable(initVarState),
   ENCOUNTER_TABLE_PTR = Utils.cloneTable(initVarState),
   ENEMY_GROUP_PTR = Utils.cloneTable(initVarState),
+  IGT_HOURS = Utils.cloneTable(initVarState),
+  IGT_MINUTES = Utils.cloneTable(initVarState),
+  IGT_SECONDS = Utils.cloneTable(initVarState),
 }
 
 function StateMonitor:updateState(key, value)
@@ -40,6 +43,7 @@ function StateMonitor:draw()
     string.format("W:%d A:%d S:%d", self.WM_ZONE.current, self.AREA_ZONE.current, self.SCREEN_ZONE.current),
     string.format("ER:%d C:%s PL:%d", self.ENCOUNTER_RATE.current, self.CHAMPION_RUNE_EQUIPPED.current and "T" or "F", self.PARTY_LEVEL.current),
     string.format("L:%s", self.LOCATION.current),
+    string.format("%d:%02d:%02d", self.IGT_HOURS.current, self.IGT_MINUTES.current, self.IGT_SECONDS.current),
   }
   return Drawer:draw(textToDraw, Drawer.anchors.TOP_LEFT)
 end
@@ -59,6 +63,13 @@ function StateMonitor:run()
   self:updateState("PARTY_LEVEL", PartyLib.getPartyLVL(partySize))
   self:updateState("ENCOUNTER_TABLE_PTR", memory.read_u32_le(Address.ENCOUNTER_TABLE_PTR))
   self:updateState("ENEMY_GROUP_PTR", memory.read_u32_le(Address.ENEMY_GROUP_PTR))
+  local framecount = memory.read_u32_le(Address.SESSION_FRAMECOUNT)
+  local hours = framecount // 216000
+  local minutes = framecount // 3600 % 60
+  local seconds = framecount // 60 % 60
+  self:updateState("IGT_HOURS", hours)
+  self:updateState("IGT_MINUTES", minutes)
+  self:updateState("IGT_SECONDS", seconds)
   self:updateLocation()
 end
 

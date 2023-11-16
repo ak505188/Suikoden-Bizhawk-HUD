@@ -15,7 +15,6 @@ local CustomStateMenu = BaseMenu:new({
   },
 })
 
--- This is needed because it inherits the module menus init otherwise. It then resets the table position
 function CustomStateMenu:init()
   Worker.StateHandler:initCustomState()
 end

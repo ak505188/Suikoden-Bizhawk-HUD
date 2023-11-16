@@ -1,5 +1,6 @@
 local Battle = require "lib.Battle"
 local DropTable = require "lib.DropTable"
+local Drawer = require "controllers.drawer"
 local StateMonitor = require "monitors.State_Monitor"
 local Gamestate = require "lib.Enums.Gamestate"
 local Address = require "lib.Address"
@@ -44,6 +45,7 @@ function Worker:isUpdateRequired()
 end
 
 function Worker:draw(table_pos)
+  Drawer:draw({ "Drops Module" }, Drawer.anchors.TOP_LEFT, nil, true)
   if not next(self.State.Battle) then return end
   self.DropTable:draw(table_pos)
 end

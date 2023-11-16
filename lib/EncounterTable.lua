@@ -85,8 +85,8 @@ local EncounterTable = {
     encounters = { "010000", "101000", "101010", "202000", "202020", "101030", "020000", "030000", "303000" },
     enemies = { "Dagon", "Grizzly Bear", "Siren" }
   },
-  [Areas.LEPANTS_MANSION] = {
-    name = "Lepant's Mansion",
+  [Areas.KOUAN] = {
+    name = "KOUAN",
     areaType = 2,
     encounterRate = 2,
     champVals = { 28, 81, 162 },
