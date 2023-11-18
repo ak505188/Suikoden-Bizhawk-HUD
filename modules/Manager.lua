@@ -43,7 +43,16 @@ function ModuleManager:draw(opts)
 end
 
 function ModuleManager:run()
-  self:getCurrent().Worker:run()
+  local current_module = self:getCurrent()
+  current_module.Worker:run()
+
+  -- Run background modules
+  for _, module in ipairs(self.modules) do
+    if module.Name ~= current_module.Name and module.Settings.RunInBackground then
+      module.Worker:run()
+    end
+  end
+
 end
 
 return ModuleManager

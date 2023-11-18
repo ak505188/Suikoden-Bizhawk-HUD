@@ -14,11 +14,15 @@ local function getItemName(id)
 end
 
 local function readEnemyTable(addr)
-  local encounterTableLength = memory.read_u8(addr)
+  -- encounterTableLength is inaccurate in Neclord's Castle.
+  -- Instead of using this, going to check for valid memory address and go incrementally
+  -- local encounterTableLength = memory.read_u8(addr)
   local enemies = {}
-  for i=1, encounterTableLength, 1 do
+  local i = 1
+  local enemyAddressUnsanitized = memory.read_u32_le(addr + i * 4)
+  while Address.isValidPointer(enemyAddressUnsanitized) do
     local enemy = {}
-    local enemyAddr = Address.sanitize(memory.read_u32_le(addr + i * 4))
+    local enemyAddr = Address.sanitize(enemyAddressUnsanitized)
     local enemyRawData = memory.read_bytes_as_array(enemyAddr, 60)
     enemy.Address = enemyAddr
     enemy.Name = Charmap.readStringFromList(enemyRawData, 0, 15)
@@ -49,6 +53,9 @@ local function readEnemyTable(addr)
       end
     end
     enemies[i] = enemy
+
+    i = i + 1
+    enemyAddressUnsanitized = memory.read_u32_le(addr + i * 4)
   end
   return enemies
 end
@@ -67,7 +74,8 @@ local function getEnemyData()
   end
 
   local battleStruct = {
-    Enemies = {}
+    Enemies = {},
+    GroupSize = groupSize,
   }
 
   for i=1,#enemies,1 do
@@ -113,7 +121,7 @@ end
 
 local function calculateDrop(battle, rng_index)
   local rng = RNGMonitor:getRNG(rng_index)
-  for i = 1, #battle.Enemies do
+  for i = 1, battle.GroupSize do
     local enemy = battle.Enemies[i]
     rng_index = rng_index + 1
     -- Because rng_index can be greater than RNGMonitor table size by up to 12

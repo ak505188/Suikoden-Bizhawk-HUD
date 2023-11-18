@@ -4,7 +4,10 @@ local Worker = require "modules.Saves.worker"
 local Saves_Module = {
   Name = "Saves",
   Menu = Menu,
-  Worker = Worker
+  Worker = Worker,
+  Settings = {
+    RunInBackground = true
+  }
 }
 
 return Saves_Module

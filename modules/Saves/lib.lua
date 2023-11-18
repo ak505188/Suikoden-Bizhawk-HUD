@@ -1,5 +1,6 @@
 local fs = require "lib.fs"
 local Address = require "lib.Address"
+local Gamestates = require "lib.Enums.Gamestate"
 local Charmap = require "lib.Charmap"
 local Config = require "Config"
 local ZoneInfo = require "lib.ZoneInfoComplete"
@@ -9,9 +10,15 @@ local function readNameFromMemory()
   return Charmap.readStringFromMemory(Address.Names.HERO_2, 8)
 end
 
-local function areaDataToStr(wm, area)
+local function areaDataToStr(wm, area, gamestate)
   local name = "Unknown"
   if ZoneInfo[wm] == nil then return name end
+
+  if gamestate == Gamestates.WORLD_MAP then
+    return ZoneInfo[wm].name
+  end
+
+  -- TODO: Add events using event index and state check
 
   name = ZoneInfo[wm].name
   if ZoneInfo[wm][area] == nil then return name end
@@ -20,7 +27,7 @@ local function areaDataToStr(wm, area)
 end
 
 local function getSaveName()
-  local area_name = areaDataToStr(StateMonitor.WM_ZONE.current, StateMonitor.AREA_ZONE.current):gsub(" ", "_")
+  local area_name = areaDataToStr(StateMonitor.WM_ZONE.current, StateMonitor.AREA_ZONE.current, StateMonitor.IG_CURRENT_GAMESTATE.current):gsub(" ", "_")
   local igt = string.format("%02d:%02d:%02d", StateMonitor.IGT_HOURS.current, StateMonitor.IGT_MINUTES.current, StateMonitor.IGT_SECONDS.current)
   return string.format("%s-%s.State", igt, area_name)
 end

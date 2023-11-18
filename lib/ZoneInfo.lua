@@ -11,10 +11,11 @@ local ZoneInfo = {
   [1] = {
     name = Areas.WORLD_MAP_SEIKA,
     [2] = Areas.LEPANTS_MANSION,
+    [4] = Areas.TORAN_CASTLE,
     [5] = Areas.GREAT_FOREST,
   },
   [2] = {
-    name = Areas.WORLD_MAP_GREGMINSTER_2,
+    name = Areas.WORLD_MAP_PANNU_YAKUTA,
     [0] = Areas.DWARF_TRAIL,
     [2] = Areas.DWARVES_VAULT,
     [5] = Areas.PANNU_YAKUTA,
@@ -42,6 +43,7 @@ local ZoneInfo = {
   [6] = {
     name = Areas.WORLD_MAP_KIROV,
     [1] = Areas.KALEKKA,
+    [3] = Areas.KALEKKA,
   },
   [7] = {
     name = Areas.WORLD_MAP_MORAVIA,

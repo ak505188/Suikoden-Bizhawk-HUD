@@ -6,6 +6,8 @@ local Worker = {}
 
 function Worker:init() end
 
+function Worker:onChange() end
+
 function Worker:draw()
   Drawer:draw({ "Save Module" }, Drawer.anchors.TOP_LEFT, nil, true)
 end

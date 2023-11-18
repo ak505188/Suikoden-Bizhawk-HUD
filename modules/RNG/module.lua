@@ -4,7 +4,10 @@ local Worker = require "modules.RNG.worker"
 local RNG_Module = {
   Name = "RNG",
   Menu = Menu,
-  Worker = Worker
+  Worker = Worker,
+  Settings = {
+    RunInBackground = false
+  }
 }
 
 return RNG_Module

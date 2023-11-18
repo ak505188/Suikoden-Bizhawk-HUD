@@ -115,31 +115,3 @@ function MenuController:draw()
 end
 
 return MenuController
-
--- StackMenuAPI
--- Will be defined within module as its own structure / class attached to the Module
--- Attach dependencies with initialization in module. Part of Module
--- Methods:
--- draw()
--- close()
--- run/poll or onButton?
-
-
---[[
-Responsibilities of MenuController:
-  runs when paused
-
-  needs to handle open/close properly:
-    probably inits on open with self.open = true sort of thing
-    in run check if not paused and self.open = true, handle onclose here
-
-  how do we handle modulemanager menu?
-    perhaps tie it to worker?
-    or have property in menu/menucontroller, worker or custom
-    and if custom dont run modulemanager menu
-
-  how do we handle monitor drawing?
-    this should always be done
-    guess just part of menucontroller:draw?
-    can maybe add a property to menu to pass that can disable it
-]]--

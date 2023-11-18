@@ -15,6 +15,7 @@ local Menu = {
 
 function Menu:init()
   local eventID = memory.read_u8(Address.EVENT_ID)
+  self.initRNG = RNGMonitor.RNG
   self.resetData = RNGLib.GetResetData(eventID)
 end
 
@@ -31,7 +32,8 @@ function Menu:draw()
   }, Drawer.anchors.TOP_RIGHT)
 end
 
--- Currently broken in a way, pressing X won't exit menu
+-- TODO: Maybe add flag to not create table in RNGMonitor:setRNG
+-- Not sure if possible
 function Menu:run()
   if Buttons.Cross:pressed() then
     RNGMonitor.StartingRNG = RNGMonitor.RNG
@@ -39,14 +41,15 @@ function Menu:run()
     RNGMonitor:setRNG()
     return true
   elseif Buttons.Square:pressed() then
+    RNGMonitor:setRNG(self.initRNG)
     RNGMonitor:switchTable()
     return true
   elseif Buttons.Circle:pressed() then
-    RNGMonitor.RNG = self.resetData:getRandomRNG()
+    RNGMonitor:setRNG(self.resetData:getRandomRNG())
   elseif Buttons.Up:pressed() then
-    RNGMonitor.RNG = RNGMonitor.RNG + 1
+    RNGMonitor:setRNG(RNGMonitor.RNG + 1)
   elseif Buttons.Down:pressed() then
-    RNGMonitor.RNG = RNGMonitor.RNG - 1
+    RNGMonitor:setRNG(RNGMonitor.RNG - 1)
   end
   return false
 end

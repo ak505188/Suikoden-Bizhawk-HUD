@@ -26,10 +26,7 @@ function Worker:run()
 
   if not (is_enemy_group_ptr_valid and is_encounter_table_ptr_valid) then return end
 
-  if self:isUpdateRequired() then
-    self:updateBattle()
-    self.DropTable = DropTable:new(self.State.Battle)
-  end
+  self:update()
 
   if self.DropTable then
     self.DropTable:run()
@@ -41,13 +38,23 @@ function Worker:onChange() end
 function Worker:isUpdateRequired()
   -- TODO: Handle start RNG change
   if not next(self.State.Battle) then return true end
-  return StateMonitor.ENEMY_GROUP_PTR.changed or StateMonitor.ENCOUNTER_TABLE_PTR.changed
+  if self.State.EnemyGroupPtr ~= StateMonitor.ENEMY_GROUP_PTR.current then return true end
+  if self.State.EncounterTablePtr ~= StateMonitor.ENCOUNTER_TABLE_PTR.current then return true end
+  return false
 end
 
 function Worker:draw(table_pos)
   Drawer:draw({ "Drops Module" }, Drawer.anchors.TOP_LEFT, nil, true)
+  if StateMonitor.IG_CURRENT_GAMESTATE.current ~= Gamestate.BATTLE then return end
   if not next(self.State.Battle) then return end
   self.DropTable:draw(table_pos)
+end
+
+function Worker:update()
+  if self:isUpdateRequired() then
+    self:updateBattle()
+    self.DropTable = DropTable:new(self.State.Battle)
+  end
 end
 
 function Worker:updateBattle()
@@ -56,6 +63,7 @@ function Worker:updateBattle()
 
   local enemyGroupAddr = Address.sanitize(self.State.EnemyGroupPtr)
   local encounterTableAddr = Address.sanitize(self.State.EncounterTablePtr)
+  local groupSize = memory.read_u8(enemyGroupAddr)
 
   -- local groupSize = memory.read_u8(enemyGroupAddr)
   local enemies = memory.read_bytes_as_array(enemyGroupAddr + 4, 6)
@@ -67,11 +75,22 @@ function Worker:updateBattle()
   end
 
   local battleStruct = {
-    Enemies = {}
+    Enemies = {},
+    GroupSize = groupSize,
   }
 
-  for i=1,#enemies,1 do
-    battleStruct.Enemies[i] = EnemyTable[enemies[i]]
+  local slot = 1
+  local count = 1
+  while count <= #enemies and slot < 7 do
+    local enemy_index = enemies[slot]
+    -- print("EI:" .. enemy_index)
+    if enemy_index ~= 0 then
+      local enemy = EnemyTable[enemy_index]
+      Utils.printDebug("Enemy", enemy, 6)
+      battleStruct.Enemies[count] = enemy
+      count = count + 1
+    end
+    slot = slot + 1
   end
 
   self.State.Battle = battleStruct

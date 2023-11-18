@@ -18,7 +18,21 @@ function Worker:init() end
 function Worker:onChange() end
 
 function Worker:draw()
-  RoomMonitor:draw()
+  local monitorStr1 = string.format(
+    "X:%d Y:%d D:%d %08x",
+    RoomMonitor.HERO_X.current,
+    RoomMonitor.HERO_Y.current,
+    RoomMonitor.HERO_DIRECTION.current,
+    RoomMonitor.ROOM_ADDRESS.current
+  )
+  local monitorStr2 = string.format(
+    "N:%s O:%s %08x %08x",
+    tostring(RoomMonitor.NUM_SLOTS.current),
+    tostring(RoomMonitor.NUM_SLOTS_OLD.current),
+    RoomMonitor.CANDIDATE_POINTER_1.current,
+    RoomMonitor.CANDIDATE_POINTER_2.current
+  )
+  Drawer:draw({ monitorStr1, monitorStr2 }, Drawer.anchors.TOP_LEFT, nil, true)
   if RoomMonitor.NUM_SLOTS.current == nil then return end
   local textToDraw = {}
   -- table.insert(textToDraw, string.format("A:0x%x N:%d %d %d", RoomMonitor.ROOM_ADDRESS.current, RoomMonitor.NUM_SLOTS.current, RoomMonitor.HERO_X.current, RoomMonitor.HERO_Y.current))

@@ -1,4 +1,5 @@
 local Buttons = require "lib.Buttons"
+local Directions = require "lib.Enums.Directions"
 local Worker = require "modules.RoomInfo.worker"
 local Drawer = require "controllers.drawer"
 local MenuProperties = require "menus.Properties"
@@ -18,6 +19,7 @@ function Menu:draw()
   if self.slot == nil then return end
   local draw_table = {
     string.format("CURRENT SLOT: %d/%d", self.slot, RoomMonitor.NUM_SLOTS.current),
+    "Sq: Move in front of Hero",
     "Up: Up 1 Slot",
     "Do: Down 1 Slot",
     "Le: Up 10 Slots",
@@ -25,7 +27,7 @@ function Menu:draw()
   }
   Drawer:draw(draw_table, Drawer.anchors.TOP_RIGHT)
   Drawer:draw(self:generateSlotDrawTable(self.slot), Drawer.anchors.TOP_RIGHT)
-  Drawer:draw(MemoryViewer.memoryToStrTbl(Worker.RoomData[self.slot].MemAddress1, 8), Drawer.anchors.BOTTOM_RIGHT, true)
+  -- Drawer:draw(MemoryViewer.memoryToStrTbl(Worker.RoomData[self.slot].MemAddress1, 8), Drawer.anchors.BOTTOM_RIGHT, true)
 end
 
 function Menu:init()
@@ -42,6 +44,7 @@ function Menu:run()
     return false
   elseif Buttons.Cross:pressed() then
   elseif Buttons.Square:pressed() then
+    self:moveNPCInFrontOfHero()
   elseif Buttons.Up:pressed() then
     self:adjustSlot(-1)
   elseif Buttons.Down:pressed() then
@@ -66,6 +69,29 @@ function Menu:generateSlotDrawTable(pos)
   table.insert(draw_tbl, string.format("M3:0x%08x", slot.MemAddress3))
   table.insert(draw_tbl, string.format("U1:%04x U2:%04x U3:%04x", slot.Unknown1, slot.Unknown2, slot.Unknown3))
   return draw_tbl
+end
+
+function Menu:moveNPCInFrontOfHero(pos)
+  pos = pos or self.slot
+  local direction = RoomMonitor.HERO_DIRECTION.current
+  local x = RoomMonitor.HERO_X.current
+  local y = RoomMonitor.HERO_Y.current
+
+  if direction == Directions.DOWN then
+    y = y + 2
+  elseif direction == Directions.UP then
+    y = y - 1
+  elseif direction == Directions.LEFT then
+    x = x - 2
+  elseif direction == Directions.RIGHT then
+    x = x + 2
+  end
+
+  local slot = Worker.RoomData[pos]
+  local base_address = slot.Address
+
+  memory.write_u8(base_address, x)
+  memory.write_u8(base_address + 1, y)
 end
 
 function Menu:adjustSlot(amount)

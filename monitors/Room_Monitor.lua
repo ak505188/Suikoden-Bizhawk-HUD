@@ -15,6 +15,7 @@ local RoomMonitor = {
   CANDIDATE_POINTER_1 = Utils.cloneTable(initVarState),
   CANDIDATE_POINTER_2 = Utils.cloneTable(initVarState),
   NUM_SLOTS = Utils.cloneTable(initVarState),
+  NUM_SLOTS_OLD = Utils.cloneTable(initVarState),
   HERO_X = Utils.cloneTable(initVarState),
   HERO_Y = Utils.cloneTable(initVarState),
   HERO_DIRECTION = Utils.cloneTable(initVarState),
@@ -34,12 +35,17 @@ function RoomMonitor:run()
   self:updateState("CANDIDATE_POINTER_2", memory.read_u32_le(0x199f94))
 
   local num_slots = nil
+  local num_slots_old = nil
   if Address.isValidPointer(RoomMonitor.ROOM_ADDRESS.current) and Address.isValidPointer(RoomMonitor.CANDIDATE_POINTER_1.current) then
-    num_slots = (RoomMonitor.CANDIDATE_POINTER_1.current - 0x8 - RoomMonitor.ROOM_ADDRESS.current) / 0x18
+    -- Didn't work in Grady's Mansion, trying calculation with CANDIDATE_POINTER_2
+    -- num_slots = (RoomMonitor.CANDIDATE_POINTER_1.current - 0x8 - RoomMonitor.ROOM_ADDRESS.current) / 0x18
+    num_slots = (RoomMonitor.ROOM_ADDRESS.current - RoomMonitor.CANDIDATE_POINTER_2.current - 8) // 8
     num_slots = num_slots >= 0 and num_slots or nil
     num_slots = num_slots % 1 == 0 and num_slots or nil
+    num_slots_old = memory.read_u8(Address.sanitize(RoomMonitor.ROOM_ADDRESS.current - 0x10))
   end
   self:updateState("NUM_SLOTS", num_slots)
+  self:updateState("NUM_SLOTS_OLD", num_slots_old)
   self:updateState("HERO_X", memory.read_u8(Address.HERO_X))
   self:updateState("HERO_Y", memory.read_u8(Address.HERO_Y))
   local hero_dir_address = Address.sanitize(memory.read_u32_le(Address.HERO_DIRECTION_PTR))

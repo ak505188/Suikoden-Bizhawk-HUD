@@ -28,6 +28,7 @@ local StateMonitor = {
   IGT_HOURS = Utils.cloneTable(initVarState),
   IGT_MINUTES = Utils.cloneTable(initVarState),
   IGT_SECONDS = Utils.cloneTable(initVarState),
+  IGT_FRAMES = Utils.cloneTable(initVarState),
 }
 
 function StateMonitor:updateState(key, value)
@@ -39,11 +40,11 @@ end
 
 function StateMonitor:draw()
   local textToDraw = {
-    string.format("G:%d P:%d", self.IG_CURRENT_GAMESTATE.current, self.IG_PREVIOUS_GAMESTATE.current),
+    -- string.format("G:%d P:%d", self.IG_CURRENT_GAMESTATE.current, self.IG_PREVIOUS_GAMESTATE.current),
     string.format("W:%d A:%d S:%d", self.WM_ZONE.current, self.AREA_ZONE.current, self.SCREEN_ZONE.current),
     string.format("ER:%d C:%s PL:%d", self.ENCOUNTER_RATE.current, self.CHAMPION_RUNE_EQUIPPED.current and "T" or "F", self.PARTY_LEVEL.current),
-    string.format("L:%s", self.LOCATION.current),
-    string.format("%d:%02d:%02d", self.IGT_HOURS.current, self.IGT_MINUTES.current, self.IGT_SECONDS.current),
+    -- string.format("L:%s", self.LOCATION.current),
+    string.format("%02d:%02d:%02d %02d", self.IGT_HOURS.current, self.IGT_MINUTES.current, self.IGT_SECONDS.current, self.IGT_FRAMES.current),
   }
   return Drawer:draw(textToDraw, Drawer.anchors.TOP_LEFT)
 end
@@ -67,9 +68,11 @@ function StateMonitor:run()
   local hours = framecount // 216000
   local minutes = framecount // 3600 % 60
   local seconds = framecount // 60 % 60
+  local frames = framecount % 60
   self:updateState("IGT_HOURS", hours)
   self:updateState("IGT_MINUTES", minutes)
   self:updateState("IGT_SECONDS", seconds)
+  self:updateState("IGT_FRAMES", frames)
   self:updateLocation()
 end
 

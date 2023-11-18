@@ -9,5 +9,6 @@
     "joypad",
     "mainmemory",
     "memory",
+    "savestate",
   ]
 }
