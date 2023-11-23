@@ -86,7 +86,6 @@ function Worker:updateBattle()
     -- print("EI:" .. enemy_index)
     if enemy_index ~= 0 then
       local enemy = EnemyTable[enemy_index]
-      Utils.printDebug("Enemy", enemy, 6)
       battleStruct.Enemies[count] = enemy
       count = count + 1
     end
