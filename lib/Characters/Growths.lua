@@ -1,7 +1,7 @@
-local names = require "lib.Enums.CharacterNames"
+local Names = require "lib.Characters.Names"
 
-local growths = {
-	[names.ALEN] = {
+local Growths = {
+	[Names.ALEN] = {
     PWR = 6,
     SKL = 3,
     DEF = 5,
@@ -9,7 +9,7 @@ local growths = {
     MGC = 5,
     LUK = 4
   },
-	[names.ANJI] = {
+	[Names.ANJI] = {
     PWR = 6,
     SKL = 5,
     DEF = 3,
@@ -17,7 +17,7 @@ local growths = {
     MGC = 2,
     LUK = 2
   },
-	[names.ANTONIO] = {
+	[Names.ANTONIO] = {
     PWR = 3,
     SKL = 3,
     DEF = 3,
@@ -25,7 +25,7 @@ local growths = {
     MGC = 1,
     LUK = 3
   },
-	[names.BLACKMAN] = {
+	[Names.BLACKMAN] = {
     PWR = 5,
     SKL = 3,
     DEF = 6,
@@ -33,7 +33,7 @@ local growths = {
     MGC = 1,
     LUK = 3
   },
-	[names.CAMILLE] = {
+	[Names.CAMILLE] = {
     PWR = 5,
     SKL = 8,
     DEF = 4,
@@ -41,7 +41,7 @@ local growths = {
     MGC = 5,
     LUK = 3
   },
-	[names.CLEO] = {
+	[Names.CLEO] = {
     PWR = 5,
     SKL = 6,
     DEF = 5,
@@ -49,7 +49,7 @@ local growths = {
     MGC = 6,
     LUK = 2
   },
-	[names.CLIVE] = {
+	[Names.CLIVE] = {
     PWR = 6,
     SKL = 8,
     DEF = 3,
@@ -57,7 +57,7 @@ local growths = {
     MGC = 2,
     LUK = 1
   },
-	[names.CROWLEY] = {
+	[Names.CROWLEY] = {
     PWR = 2,
     SKL = 3,
     DEF = 1,
@@ -65,7 +65,7 @@ local growths = {
     MGC = 8,
     LUK = 3
   },
-	[names.EIKEI] = {
+	[Names.EIKEI] = {
     PWR = 5,
     SKL = 4,
     DEF = 5,
@@ -73,7 +73,7 @@ local growths = {
     MGC = 0,
     LUK = 3
   },
-	[names.EILEEN] = {
+	[Names.EILEEN] = {
     PWR = 2,
     SKL = 4,
     DEF = 2,
@@ -81,7 +81,7 @@ local growths = {
     MGC = 7,
     LUK = 5
   },
-	[names.FLIK] = {
+	[Names.FLIK] = {
     PWR = 6,
     SKL = 6,
     DEF = 4,
@@ -89,7 +89,7 @@ local growths = {
     MGC = 5,
     LUK = 4
   },
-	[names.FUKIEN] = {
+	[Names.FUKIEN] = {
     PWR = 2,
     SKL = 3,
     DEF = 4,
@@ -97,7 +97,7 @@ local growths = {
     MGC = 6,
     LUK = 5
   },
-	[names.FUMA] = {
+	[Names.FUMA] = {
     PWR = 5,
     SKL = 5,
     DEF = 5,
@@ -105,7 +105,7 @@ local growths = {
     MGC = 1,
     LUK = 3
   },
-	[names.FUTCH] = {
+	[Names.FUTCH] = {
     PWR = 5,
     SKL = 4,
     DEF = 5,
@@ -113,7 +113,7 @@ local growths = {
     MGC = 2,
     LUK = 6
   },
-	[names.FU_SU_LU] = {
+	[Names.FU_SU_LU] = {
     PWR = 8,
     SKL = 1,
     DEF = 6,
@@ -121,7 +121,7 @@ local growths = {
     MGC = 0,
     LUK = 1
   },
-	[names.GEN] = {
+	[Names.GEN] = {
     PWR = 6,
     SKL = 5,
     DEF = 4,
@@ -129,7 +129,7 @@ local growths = {
     MGC = 2,
     LUK = 4
   },
-	[names.GON] = {
+	[Names.GON] = {
     PWR = 4,
     SKL = 4,
     DEF = 5,
@@ -137,7 +137,7 @@ local growths = {
     MGC = 2,
     LUK = 8
   },
-	[names.GREMIO] = {
+	[Names.GREMIO] = {
     PWR = 13,
     SKL = 5,
     DEF = 6,
@@ -145,7 +145,7 @@ local growths = {
     MGC = 2,
     LUK = 5
   },
-	[names.GRENSEAL] = {
+	[Names.GRENSEAL] = {
     PWR = 5,
     SKL = 4,
     DEF = 5,
@@ -153,7 +153,7 @@ local growths = {
     MGC = 6,
     LUK = 3
   },
-	[names.GRIFFITH] = {
+	[Names.GRIFFITH] = {
     PWR = 5,
     SKL = 3,
     DEF = 4,
@@ -161,7 +161,7 @@ local growths = {
     MGC = 2,
     LUK = 3
   },
-	[names.HELLION] = {
+	[Names.HELLION] = {
     PWR = 1,
     SKL = 1,
     DEF = 3,
@@ -169,7 +169,7 @@ local growths = {
     MGC = 7,
     LUK = 4
   },
-	[names.HERO] = {
+	[Names.HERO] = {
     PWR = 6,
     SKL = 7,
     DEF = 5,
@@ -177,7 +177,7 @@ local growths = {
     MGC = 6,
     LUK = 6
   },
-	[names.HIX] = {
+	[Names.HIX] = {
     PWR = 5,
     SKL = 5,
     DEF = 4,
@@ -185,7 +185,7 @@ local growths = {
     MGC = 3,
     LUK = 7
   },
-	[names.HUMPHREY] = {
+	[Names.HUMPHREY] = {
     PWR = 6,
     SKL = 3,
     DEF = 7,
@@ -193,7 +193,7 @@ local growths = {
     MGC = 1,
     LUK = 3
   },
-	[names.JUPPO] = {
+	[Names.JUPPO] = {
     PWR = 3,
     SKL = 7,
     DEF = 4,
@@ -201,7 +201,7 @@ local growths = {
     MGC = 4,
     LUK = 6
   },
-	[names.KAGE] = {
+	[Names.KAGE] = {
     PWR = 4,
     SKL = 6,
     DEF = 5,
@@ -209,7 +209,7 @@ local growths = {
     MGC = 3,
     LUK = 3
   },
-	[names.KAI] = {
+	[Names.KAI] = {
     PWR = 6,
     SKL = 3,
     DEF = 4,
@@ -217,7 +217,7 @@ local growths = {
     MGC = 1,
     LUK = 3
   },
-	[names.KAMANDOL] = {
+	[Names.KAMANDOL] = {
     PWR = 4,
     SKL = 7,
     DEF = 2,
@@ -225,7 +225,7 @@ local growths = {
     MGC = 3,
     LUK = 2
   },
-	[names.KANAK] = {
+	[Names.KANAK] = {
     PWR = 5,
     SKL = 5,
     DEF = 4,
@@ -233,7 +233,7 @@ local growths = {
     MGC = 0,
     LUK = 2
   },
-	[names.KASIM] = {
+	[Names.KASIM] = {
     PWR = 7,
     SKL = 4,
     DEF = 6,
@@ -241,7 +241,7 @@ local growths = {
     MGC = 1,
     LUK = 2
   },
-	[names.KASUMI] = {
+	[Names.KASUMI] = {
     PWR = 5,
     SKL = 6,
     DEF = 4,
@@ -249,7 +249,7 @@ local growths = {
     MGC = 4,
     LUK = 3
   },
-	[names.KESSLER] = {
+	[Names.KESSLER] = {
     PWR = 5,
     SKL = 5,
     DEF = 4,
@@ -257,7 +257,7 @@ local growths = {
     MGC = 2,
     LUK = 3
   },
-	[names.KIMBERLY] = {
+	[Names.KIMBERLY] = {
     PWR = 4,
     SKL = 6,
     DEF = 4,
@@ -265,7 +265,7 @@ local growths = {
     MGC = 2,
     LUK = 5
   },
-	[names.KIRKE] = {
+	[Names.KIRKE] = {
     PWR = 5,
     SKL = 4,
     DEF = 4,
@@ -273,7 +273,7 @@ local growths = {
     MGC = 2,
     LUK = 0
   },
-	[names.KIRKIS] = {
+	[Names.KIRKIS] = {
     PWR = 5,
     SKL = 8,
     DEF = 5,
@@ -281,7 +281,7 @@ local growths = {
     MGC = 5,
     LUK = 3
   },
-	[names.KREUTZ] = {
+	[Names.KREUTZ] = {
     PWR = 6,
     SKL = 3,
     DEF = 6,
@@ -289,7 +289,7 @@ local growths = {
     MGC = 1,
     LUK = 1
   },
-	[names.KRIN] = {
+	[Names.KRIN] = {
     PWR = 3,
     SKL = 6,
     DEF = 2,
@@ -297,7 +297,7 @@ local growths = {
     MGC = 1,
     LUK = 1
   },
-	[names.KUROMIMI] = {
+	[Names.KUROMIMI] = {
     PWR = 5,
     SKL = 4,
     DEF = 5,
@@ -305,7 +305,7 @@ local growths = {
     MGC = 2,
     LUK = 5
   },
-	[names.KWANDA] = {
+	[Names.KWANDA] = {
     PWR = 6,
     SKL = 3,
     DEF = 8,
@@ -313,7 +313,7 @@ local growths = {
     MGC = 1,
     LUK = 3
   },
-	[names.LEONARDO] = {
+	[Names.LEONARDO] = {
     PWR = 6,
     SKL = 3,
     DEF = 4,
@@ -321,7 +321,7 @@ local growths = {
     MGC = 1,
     LUK = 1
   },
-	[names.LEPANT] = {
+	[Names.LEPANT] = {
     PWR = 5,
     SKL = 5,
     DEF = 4,
@@ -329,7 +329,7 @@ local growths = {
     MGC = 3,
     LUK = 4
   },
-	[names.LESTER] = {
+	[Names.LESTER] = {
     PWR = 4,
     SKL = 4,
     DEF = 3,
@@ -337,7 +337,7 @@ local growths = {
     MGC = 1,
     LUK = 5
   },
-	[names.LIUKAN] = {
+	[Names.LIUKAN] = {
     PWR = 3,
     SKL = 7,
     DEF = 3,
@@ -345,7 +345,7 @@ local growths = {
     MGC = 3,
     LUK = 5
   },
-	[names.LORELAI] = {
+	[Names.LORELAI] = {
     PWR = 5,
     SKL = 7,
     DEF = 4,
@@ -353,7 +353,7 @@ local growths = {
     MGC = 2,
     LUK = 2
   },
-	[names.LOTTE] = {
+	[Names.LOTTE] = {
     PWR = 3,
     SKL = 4,
     DEF = 3,
@@ -361,7 +361,7 @@ local growths = {
     MGC = 6,
     LUK = 4
   },
-	[names.LUC] = {
+	[Names.LUC] = {
     PWR = 0,
     SKL = 5,
     DEF = 1,
@@ -369,7 +369,7 @@ local growths = {
     MGC = 8,
     LUK = 1
   },
-	[names.MAAS] = {
+	[Names.MAAS] = {
     PWR = 4,
     SKL = 5,
     DEF = 4,
@@ -377,7 +377,7 @@ local growths = {
     MGC = 2,
     LUK = 4
   },
-	[names.MACE] = {
+	[Names.MACE] = {
     PWR = 6,
     SKL = 6,
     DEF = 6,
@@ -385,7 +385,7 @@ local growths = {
     MGC = 3,
     LUK = 5
   },
-	[names.MEESE] = {
+	[Names.MEESE] = {
     PWR = 4,
     SKL = 5,
     DEF = 4,
@@ -393,7 +393,7 @@ local growths = {
     MGC = 2,
     LUK = 4
   },
-	[names.MEG] = {
+	[Names.MEG] = {
     PWR = 4,
     SKL = 5,
     DEF = 4,
@@ -401,7 +401,7 @@ local growths = {
     MGC = 3,
     LUK = 8
   },
-	[names.MILIA] = {
+	[Names.MILIA] = {
     PWR = 6,
     SKL = 3,
     DEF = 6,
@@ -409,7 +409,7 @@ local growths = {
     MGC = 1,
     LUK = 4
   },
-	[names.MILICH] = {
+	[Names.MILICH] = {
     PWR = 5,
     SKL = 4,
     DEF = 5,
@@ -417,7 +417,7 @@ local growths = {
     MGC = 6,
     LUK = 1
   },
-	[names.MINA] = {
+	[Names.MINA] = {
     PWR = 2,
     SKL = 4,
     DEF = 4,
@@ -425,7 +425,7 @@ local growths = {
     MGC = 6,
     LUK = 6
   },
-	[names.MOOSE] = {
+	[Names.MOOSE] = {
     PWR = 4,
     SKL = 6,
     DEF = 4,
@@ -433,7 +433,7 @@ local growths = {
     MGC = 2,
     LUK = 4
   },
-	[names.MORGAN] = {
+	[Names.MORGAN] = {
     PWR = 6,
     SKL = 3,
     DEF = 5,
@@ -441,7 +441,7 @@ local growths = {
     MGC = 0,
     LUK = 1
   },
-	[names.MOSE] = {
+	[Names.MOSE] = {
     PWR = 5,
     SKL = 5,
     DEF = 5,
@@ -449,7 +449,7 @@ local growths = {
     MGC = 1,
     LUK = 3
   },
-	[names.ODESSA] = {
+	[Names.ODESSA] = {
     PWR = 5,
     SKL = 8,
     DEF = 5,
@@ -457,7 +457,7 @@ local growths = {
     MGC = 7,
     LUK = 6
   },
-	[names.PAHN] = {
+	[Names.PAHN] = {
     PWR = 7,
     SKL = 5,
     DEF = 6,
@@ -465,7 +465,7 @@ local growths = {
     MGC = 0,
     LUK = 4
   },
-	[names.PESMERGA] = {
+	[Names.PESMERGA] = {
     PWR = 8,
     SKL = 2,
     DEF = 6,
@@ -473,7 +473,7 @@ local growths = {
     MGC = 1,
     LUK = 0
   },
-	[names.QUINCY] = {
+	[Names.QUINCY] = {
     PWR = 4,
     SKL = 8,
     DEF = 5,
@@ -481,7 +481,7 @@ local growths = {
     MGC = 1,
     LUK = 5
   },
-	[names.RONNIE] = {
+	[Names.RONNIE] = {
     PWR = 6,
     SKL = 4,
     DEF = 6,
@@ -489,7 +489,7 @@ local growths = {
     MGC = 0,
     LUK = 3
   },
-	[names.RUBI] = {
+	[Names.RUBI] = {
     PWR = 5,
     SKL = 6,
     DEF = 4,
@@ -497,7 +497,7 @@ local growths = {
     MGC = 6,
     LUK = 0
   },
-	[names.SANSUKE] = {
+	[Names.SANSUKE] = {
     PWR = 3,
     SKL = 5,
     DEF = 5,
@@ -505,7 +505,7 @@ local growths = {
     MGC = 1,
     LUK = 4
   },
-	[names.SARAH] = {
+	[Names.SARAH] = {
     PWR = 5,
     SKL = 3,
     DEF = 5,
@@ -513,7 +513,7 @@ local growths = {
     MGC = 4,
     LUK = 2
   },
-	[names.SERGEI] = {
+	[Names.SERGEI] = {
     PWR = 2,
     SKL = 6,
     DEF = 6,
@@ -521,7 +521,7 @@ local growths = {
     MGC = 2,
     LUK = 2
   },
-	[names.SHEENA] = {
+	[Names.SHEENA] = {
     PWR = 5,
     SKL = 4,
     DEF = 5,
@@ -529,7 +529,7 @@ local growths = {
     MGC = 6,
     LUK = 6
   },
-	[names.SONYA] = {
+	[Names.SONYA] = {
     PWR = 6,
     SKL = 5,
     DEF = 4,
@@ -537,7 +537,7 @@ local growths = {
     MGC = 5,
     LUK = 3
   },
-	[names.STALLION] = {
+	[Names.STALLION] = {
     PWR = 3,
     SKL = 6,
     DEF = 5,
@@ -545,7 +545,7 @@ local growths = {
     MGC = 4,
     LUK = 4
   },
-	[names.SYDONIA] = {
+	[Names.SYDONIA] = {
     PWR = 4,
     SKL = 6,
     DEF = 3,
@@ -553,7 +553,7 @@ local growths = {
     MGC = 3,
     LUK = 2
   },
-	[names.SYLVINA] = {
+	[Names.SYLVINA] = {
     PWR = 3,
     SKL = 5,
     DEF = 4,
@@ -561,7 +561,7 @@ local growths = {
     MGC = 5,
     LUK = 6
   },
-	[names.TAI_HO] = {
+	[Names.TAI_HO] = {
     PWR = 6,
     SKL = 7,
     DEF = 3,
@@ -569,7 +569,7 @@ local growths = {
     MGC = 1,
     LUK = 4
   },
-	[names.TENGAAR] = {
+	[Names.TENGAAR] = {
     PWR = 3,
     SKL = 6,
     DEF = 4,
@@ -577,7 +577,7 @@ local growths = {
     MGC = 7,
     LUK = 2
   },
-	[names.TED] = {
+	[Names.TED] = {
     PWR = 5,
     SKL = 7,
     DEF = 4,
@@ -585,7 +585,7 @@ local growths = {
     MGC = 7,
     LUK = 4
   },
-	[names.VALERIA] = {
+	[Names.VALERIA] = {
     PWR = 6,
     SKL = 4,
     DEF = 6,
@@ -593,7 +593,7 @@ local growths = {
     MGC = 3,
     LUK = 4
   },
-	[names.VARKAS] = {
+	[Names.VARKAS] = {
     PWR = 6,
     SKL = 3,
     DEF = 5,
@@ -601,7 +601,7 @@ local growths = {
     MGC = 1,
     LUK = 2
   },
-	[names.VIKTOR] = {
+	[Names.VIKTOR] = {
     PWR = 9,
     SKL = 2,
     DEF = 7,
@@ -609,7 +609,7 @@ local growths = {
     MGC = 3,
     LUK = 4
   },
-	[names.WARREN] = {
+	[Names.WARREN] = {
     PWR = 5,
     SKL = 4,
     DEF = 5,
@@ -617,7 +617,7 @@ local growths = {
     MGC = 2,
     LUK = 3
   },
-	[names.YAM_KOO] = {
+	[Names.YAM_KOO] = {
     PWR = 5,
     SKL = 6,
     DEF = 3,
@@ -627,4 +627,4 @@ local growths = {
   },
 }
 
-return growths
+return Growths

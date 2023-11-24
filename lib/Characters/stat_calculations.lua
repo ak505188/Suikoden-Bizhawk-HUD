@@ -1,4 +1,3 @@
-local Characters = require "lib.Characters.Characters"
 local RNG = require "lib.RNG"
 
 local StatGrowths = {
