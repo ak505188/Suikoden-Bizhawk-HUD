@@ -13,7 +13,7 @@ local function readCharacterData(character)
   }
 
   for i = 1, 9, 1 do
-    local offset = 0x1D + (4 * (i - 1))
+    local offset = 0x21 + (4 * (i - 1))
     local item_id = buffer[offset]
     local item_unknown = buffer[offset + 1]
     local item_equipped = buffer[offset + 2]
@@ -28,51 +28,52 @@ local function readCharacterData(character)
 
   local data = {
     Name = character.name,
+    Id = buffer[0x1],
     Stats = {
-      HP_Max = readFromByteTable(buffer, 0x1, 2),
-      HP_Current = readFromByteTable(buffer, 0x3, 2),
+      HP_Max = readFromByteTable(buffer, 0x5, 2),
+      HP_Current = readFromByteTable(buffer, 0x7, 2),
       MP = {
-        buffer[0x6],
-        buffer[0x7],
-        buffer[0x8],
-        buffer[0x9],
+        buffer[0xa],
+        buffer[0xb],
+        buffer[0xc],
+        buffer[0xd],
       },
-      LVL = buffer[0xA],
-      EXP = readFromByteTable(buffer, 0xB, 2),
-      PWR = buffer[0xD],
-      SKL = buffer[0xE],
-      DEF = buffer[0xF],
-      SPD = buffer[0x10],
-      MGC = buffer[0x11],
-      LUK = buffer[0x12],
+      LVL = buffer[0xE],
+      EXP = readFromByteTable(buffer, 0xF, 2),
+      PWR = buffer[0x11],
+      SKL = buffer[0x12],
+      DEF = buffer[0x13],
+      SPD = buffer[0x14],
+      MGC = buffer[0x15],
+      LUK = buffer[0x16],
     },
     Growths = {
-      PWR = buffer[0x15],
-      SKL = buffer[0x16],
-      DEF = buffer[0x17],
-      SPD = buffer[0x18],
-      MGC = buffer[0x19],
-      LUK = buffer[0x1A],
-      HP = buffer[0x1B],
+      PWR = buffer[0x19],
+      SKL = buffer[0x1a],
+      DEF = buffer[0x1b],
+      SPD = buffer[0x1c],
+      MGC = buffer[0x1d],
+      LUK = buffer[0x1E],
+      HP = buffer[0x1F],
     },
     Weapon = {
-      Type = buffer[0x41],
-      Level = buffer[0x42],
-      Rune_Piece_Type = buffer[0x43],
-      Fire_Piece_Count = buffer[0x44],
-      Water_Piece_Count = buffer[0x45],
-      Wind_Piece_Count = buffer[0x46],
-      Thunder_Piece_Count = buffer[0x47],
-      Earth_Piece_Count = buffer[0x48],
+      Type = buffer[0x45],
+      Level = buffer[0x46],
+      Rune_Piece_Type = buffer[0x47],
+      Fire_Piece_Count = buffer[0x48],
+      Water_Piece_Count = buffer[0x49],
+      Wind_Piece_Count = buffer[0x4a],
+      Thunder_Piece_Count = buffer[0x4b],
+      Earth_Piece_Count = buffer[0x4c],
     },
-    Status = buffer[0x13],
+    Status = buffer[0x17],
     Items = items,
     Unknowns = {
-      ['0x13'] = buffer[0x14],
-      ['0x4a'] = buffer[0x4b],
-      ['0x4b'] = buffer[0x4c],
-      ['0x4c'] = buffer[0x4d],
-      ['0x4d'] = buffer[0x4e],
+      ['0x1'] = buffer[2],
+      ['0x2'] = buffer[3],
+      ['0x3'] = buffer[4],
+      ['0x8'] = buffer[9],
+      ['0x17'] = buffer[0x18],
       ['0x4e'] = buffer[0x4f],
       ['0x4f'] = buffer[0x50],
     }
@@ -83,7 +84,8 @@ end
 
 local function characterDataToStr(cd)
   local name = string.format(
-    "%s LVL:%d.%03d S:%x",
+    "%d %s LVL:%d.%03d S:%x",
+    cd.Id,
     cd.Name,
     cd.Stats.LVL,
     cd.Stats.EXP,
@@ -144,12 +146,12 @@ local function characterDataToStr(cd)
 
   local items_str = table.concat(item_strings, "\n")
   local unknowns_str = string.format(
-    "Unknowns: 0x13:0x%x 0x4a:0x%x 0x4b:0x%x 0x4c:0x%x 0x4d:0x%x 0x4e:0x%x 0x4f:0x%x",
-    cd.Unknowns['0x13'],
-    cd.Unknowns['0x4a'],
-    cd.Unknowns['0x4b'],
-    cd.Unknowns['0x4c'],
-    cd.Unknowns['0x4d'],
+    "Unknowns: 0x1:0x%x 0x2:0x%x 0x3:0x%x 0x8:0x%x 0x17:0x%x 0x4e:0x%x 0x4f:0x%x",
+    cd.Unknowns['0x1'],
+    cd.Unknowns['0x2'],
+    cd.Unknowns['0x3'],
+    cd.Unknowns['0x8'],
+    cd.Unknowns['0x17'],
     cd.Unknowns['0x4e'],
     cd.Unknowns['0x4f']
   )

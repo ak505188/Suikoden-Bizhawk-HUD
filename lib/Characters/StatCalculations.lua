@@ -71,7 +71,7 @@ end
 
 
 local function calculateStatLevelUp(character, level, stat, rng)
-  local growth = character.growths[stat]
+  local growth = stat == 'HP' and character.growths.PWR or character.growths[stat]
   local growth_value = getGrowthValue(growth, stat, level)
   local is_HP = stat == 'HP'
   local small_RNG = RNG.getRNG2(rng)
@@ -82,10 +82,34 @@ end
 local function calculateCharacterLevelUp(character, level, rng)
   local stats = {}
   for _, stat in ipairs(LevelupStatOrder) do
-    stats[stat] = calculateStatLevelUp(character, level, stat, rng)
-    -- TODO: Maybe pull RNG value from RNGMonitor here
     rng = RNG.nextRNG(rng)
+    stats[stat] = calculateStatLevelUp(character, level, stat, rng)
   end
+  return stats, rng
+end
+
+local function calculateCharacterLevelUps(character, starting_level, levels_gained, rng)
+  starting_level = starting_level or 1
+  levels_gained = levels_gained >= 1 and levels_gained or 1
+  local stats = {
+    PWR = 0,
+    SKL = 0,
+    DEF = 0,
+    SPD = 0,
+    MGC = 0,
+    LUK = 0,
+    HP  = 0,
+  }
+
+  for i = 1, levels_gained, 1 do
+    local level = starting_level + i
+    local level_up_stats
+    level_up_stats,rng = calculateCharacterLevelUp(character, level, rng)
+    for stat, value in pairs(level_up_stats) do
+      stats[stat] = stats[stat] + value
+    end
+  end
+
   return stats
 end
 
@@ -93,4 +117,6 @@ return {
   getGrowthValue = getGrowthValue,
   calculateStatLevelUp = calculateStatLevelUp,
   calculateCharacterLevelUp = calculateCharacterLevelUp,
+  calculateCharacterLevelUps = calculateCharacterLevelUps,
+  LevelupStatOrder = LevelupStatOrder,
 }

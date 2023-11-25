@@ -1,16 +1,35 @@
 local RNGMonitor = require "monitors.RNG_Monitor"
 local Drawer = require "controllers.drawer"
+local StatsSubmodule = require "modules.RNG.submodules.Stats.submodule"
 
-local Worker = {}
+local Modes = {
+  None = 'RNG',
+  Stats = 'STATS',
+  Chinchironin = 'CHINCHIRONIN',
+  Combat = 'COMBAT' -- Accuracy & Crit Rolls
+}
 
-function Worker:run() end
+local Worker = {
+  mode = Modes.Stats,
+  submodules = {
+    [Modes.Stats] = StatsSubmodule
+  }
+}
+
+
+function Worker:run()
+  if self.mode ~= Modes.None and self.submodules[self.mode] ~= nil then
+    self.submodules[self.mode].Worker:run()
+  end
+end
 
 function Worker:onChange() end
 
 function Worker:init() end
 
 function Worker:draw()
-  Drawer:draw({ "RNG Module Draw" }, Drawer.anchors.TOP_LEFT)
+  Drawer:draw({ self.mode }, Drawer.anchors.TOP_LEFT, nil, true)
+  self.submodules[self.mode].Worker:draw()
 end
 
 function Worker:adjustIndex(amount)

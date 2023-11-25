@@ -1,5 +1,7 @@
 local Names = require "lib.Characters.Names"
 
+-- HP  isn't actually used, game uses PWR for HP  growth.
+-- Growth is still listed here for posterity
 local Growths = {
 	[Names.ALEN] = {
     PWR = 6,
@@ -7,7 +9,8 @@ local Growths = {
     DEF = 5,
     SPD = 4,
     MGC = 5,
-    LUK = 4
+    LUK = 4,
+    HP  = 5,
   },
 	[Names.ANJI] = {
     PWR = 6,
@@ -15,7 +18,8 @@ local Growths = {
     DEF = 3,
     SPD = 5,
     MGC = 2,
-    LUK = 2
+    LUK = 2,
+    HP  = 5,
   },
 	[Names.ANTONIO] = {
     PWR = 3,
@@ -23,7 +27,8 @@ local Growths = {
     DEF = 3,
     SPD = 4,
     MGC = 1,
-    LUK = 3
+    LUK = 3,
+    HP  = 3,
   },
 	[Names.BLACKMAN] = {
     PWR = 5,
@@ -31,7 +36,8 @@ local Growths = {
     DEF = 6,
     SPD = 3,
     MGC = 1,
-    LUK = 3
+    LUK = 3,
+    HP  = 7,
   },
 	[Names.CAMILLE] = {
     PWR = 5,
@@ -39,7 +45,8 @@ local Growths = {
     DEF = 4,
     SPD = 5,
     MGC = 5,
-    LUK = 3
+    LUK = 3,
+    HP  = 4,
   },
 	[Names.CLEO] = {
     PWR = 5,
@@ -47,7 +54,8 @@ local Growths = {
     DEF = 5,
     SPD = 6,
     MGC = 6,
-    LUK = 2
+    LUK = 2,
+    HP  = 4,
   },
 	[Names.CLIVE] = {
     PWR = 6,
@@ -55,7 +63,8 @@ local Growths = {
     DEF = 3,
     SPD = 6,
     MGC = 2,
-    LUK = 1
+    LUK = 1,
+    HP  = 5,
   },
 	[Names.CROWLEY] = {
     PWR = 2,
@@ -63,7 +72,8 @@ local Growths = {
     DEF = 1,
     SPD = 5,
     MGC = 8,
-    LUK = 3
+    LUK = 3,
+    HP  = 3,
   },
 	[Names.EIKEI] = {
     PWR = 5,
@@ -71,7 +81,8 @@ local Growths = {
     DEF = 5,
     SPD = 2,
     MGC = 0,
-    LUK = 3
+    LUK = 3,
+    HP  = 6,
   },
 	[Names.EILEEN] = {
     PWR = 2,
@@ -79,7 +90,8 @@ local Growths = {
     DEF = 2,
     SPD = 6,
     MGC = 7,
-    LUK = 5
+    LUK = 5,
+    HP  = 3,
   },
 	[Names.FLIK] = {
     PWR = 6,
@@ -87,7 +99,8 @@ local Growths = {
     DEF = 4,
     SPD = 6,
     MGC = 5,
-    LUK = 4
+    LUK = 4,
+    HP  = 5,
   },
 	[Names.FUKIEN] = {
     PWR = 2,
@@ -95,7 +108,8 @@ local Growths = {
     DEF = 4,
     SPD = 4,
     MGC = 6,
-    LUK = 5
+    LUK = 5,
+    HP  = 3,
   },
 	[Names.FUMA] = {
     PWR = 5,
@@ -103,7 +117,8 @@ local Growths = {
     DEF = 5,
     SPD = 6,
     MGC = 1,
-    LUK = 3
+    LUK = 3,
+    HP  = 3,
   },
 	[Names.FUTCH] = {
     PWR = 5,
@@ -111,7 +126,8 @@ local Growths = {
     DEF = 5,
     SPD = 6,
     MGC = 2,
-    LUK = 6
+    LUK = 6,
+    HP  = 3,
   },
 	[Names.FU_SU_LU] = {
     PWR = 8,
@@ -119,7 +135,8 @@ local Growths = {
     DEF = 6,
     SPD = 1,
     MGC = 0,
-    LUK = 1
+    LUK = 1,
+    HP  = 8,
   },
 	[Names.GEN] = {
     PWR = 6,
@@ -127,7 +144,8 @@ local Growths = {
     DEF = 4,
     SPD = 4,
     MGC = 2,
-    LUK = 4
+    LUK = 4,
+    HP  = 5,
   },
 	[Names.GON] = {
     PWR = 4,
@@ -135,7 +153,8 @@ local Growths = {
     DEF = 5,
     SPD = 3,
     MGC = 2,
-    LUK = 8
+    LUK = 8,
+    HP  = 3,
   },
 	[Names.GREMIO] = {
     PWR = 13,
@@ -143,7 +162,8 @@ local Growths = {
     DEF = 6,
     SPD = 3,
     MGC = 2,
-    LUK = 5
+    LUK = 5,
+    HP  = 5,
   },
 	[Names.GRENSEAL] = {
     PWR = 5,
@@ -151,7 +171,8 @@ local Growths = {
     DEF = 5,
     SPD = 5,
     MGC = 6,
-    LUK = 3
+    LUK = 3,
+    HP  = 4,
   },
 	[Names.GRIFFITH] = {
     PWR = 5,
@@ -159,7 +180,8 @@ local Growths = {
     DEF = 4,
     SPD = 3,
     MGC = 2,
-    LUK = 3
+    LUK = 3,
+    HP  = 4,
   },
 	[Names.HELLION] = {
     PWR = 1,
@@ -167,7 +189,8 @@ local Growths = {
     DEF = 3,
     SPD = 3,
     MGC = 7,
-    LUK = 4
+    LUK = 4,
+    HP  = 2,
   },
 	[Names.HERO] = {
     PWR = 6,
@@ -175,7 +198,8 @@ local Growths = {
     DEF = 5,
     SPD = 7,
     MGC = 6,
-    LUK = 6
+    LUK = 6,
+    HP  = 5,
   },
 	[Names.HIX] = {
     PWR = 5,
@@ -183,7 +207,8 @@ local Growths = {
     DEF = 4,
     SPD = 5,
     MGC = 3,
-    LUK = 7
+    LUK = 7,
+    HP  = 5,
   },
 	[Names.HUMPHREY] = {
     PWR = 6,
@@ -191,7 +216,8 @@ local Growths = {
     DEF = 7,
     SPD = 2,
     MGC = 1,
-    LUK = 3
+    LUK = 3,
+    HP  = 8,
   },
 	[Names.JUPPO] = {
     PWR = 3,
@@ -199,7 +225,8 @@ local Growths = {
     DEF = 4,
     SPD = 4,
     MGC = 4,
-    LUK = 6
+    LUK = 6,
+    HP  = 4,
   },
 	[Names.KAGE] = {
     PWR = 4,
@@ -207,7 +234,8 @@ local Growths = {
     DEF = 5,
     SPD = 7,
     MGC = 3,
-    LUK = 3
+    LUK = 3,
+    HP  = 4,
   },
 	[Names.KAI] = {
     PWR = 6,
@@ -215,7 +243,8 @@ local Growths = {
     DEF = 4,
     SPD = 2,
     MGC = 1,
-    LUK = 3
+    LUK = 3,
+    HP  = 5,
   },
 	[Names.KAMANDOL] = {
     PWR = 4,
@@ -223,7 +252,8 @@ local Growths = {
     DEF = 2,
     SPD = 3,
     MGC = 3,
-    LUK = 2
+    LUK = 2,
+    HP  = 5,
   },
 	[Names.KANAK] = {
     PWR = 5,
@@ -231,7 +261,8 @@ local Growths = {
     DEF = 4,
     SPD = 6,
     MGC = 0,
-    LUK = 2
+    LUK = 2,
+    HP  = 5,
   },
 	[Names.KASIM] = {
     PWR = 7,
@@ -239,7 +270,8 @@ local Growths = {
     DEF = 6,
     SPD = 3,
     MGC = 1,
-    LUK = 2
+    LUK = 2,
+    HP  = 5,
   },
 	[Names.KASUMI] = {
     PWR = 5,
@@ -247,7 +279,8 @@ local Growths = {
     DEF = 4,
     SPD = 8,
     MGC = 4,
-    LUK = 3
+    LUK = 3,
+    HP  = 5,
   },
 	[Names.KESSLER] = {
     PWR = 5,
@@ -255,7 +288,8 @@ local Growths = {
     DEF = 4,
     SPD = 3,
     MGC = 2,
-    LUK = 3
+    LUK = 3,
+    HP  = 5,
   },
 	[Names.KIMBERLY] = {
     PWR = 4,
@@ -263,7 +297,8 @@ local Growths = {
     DEF = 4,
     SPD = 5,
     MGC = 2,
-    LUK = 5
+    LUK = 5,
+    HP  = 6,
   },
 	[Names.KIRKE] = {
     PWR = 5,
@@ -271,7 +306,8 @@ local Growths = {
     DEF = 4,
     SPD = 3,
     MGC = 2,
-    LUK = 0
+    LUK = 0,
+    HP  = 4,
   },
 	[Names.KIRKIS] = {
     PWR = 5,
@@ -279,7 +315,8 @@ local Growths = {
     DEF = 5,
     SPD = 6,
     MGC = 5,
-    LUK = 3
+    LUK = 3,
+    HP  = 4,
   },
 	[Names.KREUTZ] = {
     PWR = 6,
@@ -287,7 +324,8 @@ local Growths = {
     DEF = 6,
     SPD = 1,
     MGC = 1,
-    LUK = 1
+    LUK = 1,
+    HP  = 5,
   },
 	[Names.KRIN] = {
     PWR = 3,
@@ -295,7 +333,8 @@ local Growths = {
     DEF = 2,
     SPD = 8,
     MGC = 1,
-    LUK = 1
+    LUK = 1,
+    HP  = 2,
   },
 	[Names.KUROMIMI] = {
     PWR = 5,
@@ -303,7 +342,8 @@ local Growths = {
     DEF = 5,
     SPD = 5,
     MGC = 2,
-    LUK = 5
+    LUK = 5,
+    HP  = 5,
   },
 	[Names.KWANDA] = {
     PWR = 6,
@@ -311,7 +351,8 @@ local Growths = {
     DEF = 8,
     SPD = 2,
     MGC = 1,
-    LUK = 3
+    LUK = 3,
+    HP  = 6,
   },
 	[Names.LEONARDO] = {
     PWR = 6,
@@ -319,7 +360,8 @@ local Growths = {
     DEF = 4,
     SPD = 4,
     MGC = 1,
-    LUK = 1
+    LUK = 1,
+    HP  = 6,
   },
 	[Names.LEPANT] = {
     PWR = 5,
@@ -327,7 +369,8 @@ local Growths = {
     DEF = 4,
     SPD = 4,
     MGC = 3,
-    LUK = 4
+    LUK = 4,
+    HP  = 5,
   },
 	[Names.LESTER] = {
     PWR = 4,
@@ -335,7 +378,8 @@ local Growths = {
     DEF = 3,
     SPD = 5,
     MGC = 1,
-    LUK = 5
+    LUK = 5,
+    HP  = 2,
   },
 	[Names.LIUKAN] = {
     PWR = 3,
@@ -343,7 +387,8 @@ local Growths = {
     DEF = 3,
     SPD = 4,
     MGC = 3,
-    LUK = 5
+    LUK = 5,
+    HP  = 3,
   },
 	[Names.LORELAI] = {
     PWR = 5,
@@ -351,7 +396,8 @@ local Growths = {
     DEF = 4,
     SPD = 3,
     MGC = 2,
-    LUK = 2
+    LUK = 2,
+    HP  = 4,
   },
 	[Names.LOTTE] = {
     PWR = 3,
@@ -359,7 +405,8 @@ local Growths = {
     DEF = 3,
     SPD = 5,
     MGC = 6,
-    LUK = 4
+    LUK = 4,
+    HP  = 3,
   },
 	[Names.LUC] = {
     PWR = 0,
@@ -367,7 +414,8 @@ local Growths = {
     DEF = 1,
     SPD = 5,
     MGC = 8,
-    LUK = 1
+    LUK = 1,
+    HP  = 2,
   },
 	[Names.MAAS] = {
     PWR = 4,
@@ -375,7 +423,8 @@ local Growths = {
     DEF = 4,
     SPD = 4,
     MGC = 2,
-    LUK = 4
+    LUK = 4,
+    HP  = 4,
   },
 	[Names.MACE] = {
     PWR = 6,
@@ -383,7 +432,8 @@ local Growths = {
     DEF = 6,
     SPD = 5,
     MGC = 3,
-    LUK = 5
+    LUK = 5,
+    HP  = 3,
   },
 	[Names.MEESE] = {
     PWR = 4,
@@ -391,7 +441,8 @@ local Growths = {
     DEF = 4,
     SPD = 4,
     MGC = 2,
-    LUK = 4
+    LUK = 4,
+    HP  = 4,
   },
 	[Names.MEG] = {
     PWR = 4,
@@ -399,7 +450,8 @@ local Growths = {
     DEF = 4,
     SPD = 4,
     MGC = 3,
-    LUK = 8
+    LUK = 8,
+    HP  = 3,
   },
 	[Names.MILIA] = {
     PWR = 6,
@@ -407,7 +459,8 @@ local Growths = {
     DEF = 6,
     SPD = 3,
     MGC = 1,
-    LUK = 4
+    LUK = 4,
+    HP  = 5,
   },
 	[Names.MILICH] = {
     PWR = 5,
@@ -415,7 +468,8 @@ local Growths = {
     DEF = 5,
     SPD = 4,
     MGC = 6,
-    LUK = 1
+    LUK = 1,
+    HP  = 5,
   },
 	[Names.MINA] = {
     PWR = 2,
@@ -423,7 +477,8 @@ local Growths = {
     DEF = 4,
     SPD = 4,
     MGC = 6,
-    LUK = 6
+    LUK = 6,
+    HP  = 3,
   },
 	[Names.MOOSE] = {
     PWR = 4,
@@ -431,7 +486,8 @@ local Growths = {
     DEF = 4,
     SPD = 4,
     MGC = 2,
-    LUK = 4
+    LUK = 4,
+    HP  = 4,
   },
 	[Names.MORGAN] = {
     PWR = 6,
@@ -439,7 +495,8 @@ local Growths = {
     DEF = 5,
     SPD = 2,
     MGC = 0,
-    LUK = 1
+    LUK = 1,
+    HP  = 5,
   },
 	[Names.MOSE] = {
     PWR = 5,
@@ -447,7 +504,8 @@ local Growths = {
     DEF = 5,
     SPD = 4,
     MGC = 1,
-    LUK = 3
+    LUK = 3,
+    HP  = 6,
   },
 	[Names.ODESSA] = {
     PWR = 5,
@@ -455,7 +513,8 @@ local Growths = {
     DEF = 5,
     SPD = 8,
     MGC = 7,
-    LUK = 6
+    LUK = 6,
+    HP  = 5,
   },
 	[Names.PAHN] = {
     PWR = 7,
@@ -463,7 +522,8 @@ local Growths = {
     DEF = 6,
     SPD = 2,
     MGC = 0,
-    LUK = 4
+    LUK = 4,
+    HP  = 6,
   },
 	[Names.PESMERGA] = {
     PWR = 8,
@@ -471,7 +531,8 @@ local Growths = {
     DEF = 6,
     SPD = 3,
     MGC = 1,
-    LUK = 0
+    LUK = 0,
+    HP  = 6,
   },
 	[Names.QUINCY] = {
     PWR = 4,
@@ -479,7 +540,8 @@ local Growths = {
     DEF = 5,
     SPD = 5,
     MGC = 1,
-    LUK = 5
+    LUK = 5,
+    HP  = 4,
   },
 	[Names.RONNIE] = {
     PWR = 6,
@@ -487,7 +549,8 @@ local Growths = {
     DEF = 6,
     SPD = 4,
     MGC = 0,
-    LUK = 3
+    LUK = 3,
+    HP  = 5,
   },
 	[Names.RUBI] = {
     PWR = 5,
@@ -495,7 +558,8 @@ local Growths = {
     DEF = 4,
     SPD = 6,
     MGC = 6,
-    LUK = 0
+    LUK = 0,
+    HP  = 4,
   },
 	[Names.SANSUKE] = {
     PWR = 3,
@@ -503,7 +567,8 @@ local Growths = {
     DEF = 5,
     SPD = 4,
     MGC = 1,
-    LUK = 4
+    LUK = 4,
+    HP  = 4,
   },
 	[Names.SARAH] = {
     PWR = 5,
@@ -511,7 +576,8 @@ local Growths = {
     DEF = 5,
     SPD = 3,
     MGC = 4,
-    LUK = 2
+    LUK = 2,
+    HP  = 4,
   },
 	[Names.SERGEI] = {
     PWR = 2,
@@ -519,7 +585,8 @@ local Growths = {
     DEF = 6,
     SPD = 3,
     MGC = 2,
-    LUK = 2
+    LUK = 2,
+    HP  = 4,
   },
 	[Names.SHEENA] = {
     PWR = 5,
@@ -527,7 +594,8 @@ local Growths = {
     DEF = 5,
     SPD = 6,
     MGC = 6,
-    LUK = 6
+    LUK = 6,
+    HP  = 4,
   },
 	[Names.SONYA] = {
     PWR = 6,
@@ -535,7 +603,8 @@ local Growths = {
     DEF = 4,
     SPD = 7,
     MGC = 5,
-    LUK = 3
+    LUK = 3,
+    HP  = 4,
   },
 	[Names.STALLION] = {
     PWR = 3,
@@ -543,7 +612,8 @@ local Growths = {
     DEF = 5,
     SPD = 8,
     MGC = 4,
-    LUK = 4
+    LUK = 4,
+    HP  = 3,
   },
 	[Names.SYDONIA] = {
     PWR = 4,
@@ -551,7 +621,8 @@ local Growths = {
     DEF = 3,
     SPD = 6,
     MGC = 3,
-    LUK = 2
+    LUK = 2,
+    HP  = 4,
   },
 	[Names.SYLVINA] = {
     PWR = 3,
@@ -559,7 +630,8 @@ local Growths = {
     DEF = 4,
     SPD = 6,
     MGC = 5,
-    LUK = 6
+    LUK = 6,
+    HP  = 3,
   },
 	[Names.TAI_HO] = {
     PWR = 6,
@@ -567,7 +639,8 @@ local Growths = {
     DEF = 3,
     SPD = 5,
     MGC = 1,
-    LUK = 4
+    LUK = 4,
+    HP  = 5,
   },
 	[Names.TENGAAR] = {
     PWR = 3,
@@ -575,7 +648,8 @@ local Growths = {
     DEF = 4,
     SPD = 5,
     MGC = 7,
-    LUK = 2
+    LUK = 2,
+    HP  = 4,
   },
 	[Names.TED] = {
     PWR = 5,
@@ -583,7 +657,8 @@ local Growths = {
     DEF = 4,
     SPD = 6,
     MGC = 7,
-    LUK = 4
+    LUK = 4,
+    HP  = 4,
   },
 	[Names.VALERIA] = {
     PWR = 6,
@@ -591,7 +666,8 @@ local Growths = {
     DEF = 6,
     SPD = 3,
     MGC = 3,
-    LUK = 4
+    LUK = 4,
+    HP  = 5,
   },
 	[Names.VARKAS] = {
     PWR = 6,
@@ -599,7 +675,8 @@ local Growths = {
     DEF = 5,
     SPD = 3,
     MGC = 1,
-    LUK = 2
+    LUK = 2,
+    HP  = 6,
   },
 	[Names.VIKTOR] = {
     PWR = 9,
@@ -607,7 +684,8 @@ local Growths = {
     DEF = 7,
     SPD = 5,
     MGC = 3,
-    LUK = 4
+    LUK = 4,
+    HP  = 6,
   },
 	[Names.WARREN] = {
     PWR = 5,
@@ -615,7 +693,8 @@ local Growths = {
     DEF = 5,
     SPD = 3,
     MGC = 2,
-    LUK = 3
+    LUK = 3,
+    HP  = 5,
   },
 	[Names.YAM_KOO] = {
     PWR = 5,
@@ -623,7 +702,8 @@ local Growths = {
     DEF = 3,
     SPD = 6,
     MGC = 2,
-    LUK = 4
+    LUK = 4,
+    HP  = 4,
   },
 }
 
