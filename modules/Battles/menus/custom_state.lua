@@ -5,7 +5,6 @@ local Buttons = require "lib.Buttons"
 local BaseMenu = require "menus.Base"
 local MenuController = require "menus.MenuController"
 local AreaSelectionMenu = require "modules.Battles.menus.area_selection"
-local Utils = require "lib.Utils"
 
 local CustomStateMenu = BaseMenu:new({
   properties = {

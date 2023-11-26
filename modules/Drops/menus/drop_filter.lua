@@ -3,7 +3,6 @@ local Worker = require "modules.Drops.worker"
 local MenuProperties = require "menus.Properties"
 local Buttons = require "lib.Buttons"
 local BaseMenu = require "menus.Base"
-local Utils = require "lib.Utils"
 
 local DropFilterMenu = BaseMenu:new({
   properties = {

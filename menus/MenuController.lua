@@ -58,7 +58,8 @@ function MenuController:open(menu)
     moduleMenu:init()
     self:push(moduleMenu)
   end
-  self:run()
+  local _,result = self:run()
+  return result
 end
 
 -- Module switching and drawing should probably be part of the worker's menu function
@@ -94,12 +95,14 @@ function MenuController:run()
     end
 
     currentMenu:draw()
-    local menuFinished = currentMenu:run()
+    local menuFinished,menuResult = currentMenu:run()
 
     if menuFinished then
       self:pop()
       if #self.stack == 0 then
         client.unpause()
+      else
+        return menuFinished,menuResult
       end
     end
   end
