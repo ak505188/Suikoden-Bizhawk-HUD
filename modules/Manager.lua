@@ -19,6 +19,14 @@ function ModuleManager:switchToModule(name)
   end
 end
 
+function ModuleManager:getModuleNames()
+  local names = {}
+  for _, module in ipairs(self.modules) do
+    table.insert(names, module.Name)
+  end
+  return names
+end
+
 function ModuleManager:nextModule()
   if #self.modules > 1 then
     self.currentModule = self.currentModule % #self.modules + 1

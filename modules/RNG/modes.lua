@@ -1,8 +1,8 @@
 local Modes = {
   None = 'RNG',
-  Stats = 'STATS',
-  Chinchironin = 'CHINCHIRONIN',
-  Combat = 'COMBAT' -- Accuracy & Crit Rolls
+  Stats = 'Stats',
+  Chinchironin = 'Chinchironin',
+  Combat = 'Combat' -- Accuracy & Crit Rolls
 }
 
 local ModesList = {

@@ -9,7 +9,7 @@ local function getPartySize()
 end
 
 local function getCharacterDataAddress(formationSlot)
-  local offset = memory.read_u8(Address.CHARACTER_OFFSETS + formationSlot)
+  local offset = memory.read_u8(Address.FORMATION_POSITIONS + formationSlot)
   local ptr1 = Address.GAMESTATE_BASE + offset * 4
   local ptr2 = Address.sanitize(memory.read_u32_le(ptr1 + 0x1b9c))
   return Address.sanitize(memory.read_u32_le(Address.sanitize(ptr2 + 0x1c)))

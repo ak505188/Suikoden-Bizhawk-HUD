@@ -2,6 +2,8 @@ local MENU_TYPES = {
   base = 'BASE',
   module = 'MODULE',
   custom = 'CUSTOM',
+  module_menu = 'MODULE MENU',
+  tool = 'TOOL',
 }
 
 local CONTROL_TYPES = {

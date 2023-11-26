@@ -19,6 +19,7 @@ local Menu = {
 function Menu:draw()
   local draw_table = {
     "Tr: Select Mode",
+    "O: Back",
     "Do: RNGIndex -1",
     "Le: RNGIndex -25",
     "Up: RNGIndex +1",
@@ -50,7 +51,10 @@ function Menu:run()
     Worker:adjustIndex(-25)
   elseif Buttons.Right:pressed() then
     Worker:adjustIndex(25)
+  elseif Buttons.Circle:pressed() then
+    return true
   end
+  return false
 end
 
 return Menu

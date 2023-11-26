@@ -1,8 +1,8 @@
 local Buttons = require "lib.Buttons"
 local Drawer = require "controllers.drawer"
 local ModuleManager = require "modules.Manager"
-local ModuleMenu = require "modules.Menu"
 local MenuProperties = require "menus.Properties"
+local MenuBuilder = require "menus.MenuBuilders"
 
 local RNGMonitor = require "monitors.RNG_Monitor"
 local StateMonitor = require "monitors.State_Monitor"
@@ -66,6 +66,9 @@ end
 -- Doesn't make sense to have it in here, as it forces all menus to have it
 -- RNGResetMenu doesn't care about modules
 function MenuController:run()
+  local module_draw_table = "Select: Switch Module"
+  local module_selection_menu = MenuBuilder.ListSelectionMenuBuilder(ModuleManager:getModuleNames(), { type = MenuProperties.MENU_TYPES.module_menu })
+
   while client.ispaused() do
     emu.yield()
     Drawer:clear()
@@ -79,36 +82,43 @@ function MenuController:run()
 
     local currentMenu = self:getCurrentMenu()
 
-    if currentMenu.properties.type == MenuProperties.MENU_TYPES.module then
-      ModuleMenu:draw()
-      local moduleChanged = ModuleMenu:run()
-      if moduleChanged then
+    if currentMenu.properties.type == MenuProperties.MENU_TYPES.module_menu then
+      currentMenu:draw()
+      local menu_finished, new_module_name = currentMenu:run()
+      if menu_finished and new_module_name and new_module_name ~= ModuleManager:getCurrent().Name then
+        ModuleManager:switchToModule(new_module_name)
         self.stack = {}
         currentMenu = ModuleManager:getCurrent().Menu
         currentMenu:init()
         self:push(currentMenu)
       end
+    else if currentMenu.properties.type == MenuProperties.MENU_TYPES.module then
+        Drawer:draw({ module_draw_table }, Drawer.anchors.TOP_RIGHT)
+        if Buttons.Select:pressed() then
+          MenuController:push(module_selection_menu)
+        end
 
-      -- should I be running this here, or in Menu:run()?
-      local worker = ModuleManager:getCurrent().Worker
-      worker:run()
-    end
+        -- should I be running this here, or in Menu:run()?
+        local worker = ModuleManager:getCurrent().Worker
+        worker:run()
+      end
 
-    currentMenu:draw()
-    local menuFinished,menuResult = currentMenu:run()
+      currentMenu:draw()
+      local menuFinished,menuResult = currentMenu:run()
 
-    if menuFinished then
-      self:pop()
-      if #self.stack == 0 then
-        client.unpause()
-      else
-        return menuFinished,menuResult
+      if menuFinished then
+        self:pop()
+        if #self.stack == 0 then
+          client.unpause()
+        else
+          return menuFinished,menuResult
+        end
       end
     end
-  end
 
-  while not client.ispaused() and #self.stack > 0 do
-    self:pop()
+    while not client.ispaused() and #self.stack > 0 do
+      self:pop()
+    end
   end
 end
 

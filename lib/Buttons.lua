@@ -66,7 +66,7 @@ for btnName,btnKey in pairs(buttonNames) do
   button.name = btnName
 
 
-  if not string.match(btnKey, "Stick") then
+  if not string.match(btnName, "Stick") then
     function button:value()
       return Buttons._values[self.key]
     end

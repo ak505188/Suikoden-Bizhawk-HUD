@@ -69,7 +69,7 @@ local function ListSelectionMenuBuilder(list, options)
 
   local Menu = BaseMenu:new({
     properties = {
-      type = MenuProperties.MENU_TYPES.module,
+      type = options.type or MenuProperties.MENU_TYPES.module,
       name = options.name or 'List Selection',
       control = MenuProperties.CONTROL_TYPES.cursor,
     },
