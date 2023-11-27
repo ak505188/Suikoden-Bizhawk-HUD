@@ -4,9 +4,9 @@ local Worker = require "modules.RNG.worker"
 local Modes = require "modules.RNG.modes"
 local MenuController = require "menus.MenuController"
 local MenuProperties = require "menus.Properties"
-local MenuBuilders = require "menus.MenuBuilders"
+local ListSelectionMenuBuilder = require "menus.Builders.List"
 
-local ModeSelectionMenu = MenuBuilders.ListSelectionMenuBuilder(Modes.List)
+local ModeSelectionMenu = ListSelectionMenuBuilder:new(Modes.List)
 
 local Menu = {
   properties = {
@@ -37,7 +37,7 @@ function Menu:init() end
 function Menu:run()
   if Buttons.Triangle:pressed() then
     local new_mode = MenuController:open(ModeSelectionMenu)
-    Worker.mode = new_mode
+    if new_mode then Worker.mode = new_mode end
   elseif Buttons.Square:pressed() then
     if Worker.submodules[Worker.mode] then
       local submodule = Worker.submodules[Worker.mode]

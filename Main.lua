@@ -5,10 +5,6 @@ local RoomMonitor = require "monitors.Room_Monitor"
 StateMonitor:init()
 RNGMonitor:init()
 
-local MenuController = require "menus.MenuController"
-local Drawer = require "controllers.drawer"
-local RNGResetMenu = require "menus.RNG_Reset_Menu"
-
 local ModuleManager = require "modules.Manager"
 local RNG_Module = require "modules.RNG.module"
 local Battles_Module = require "modules.Battles.module"
@@ -22,11 +18,14 @@ ModuleManager:addModule(Drops_Module)
 ModuleManager:addModule(RoomInfo_Module)
 ModuleManager:addModule(Saves_Module)
 
+local MenuController = require "menus.MenuController"
+local Drawer = require "controllers.drawer"
+local RNGResetMenu = require "menus.RNG_Reset_Menu"
+
 local function draw()
   RNGMonitor:draw()
   StateMonitor:draw()
   -- RoomMonitor:draw()
-  -- local opts = Monitors:draw()
   ModuleManager:draw()
 end
 

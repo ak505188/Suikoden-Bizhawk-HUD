@@ -2,11 +2,11 @@ local Drawer = require "controllers.drawer"
 local Buttons = require "lib.Buttons"
 local CombatCharacters = require "lib.Characters.CombatCharacters"
 local MenuProperties = require "menus.Properties"
-local MenuBuilders = require "menus.MenuBuilders"
+local ScrollingListMenuBuilder = require "menus.Builders.ScrollingList"
 local MenuController = require "menus.MenuController"
 local Worker = require "modules.RNG.submodules.Stats.worker"
 
-local CharacterSelectionMenu = MenuBuilders.ScrollingListSelectionMenuBuilder(CombatCharacters.NamesList)
+local CharacterSelectionMenu = ScrollingListMenuBuilder:new(CombatCharacters.NamesList)
 
 local OptionNames = {
   CHARACTER = "Select Character",
@@ -110,8 +110,6 @@ function Menu:run()
     if amount ~= 0 then
       self:adjustLevels(amount)
     end
-  elseif Buttons.Circle:pressed() then
-    return true
   end
   return false
 end
