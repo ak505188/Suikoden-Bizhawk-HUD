@@ -62,7 +62,7 @@ function Menu:draw()
   else
     table.insert(controls_table, "Left: Decrease")
     table.insert(controls_table, "Right: Increase")
-    table.insert(controls_table, "Hold R2: Amount * 10")
+    table.insert(controls_table, "Hold R1: Amount x 10")
   end
 
   Drawer:draw(draw_table, Drawer.anchors.TOP_RIGHT)
@@ -98,7 +98,7 @@ function Menu:run()
   elseif self.option == OptionNames.STARTING_LEVEL or self.option == OptionNames.LEVELS_GAINED then
     local modifier = 1
     local amount = 0
-    if Buttons.R2:held() then
+    if Buttons.R1:held() then
       modifier = 10
     end
     if Buttons.Left:pressed() then

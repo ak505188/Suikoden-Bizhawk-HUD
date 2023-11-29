@@ -1,6 +1,5 @@
 local Charmap = require "lib.Charmap"
 local Address = require "lib.Address"
-local Utils = require "lib.Utils"
 local RNGLib = require "lib.RNG"
 local RNGMonitor = require "monitors.RNG_Monitor"
 
@@ -8,9 +7,12 @@ local EnemyTablesByAddr = {}
 local ItemNames = {}
 
 local function getItemName(id)
+  if ItemNames[id] then return ItemNames[id] end
   local item_name_addr = memory.read_u32_le(Address.ITEM_NAME_PTR_1 + (id - 1) * 4) & 0x7fffffff
   local item_name_raw_data = memory.read_bytes_as_array(item_name_addr, 24)
-  return Charmap.readStringFromList(item_name_raw_data)
+  local item_name = Charmap.readStringFromList(item_name_raw_data)
+  ItemNames[id] = item_name
+  return item_name
 end
 
 local function readEnemyTable(addr)
@@ -39,11 +41,7 @@ local function readEnemyTable(addr)
     for j=1,3,1 do
       local id = enemyRawData[53 + j * 2]
       if id ~= 0 then
-        local item_name = ItemNames[id]
-        if not item_name then
-          item_name = getItemName(id)
-          ItemNames[id] = item_name
-        end
+        local item_name = getItemName(id)
         local chance = enemyRawData[53 + j * 2 + 1]
         enemy.Drops[j] = {
           id = id,
