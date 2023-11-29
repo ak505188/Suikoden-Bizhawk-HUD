@@ -1,9 +1,10 @@
 local Drawer = require "controllers.drawer"
+local BaseMenu = require "menus.Base"
 local Buttons = require "lib.Buttons"
 local CombatCharacters = require "lib.Characters.CombatCharacters"
 local MenuProperties = require "menus.Properties"
 local ScrollingListMenuBuilder = require "menus.Builders.ScrollingList"
-local MenuController = require "menus.MenuController"
+local ToggleTableMenuBuilder = require "menus.Builders.ToggleTable"
 local Worker = require "modules.RNG.submodules.Stats.worker"
 
 local CharacterSelectionMenu = ScrollingListMenuBuilder:new(CombatCharacters.NamesList)
@@ -32,7 +33,7 @@ local StatsToShowKeysList = {
   'HP'
 }
 
-local Menu = {
+local Menu = BaseMenu:new({
   properties = {
     type = MenuProperties.MENU_TYPES.module,
     name = 'RNG_HANDLER_MENU',
@@ -40,7 +41,7 @@ local Menu = {
   },
   cursor = 1,
   option = Options[1]
-}
+})
 
 function Menu:draw()
   local draw_table = {
@@ -69,8 +70,6 @@ function Menu:draw()
   Worker:draw()
 end
 
-function Menu:init() end
-
 function Menu:run()
   if Buttons.Circle:pressed() then
     return true
@@ -82,7 +81,7 @@ function Menu:run()
   -- Character Selection
   elseif self.option == OptionNames.CHARACTER then
     if Buttons.Cross:pressed() then
-      local character_name = MenuController:open(CharacterSelectionMenu)
+      local character_name = self:openMenu(CharacterSelectionMenu)
       local character = CombatCharacters.Characters[character_name]
       Worker.Character = character
     end
@@ -90,8 +89,8 @@ function Menu:run()
   -- Stats to Show
   elseif self.option == OptionNames.STATS_TO_SHOW then
     if Buttons.Cross:pressed() then
-      local toggle_menu = MenuBuilders.ToggleTableMenuBuilder(Worker.StatsToShow, StatsToShowKeysList)
-      local stats_to_show = MenuController:open(toggle_menu)
+      local toggle_menu = ToggleTableMenuBuilder:new(Worker.StatsToShow, StatsToShowKeysList)
+      local stats_to_show = self:openMenu(toggle_menu)
       if stats_to_show then Worker.StatsToShow = stats_to_show end
     end
 

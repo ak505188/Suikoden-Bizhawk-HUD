@@ -35,14 +35,16 @@ function Worker:run()
 end
 
 function Worker:getStatTable()
-  return self.StatTables[self.StatTableKey]
+  local stat_table = self.StatTables[self.StatTableKey]
+  return stat_table
 end
 
 function Worker:draw()
   local stat_table = self:getStatTable()
+  if not stat_table then return end
   local info_str = string.format(
     "%s LVL:%d+%d %d/%d",
-    self.Character.name,
+    self.Character.Name,
     self.StartingLevel,
     self.LevelsGained,
     stat_table.Size,
@@ -88,7 +90,7 @@ end
 function Worker:generateStatTableKey()
   return string.format(
     "%s_%d_%d_0x%x",
-    self.Character.name,
+    self.Character.Name,
     self.StartingLevel,
     self.LevelsGained,
     RNGMonitor.StartingRNG)

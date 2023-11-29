@@ -9,7 +9,7 @@ local function readCharacterData(character)
 
   local buffer = mainmemory.read_bytes_as_array(stats_address, 0x50)
   local items = {
-    Count = buffer[0x1C],
+    Count = buffer[0x20],
   }
 
   for i = 1, 9, 1 do
@@ -28,6 +28,7 @@ local function readCharacterData(character)
 
   local data = {
     Name = character.name,
+    Address = character.stats_address,
     Id = buffer[0x1],
     Stats = {
       HP_Max = readFromByteTable(buffer, 0x5, 2),
@@ -65,6 +66,10 @@ local function readCharacterData(character)
       Wind_Piece_Count = buffer[0x4a],
       Thunder_Piece_Count = buffer[0x4b],
       Earth_Piece_Count = buffer[0x4c],
+    },
+    Rune = {
+      Id = buffer[0x4d],
+      Locked = buffer[0x4e],
     },
     Status = buffer[0x17],
     Items = items,
@@ -171,7 +176,78 @@ local function characterDataToStr(cd)
   return table.concat(strs, "\n")
 end
 
+local function writeCharacterData(character_data)
+  local address = character_data.Address
+
+  local function writeStats(stats)
+    memory.write_u16_le(address + 0x4, stats.HP_Max)
+    memory.write_u16_le(address + 0x6, stats.HP_Current)
+    memory.write_u8(address + 0x9, stats.MP[1])
+    memory.write_u8(address + 0xa, stats.MP[2])
+    memory.write_u8(address + 0xb, stats.MP[3])
+    memory.write_u8(address + 0xc, stats.MP[4])
+    memory.write_u8(address + 0xd, stats.LVL)
+    memory.write_u16(address + 0xe, stats.EXP)
+    memory.write_u8(address + 0x10, stats.PWR)
+    memory.write_u8(address + 0x11, stats.SKL)
+    memory.write_u8(address + 0x12, stats.DEF)
+    memory.write_u8(address + 0x13, stats.SPD)
+    memory.write_u8(address + 0x14, stats.MGC)
+    memory.write_u8(address + 0x15, stats.LUK)
+  end
+
+  local function writeWeapon(weapon)
+    memory.write_u8(address + 0x44, weapon.Type)
+    memory.write_u8(address + 0x45, weapon.Level)
+    memory.write_u8(address + 0x46, weapon.Rune_Piece_Type)
+    memory.write_u8(address + 0x47, weapon.Fire_Piece_Count)
+    memory.write_u8(address + 0x48, weapon.Water_Piece_Count)
+    memory.write_u8(address + 0x49, weapon.Wind_Piece_Count)
+    memory.write_u8(address + 0x4a, weapon.Thunder_Piece_Count)
+    memory.write_u8(address + 0x4b, weapon.Earth_Piece_Count)
+  end
+
+  local function writeItems(items)
+    memory.write_u8(address + 0x1f, items.Count)
+    for i = 1, 9, 1 do
+      local offset = 0x20 + (4 * (i - 1))
+      local item = items[i]
+      memory.write_u8(address + offset, item.Id)
+      memory.write_u8(address + offset + 1, item.Unknown)
+      memory.write_u8(address + offset + 2, item.Equipped)
+      memory.write_u8(address + offset + 3, item.Quantity)
+    end
+  end
+
+  local function writeUnknowns(unknowns)
+    memory.write_u8(address + 1, unknowns['0x1'])
+    memory.write_u8(address + 2, unknowns['0x2'])
+    memory.write_u8(address + 3, unknowns['0x3'])
+    memory.write_u8(address + 8, unknowns['0x8'])
+    memory.write_u8(address + 0x17, unknowns['0x17'])
+    memory.write_u8(address + 0x4e, unknowns['0x4e'])
+    memory.write_u8(address + 0x4f, unknowns['0x4f'])
+  end
+
+  local function writeStatus(status)
+    memory.write_u8(address + 0x16, status)
+  end
+
+  local function writeRune(rune)
+    memory.write_u8(address + 0x4c, rune.Id)
+    memory.write_u8(address + 0x4d, rune.Locked)
+  end
+
+  writeStats(character_data.Stats)
+  writeWeapon(character_data.Weapon)
+  writeItems(character_data.Items)
+  writeUnknowns(character_data.Unknowns)
+  writeStatus(character_data.Status)
+  writeRune(character_data.Rune)
+end
+
 return {
   characterDataToStr = characterDataToStr,
-  readCharacterData = readCharacterData
+  readCharacterData = readCharacterData,
+  writeCharacterData = writeCharacterData,
 }

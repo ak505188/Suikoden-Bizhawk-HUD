@@ -6,7 +6,7 @@ local Utils = require "lib.Utils"
 
 local ListSelectionMenu = BaseMenu:new({
   properties = {
-    type = MenuProperties.MENU_TYPES.base,
+    type = MenuProperties.MENU_TYPES.module,
     name = 'List Selection',
     control = MenuProperties.CONTROL_TYPES.cursor,
   },

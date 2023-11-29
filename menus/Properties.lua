@@ -4,6 +4,7 @@ local MENU_TYPES = {
   custom = 'CUSTOM',
   module_menu = 'MODULE MENU',
   tool = 'TOOL',
+  tool_menu = 'TOOL MENU',
 }
 
 local CONTROL_TYPES = {

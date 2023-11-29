@@ -3,7 +3,6 @@ local Worker = require "modules.Battles.worker"
 local MenuProperties = require "menus.Properties"
 local Buttons = require "lib.Buttons"
 local BaseMenu = require "menus.Base"
-local MenuController = require "menus.MenuController"
 local AreaSelectionMenu = require "modules.Battles.menus.area_selection"
 
 local CustomStateMenu = BaseMenu:new({
@@ -54,7 +53,7 @@ function CustomStateMenu:run()
     Worker.StateHandler:updateCustomState(customState)
   elseif Buttons.Square:pressed() then
     local area_selection_menu = self:new(AreaSelectionMenu)
-    MenuController:open(area_selection_menu)
+    self:openMenu(area_selection_menu)
   elseif Buttons.Down:pressed() then
     self.adjustCustomPartyLevel(-1)
   elseif Buttons.Up:pressed() then

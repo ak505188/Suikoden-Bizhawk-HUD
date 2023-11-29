@@ -2,7 +2,6 @@ local Buttons = require "lib.Buttons"
 local Worker = require "modules.Saves.worker"
 local Drawer = require "controllers.drawer"
 local MenuProperties = require "menus.Properties"
-local MenuController = require "menus.MenuController"
 local BaseMenu = require "menus.Base"
 local LoadMenu = require "modules.Saves.menus.load_menu"
 local lib = require "modules.Saves.lib"
@@ -32,7 +31,7 @@ function Menu:run()
     return true
   elseif Buttons.Square:pressed() then
     local load_menu = self:new(LoadMenu)
-    MenuController:open(load_menu)
+    self:openMenu(load_menu)
     return false
   elseif Buttons.Cross:pressed() then
     self:saveState()

@@ -2,7 +2,6 @@ local Drawer = require "controllers.drawer"
 local Buttons = require "lib.Buttons"
 local Worker = require "modules.RNG.worker"
 local Modes = require "modules.RNG.modes"
-local MenuController = require "menus.MenuController"
 local MenuProperties = require "menus.Properties"
 local ListSelectionMenuBuilder = require "menus.Builders.List"
 
@@ -36,12 +35,12 @@ function Menu:init() end
 
 function Menu:run()
   if Buttons.Triangle:pressed() then
-    local new_mode = MenuController:open(ModeSelectionMenu)
+    local new_mode = self:openMenu(ModeSelectionMenu)
     if new_mode then Worker.mode = new_mode end
   elseif Buttons.Square:pressed() then
     if Worker.submodules[Worker.mode] then
       local submodule = Worker.submodules[Worker.mode]
-      MenuController:open(submodule.Menu)
+      self:openMenu(submodule.Menu)
     end
   elseif Buttons.Down:pressed() then
     Worker:adjustIndex(-1)

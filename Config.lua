@@ -22,6 +22,10 @@ Config.RNG_MONITOR = {
   BUFFER_MARGIN_SIZE = 30000, -- When difference between current length & current RNG Index is greater than this, look ahead again.
 }
 
+Config.StatsGenerator = {
+  LEVELUPS_PER_FRAME = 2000 -- How many levelups to calculate per frame for stat growth calculations. If emulator lags / too slow when calculating stats, lower this number.
+}
+
 Config.Saves = {
   SAVE_DIRECTORY = bizhawk_dir .. "PSX/State/Suikoden/Saves", -- Will make/use a folder names saves in this folder.
   CATEGORY_DIRECTORY = "Testing", -- If blank will use Hero name

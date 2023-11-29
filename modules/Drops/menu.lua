@@ -5,7 +5,6 @@ local BaseMenu = require "menus.Base"
 local Worker = require "modules.Drops.worker"
 local DropFilterMenu = require "modules.Drops.menus.drop_filter"
 local MenuProperties = require "menus.Properties"
-local MenuController = require "menus.MenuController"
 
 local Menu = BaseMenu:new({
   properties = {
@@ -75,7 +74,7 @@ function Menu:run()
     end
   elseif Buttons.Square:pressed() then
     local drop_filter_menu = self:new(DropFilterMenu)
-    MenuController:open(drop_filter_menu)
+    self:openMenu(drop_filter_menu)
   elseif Buttons.Up:pressed() then
     self:adjustTablePos(-1)
   elseif Buttons.Down:pressed() then

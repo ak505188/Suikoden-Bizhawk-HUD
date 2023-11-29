@@ -3,8 +3,6 @@ local Worker = require "modules.Battles.worker"
 local CustomStateMenu = require "modules.Battles.menus.custom_state"
 local Drawer = require "controllers.drawer"
 local MenuProperties = require "menus.Properties"
-local MenuController = require "menus.MenuController"
-local Utils = require "lib.Utils"
 local BaseMenu = require "menus.Base"
 
 local Menu = BaseMenu:new({
@@ -89,7 +87,7 @@ function Menu:run()
     Worker:jumpToBattle(self.table_position)
   elseif Buttons.Square:pressed() then
     local custom_state_menu = self:new(CustomStateMenu)
-    MenuController:open(custom_state_menu)
+    self:openMenu(custom_state_menu)
   elseif Buttons.Down:pressed() then
     self:adjustTablePosition(1)
   elseif Buttons.Up:pressed() then
