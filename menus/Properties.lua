@@ -13,7 +13,13 @@ local CONTROL_TYPES = {
   scrolling_cursor = 'SCROLLING_CURSOR',
 }
 
+local ENTRY_TYPES = {
+  select = 'Select',
+  edit = 'Edit'
+}
+
 return {
   CONTROL_TYPES = CONTROL_TYPES,
+  ENTRY_TYPES = ENTRY_TYPES,
   MENU_TYPES = MENU_TYPES,
 }

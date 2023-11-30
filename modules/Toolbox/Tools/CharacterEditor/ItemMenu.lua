@@ -1,51 +1,42 @@
 local Drawer = require "controllers.drawer"
 local Buttons = require "lib.Buttons"
-local BaseMenu = require "menus.Base"
+local ListMenuBuilder = require "menus.Builders.List"
 local MenuProperties = require "menus.Properties"
 local Utils = require "lib.Utils"
 local ToolboxUtils = require "modules.Toolbox.Tools.CharacterEditor.Utils"
+local Battle = require "lib.Battle"
 
 local writeToTableUsingKeylist = ToolboxUtils.writeToTableUsingKeylist
 
-local function StatsMenu(character)
+local function ItemMenu(character, item_index)
   local list = {
-    { label = "Max HP", keys = { "HP_Max" }, max = 65535 },
-    { label = "Current HP", keys = { "HP_Current" }, max = 65535 },
-    { label = "MP 1", keys = { "MP", 1 } },
-    { label = "MP 2", keys = { "MP", 2 } },
-    { label = "MP 3", keys = { "MP", 3 } },
-    { label = "MP 4", keys = { "MP", 4 } },
-    { label = "LVL", keys = { "LVL" } },
-    { label = "EXP", keys = { "EXP" }, max = 65535 },
-    { label = "PWR", keys = { "PWR" } },
-    { label = "SKL", keys = { "SKL" } },
-    { label = "DEF", keys = { "DEF" } },
-    { label = "SPD", keys = { "SPD" } },
-    { label = "MGC", keys = { "MGC" } },
-    { label = "LUK", keys = { "LUK" } },
+    { label = "Id", keys = { "Id" }, type = MenuProperties.ENTRY_TYPES.edit },
+    { label = "Unknown", keys = { "Unknown" }, type = MenuProperties.ENTRY_TYPES.edit },
+    { label = "Equipped", keys = { "Equipped" }, type = MenuProperties.ENTRY_TYPES.edit },
+    { label = "Quantity", keys = { "Quantity" }, type = MenuProperties.ENTRY_TYPES.edit },
   }
-  local Menu = BaseMenu:new({
-    properties = {
-      type = MenuProperties.MENU_TYPES.module,
-      name = 'Character Stat Editor',
-      control = MenuProperties.CONTROL_TYPES.cursor,
-    },
-    pos = 1,
-    list = list,
-    character = character
+
+  local Menu = ListMenuBuilder:new(list, {
+    type = MenuProperties.MENU_TYPES.module,
+    name = 'Character Editor Item Editor',
   })
 
+  Menu.character = character
+  Menu.item_index = item_index
+  Menu.item = character.Data.Items[item_index]
+
   function Menu:draw()
-    local character_label = string.format("%s 0x%x", self.character.Name, self.character.Address.Stats)
-    Drawer:draw({ character_label }, Drawer.anchors.TOP_LEFT, nil, true)
+    local item_name = Battle.getItemName(self.item.Id) or ""
+    Drawer:draw({ item_name }, Drawer.anchors.TOP_LEFT)
 
     local draw_table = {}
+
     for _, entry in ipairs(self.list) do
-      local label = entry.label
       local value = self:readData(entry.keys)
-      local str = string.format("%s %d", label, value)
+      local str = string.format("%s: %d", entry.label, value)
       table.insert(draw_table, str)
     end
+
     draw_table[self.pos] = "> " .. draw_table[self.pos]
     Drawer:draw(draw_table, Drawer.anchors.TOP_LEFT)
 
@@ -70,6 +61,8 @@ local function StatsMenu(character)
 
   function Menu:edit(amount)
     local target = self.list[self.pos]
+    if target.type ~= MenuProperties.ENTRY_TYPES.edit then return end
+
     local max = target.max or 255
     local value = self:readData(target.keys) + amount
     if value < 0 then
@@ -77,12 +70,12 @@ local function StatsMenu(character)
     elseif value > max then
       value = max
     end
-    writeToTableUsingKeylist(self.character.Data.Stats, Utils.cloneTableDeep(target.keys), value)
+    writeToTableUsingKeylist(self.item, Utils.cloneTableDeep(target.keys), value)
     self.character:write()
   end
 
   function Menu:readData(keys)
-    local data = self.character.Data.Stats
+    local data = self.item
     for _, key in ipairs(keys) do
       data = data[key]
     end
@@ -90,7 +83,6 @@ local function StatsMenu(character)
   end
 
   function Menu:run()
-    self.character:read()
     local modifier = 1
     if Buttons.R1:held() then modifier = modifier * 10 end
     if Buttons.R2:held() then modifier = modifier * 100 end
@@ -103,7 +95,7 @@ local function StatsMenu(character)
     elseif Buttons.Right:pressed() then
       self:edit(modifier * 1)
     elseif Buttons.Circle:pressed() then
-      return true
+      return true, self.item
     end
     return false
   end
@@ -111,4 +103,4 @@ local function StatsMenu(character)
   return Menu
 end
 
-return StatsMenu
+return ItemMenu

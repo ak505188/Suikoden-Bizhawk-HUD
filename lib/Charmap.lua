@@ -202,6 +202,7 @@ local function readStringFromList(list, startOfStr, endOfStr)
     local code = list[i]
     if code == 0 then return str end
     local char = getChar(code)
+    if char == nil then return end
     str = str .. char
   end
   return str

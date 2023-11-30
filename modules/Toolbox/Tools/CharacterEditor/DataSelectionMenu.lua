@@ -1,6 +1,7 @@
 local Buttons = require "lib.Buttons"
 local ListMenuBuilder = require "menus.Builders.List"
 local StatsMenu = require "modules.Toolbox.Tools.CharacterEditor.StatsMenu"
+local ItemSelectionMenu = require "modules.Toolbox.Tools.CharacterEditor.ItemSelectionMenu"
 
 local function SelectionMenu(character)
   local list = {
@@ -24,6 +25,8 @@ local function SelectionMenu(character)
         local stats_menu = StatsMenu(self.character)
         self:openMenu(stats_menu)
       elseif selection == self.list[2] then
+        local item_menu = ItemSelectionMenu(self.character)
+        self:openMenu(item_menu)
       elseif selection == self.list[3] then
       elseif selection == self.list[4] then
       end

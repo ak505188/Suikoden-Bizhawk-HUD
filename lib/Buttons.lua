@@ -83,6 +83,10 @@ for btnName,btnKey in pairs(buttonNames) do
       return Buttons._values[self.key]
     end
 
+    function button:ramp()
+      return Buttons._values[self.key] and not Buttons._prev_values[self.key]
+    end
+
     function button:released()
       return not Buttons._values[self.key] and Buttons._prev_values[self.key]
     end
