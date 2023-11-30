@@ -43,7 +43,11 @@ local function ItemSelectionMenu(character)
     for i = 2, 10 do
       local entry = self.list[i]
       local item_id = self:readData(entry.keys).Id
-      local label = Battle.getItemName(item_id) or entry.label
+      local item_name = Battle.getItemName(item_id)
+      local label = entry.label
+      if item_name and #item_name > 0 then
+        label = item_name
+      end
       local str = string.format("%s", label)
       table.insert(draw_table, str)
     end
