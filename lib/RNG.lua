@@ -47,11 +47,6 @@ local dragonRideRNGValues = {
 	{ 0xAD, 0xAE }
 }
 
-local function getRandomResetValue(possibleValues)
-	local length = #possibleValues;
-	return possibleValues[math.random(1, length)];
-end
-
 local function getDragonRideData()
 	local dragonRideID = mainmemory.read_u8(0x1b9af6);
   local eventName
@@ -101,9 +96,75 @@ local function GetResetData(eventID)
   return ResetData
 end
 
+local function RNGBuilder(initial_rng)
+  local RNG = {
+    rng = initial_rng,
+    short_rng = getRNG2(initial_rng),
+    initial_rng = initial_rng,
+    count = 0,
+  }
+
+  function RNG:getRNG()
+    return self.rng
+  end
+
+  function RNG:getShortRNG()
+    return self.short_rng
+  end
+
+  function RNG:getCount()
+    return self.count
+  end
+
+  function RNG:reset()
+    self.rng = self.initial_rng
+    self.short_rng = getRNG2(self.rng)
+    self.count = 0
+  end
+
+  function RNG:getNext(iterations)
+    iterations = iterations or 1
+    local rng = self.rng
+    local short_rng = self.short_rng
+
+    for _=1,iterations,1 do
+      rng = nextRNG(rng)
+      short_rng = getRNG2(rng)
+    end
+
+    return {
+      rng = rng,
+      short_rng = short_rng
+    }
+  end
+
+  function RNG:next(iterations)
+    iterations = iterations or 1
+    local next = self:getNext(iterations)
+    self.rng = next.rng
+    self.short_rng = next.short_rng
+    self.count = self.count + iterations
+  end
+
+  function RNG:clone()
+    return Utils.cloneTableDeep(self)
+  end
+
+  local mt = {
+    __tostring = function(self)
+      return string.format("0x%08x", self.rng)
+    end
+  }
+
+  setmetatable(RNG, mt)
+
+  return RNG
+end
+
 return {
   nextRNG = nextRNG,
   getRNG2 = getRNG2,
   isRun = isRun,
-  GetResetData = GetResetData
+  GetResetData = GetResetData,
+  RNGBuilder = RNGBuilder
 }
