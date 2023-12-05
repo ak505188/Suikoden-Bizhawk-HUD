@@ -26,6 +26,10 @@ Config.StatsGenerator = {
   LEVELUPS_PER_FRAME = 2000 -- How many levelups to calculate per frame for stat growth calculations. If emulator lags / too slow when calculating stats, lower this number.
 }
 
+Config.ChinchironinGenerator = {
+  GENERATIONS_PER_FRAME = 50
+}
+
 Config.Saves = {
   SAVE_DIRECTORY = bizhawk_dir .. "PSX/State/Suikoden/Saves", -- Will make/use a folder names saves in this folder.
   CATEGORY_DIRECTORY = "Testing", -- If blank will use Hero name

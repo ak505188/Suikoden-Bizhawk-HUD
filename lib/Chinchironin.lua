@@ -1,4 +1,4 @@
--- local should_log = true
+local should_log = false
 local cursor_positions = {
   118,
   120,
@@ -42,6 +42,12 @@ local cursor_positions = {
   122,
   119,
   117,
+}
+
+local PLAYERS = {
+  Tai_Ho = 'Tai Ho',
+  Gaspar = 'Gaspar',
+  Player = 'Player',
 }
 
 local function Cursor()
@@ -280,8 +286,8 @@ local function simulateRoll(cursor, rng, rng_modifier)
   return roll
 end
 
-local function calculateOpponentRoll(rng, wait, is_tai_ho, rng_modifier)
-  is_tai_ho = is_tai_ho == nil and false or is_tai_ho
+local function calculateOpponentRoll(rng, wait, player, rng_modifier)
+  player = player or PLAYERS.Tai_Ho
   rng_modifier = rng_modifier or 0
   local cursor = Cursor()
   repeat
@@ -295,14 +301,14 @@ local function calculateOpponentRoll(rng, wait, is_tai_ho, rng_modifier)
   end
   while true do
     local roll = simulateRoll(cursor, rng, rng_modifier)
-    if not is_tai_ho then return roll end
+    if player ~= PLAYERS.Tai_Ho then return roll end
     if isValidTaiHoRoll(roll) then return roll end
   end
 end
 
-local function simulateRollFromGameStart(rng, frames_before_wait_calculation, is_tai_ho, rng_modifier)
+local function simulateRollFromGameStart(rng, frames_before_wait_calculation, player, rng_modifier)
   frames_before_wait_calculation = frames_before_wait_calculation or 203
-  is_tai_ho = is_tai_ho == nil and false or is_tai_ho
+  player = player or PLAYERS.Tai_Ho
   rng_modifier = rng_modifier or 0
 
   local initial_rng_str = tostring(rng)
@@ -311,7 +317,7 @@ local function simulateRollFromGameStart(rng, frames_before_wait_calculation, is
   if should_log then print('Wait '.. wait) end
   local roll_rng_str = tostring(rng)
   local roll_rng_index = rng:getCount()
-  local roll = calculateOpponentRoll(rng, wait, is_tai_ho, rng_modifier)
+  local roll = calculateOpponentRoll(rng, wait, player, rng_modifier)
   return {
     initial_rng = initial_rng_str,
     roll_rng = roll_rng_str,
@@ -321,14 +327,14 @@ local function simulateRollFromGameStart(rng, frames_before_wait_calculation, is
   }
 end
 
-local function simulateRollsFromGameStart(rng, frames_before_wait_calculation, is_tai_ho, iterations, rng_modifier)
+local function simulateRollsFromGameStart(rng, frames_before_wait_calculation, player, iterations, rng_modifier)
   frames_before_wait_calculation = frames_before_wait_calculation or 203
-  is_tai_ho = is_tai_ho == nil and false or is_tai_ho
+  player = player or PLAYERS.Tai_Ho
   iterations = iterations or 1
   rng_modifier = rng_modifier or 0
   local rolls_data = {}
   for i=1,iterations,1 do
-    local roll_data = simulateRollFromGameStart(rng:clone(), frames_before_wait_calculation, is_tai_ho, rng_modifier)
+    local roll_data = simulateRollFromGameStart(rng:clone(), frames_before_wait_calculation, player, rng_modifier)
     roll_data.initial_rng_index = i
     table.insert(rolls_data, roll_data)
     rng:next()
@@ -352,4 +358,5 @@ return {
   simulateRollFromGameStart = simulateRollFromGameStart,
   simulateRollsFromGameStart = simulateRollsFromGameStart,
   Cursor = Cursor,
+  PLAYERS = PLAYERS,
 }
