@@ -105,11 +105,6 @@ local function RNGTable(start_rng, table_size)
     return self.byRNG[rng]
   end
 
-  -- Concept Idea: Secret Buffer
-  -- Buffer not exposed via size, so tools won't try to calculate for it
-  -- But when using tools to calculate stuff, can advance into secret buffer and pull RNG values
-  -- So for example, with chinchironin, will still stop at 30000/30000 but will be able to use secret buffer for RNG values past 30000
-
   function rngTable:getRNG(index)
     index = index or self.pos
     return self.byIndex[index]
