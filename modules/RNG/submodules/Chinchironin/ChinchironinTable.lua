@@ -24,8 +24,8 @@ local function ChinchironinTable(player, rng_table, rng_modifier)
     local start_index = self.Size == 0 and 0 or self.Size + 1
 
     for i = start_index, finish_size, 1 do
-      local rng = RNGLib.RNGBuilder(self.RNG_table:getRNG(i))
-      local roll = Chinchironin.simulateRollFromGameStart(rng, nil, self.player, self.RNG_modifier)
+      self.RNG_table.pos = i
+      local roll = Chinchironin.simulateRollFromGameStartRNGTable(rng_table, nil, self.player, self.RNG_modifier)
       self.Rolls[i] = roll
     end
     self.Size = finish_size

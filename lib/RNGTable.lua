@@ -86,7 +86,8 @@ local function createNewRNGTable(rng, table_size)
     },
     last = rng,
     [Locations.OVERWORLD] = {},
-    [Locations.WORLD_MAP] = {}
+    [Locations.WORLD_MAP] = {},
+    pos = 0,
   }
   generateRNGBuffer(table, table_size)
   return table
@@ -99,7 +100,13 @@ local function RNGTable(start_rng, table_size)
     return self.byRNG[rng]
   end
 
+  -- Concept Idea: Secret Buffer
+  -- Buffer not exposed via size, so tools won't try to calculate for it
+  -- But when using tools to calculate stuff, can advance into secret buffer and pull RNG values
+  -- So for example, with chinchironin, will still stop at 30000/30000 but will be able to use secret buffer for RNG values past 30000
+
   function rngTable:getRNG(index)
+    index = index or self.pos
     return self.byIndex[index]
   end
 
@@ -107,8 +114,21 @@ local function RNGTable(start_rng, table_size)
     return self.byRNG[self.last]
   end
 
+  function rngTable:next(iterations)
+    iterations = iterations or 1
+    local pos = self.pos + iterations
+    local current_size = self:getSize()
+    self.pos = pos <= current_size and pos or current_size
+    if self:shouldIncreaseBuffer() then self:increaseBuffer() end
+  end
+
+  function rngTable:getShortRNG(rng)
+    rng = rng or self:getRNG(self.pos)
+    return RNGLib.getRNG2(rng)
+  end
+
   function rngTable:increaseBuffer(rng, size, force)
-    if rng == nil then return end
+    rng = rng or self:getRNG()
     size = size or BUFFER_INCREMENT_SIZE
     force = force or false
     if (self:getSize() - self:getIndex(rng) < BUFFER_MARGIN_SIZE) or force == true then
@@ -117,10 +137,8 @@ local function RNGTable(start_rng, table_size)
   end
 
   function rngTable:shouldIncreaseBuffer(rng)
-    if self:getSize() - self:getIndex(rng) < BUFFER_MARGIN_SIZE then
-      return true
-    end
-    return false
+    rng = rng or self:getRNG()
+    return self:getSize() - self:getIndex(rng) < BUFFER_MARGIN_SIZE
   end
 
   return rngTable

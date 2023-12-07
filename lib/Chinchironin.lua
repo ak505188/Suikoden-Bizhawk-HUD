@@ -342,6 +342,142 @@ local function simulateRollsFromGameStart(rng, frames_before_wait_calculation, p
   return rolls_data
 end
 
+-- New functions using RNG Table instead of RNG object
+
+local function getStandardRollFullRNGTable(rng_table, rng_modifier, roll_count)
+  rng_modifier = rng_modifier or 0
+  roll_count = roll_count or 3
+  local roll,counter = nil,0
+  local rolls = {}
+  while true do
+    roll,counter = getStandardRoll(rng_table:getShortRNG(), counter, rng_modifier)
+
+    if (roll ~= nil) then
+      table.insert(rolls, roll + 1)
+      counter = 0
+    end
+    if (#rolls>= roll_count) then
+      table.sort(rolls)
+      return table.concat(rolls, '')
+    end
+    rng_table:next()
+  end
+end
+
+local function getStandardRollDieRNGTable(rng_table, rng_modifier, can_be_one)
+  rng_modifier = rng_modifier or 0
+  can_be_one = can_be_one == nil and false or can_be_one
+
+  local counter = 0
+  local roll = nil
+  while roll == nil do
+    roll,counter = getStandardRoll(rng_table:getShortRNG(), counter, rng_modifier)
+    if (roll == 0 and not can_be_one) then
+      roll = nil
+    end
+    if (roll == nil) then
+      rng_table:next()
+    end
+  end
+  return roll + 1, counter
+end
+
+local function simulateRollRNGTable(cursor, rng_table, rng_modifier)
+  rng_modifier = rng_modifier or 0
+  rng_table:next()
+  if should_log then
+    print(string.format("Simulate Roll Start: %x I:%d", rng_table:getRNG(), rng_table.pos))
+  end
+  local is_triple_win = isTripleWin(cursor, rng_table:getShortRNG(), rng_modifier)
+  if is_triple_win then
+    if should_log then print(string.format("%x I:%d 3W", rng_table:getRNG(), rng_table.pos)) end
+    rng_table:next()
+    local roll = getStandardRollDie(rng_table, rng_modifier, false)
+    if should_log then print(string.format("%x I:%d 3W %d", rng_table, rng_table.pos, roll)) end
+    return string.format("%d%d%d", roll, roll, roll)
+  end
+  rng_table:next()
+  local is_triple_lose = isTripleLose(cursor, rng_table:getShortRNG(), rng_modifier)
+  if (is_triple_lose) then
+    if should_log then print(string.format("%x I:%d 3L", rng_table, rng_table.pos)) end
+    return '111'
+  end
+  rng_table:next()
+  local is_double_win = isDoubleWin(cursor, rng_table:getShortRNG(), rng_modifier)
+  if is_double_win then
+    if should_log then print(string.format("%x I:%d 2W", rng_table, rng_table.pos)) end
+    return '456'
+  end
+  rng_table:next()
+  local is_double_lose = isDoubleLose(cursor, rng_table:getShortRNG(), rng_modifier)
+  if is_double_lose then
+    if should_log then print(string.format("%x I:%d 2L", rng_table, rng_table.pos)) end
+    return '123'
+  end
+  rng_table:next()
+  local is_piss = isPiss(cursor, rng_table:getShortRNG(), rng_modifier)
+  if is_piss then
+    rng_table:next()
+    local rolls = getStandardRollFull(rng_table, rng_modifier)
+    if should_log then print(string.format("%x I:%d Piss %s", rng_table, rng_table.pos, rolls)) end
+    return 'OUT'
+  end
+  rng_table:next()
+  if should_log then print(string.format("Normal Rolls start %x I:%d", rng_table, rng_table.pos)) end
+  local roll = getStandardRollFull(rng_table, rng_modifier)
+  if should_log then print(string.format("Normal Rolls done %x I:%d %s", rng_table, rng_table.pos, roll)) end
+  return roll
+end
+
+local function calculateOpponentRollRNGTable(rng_table, wait, player, rng_modifier)
+  player = player or PLAYERS.Tai_Ho
+  rng_modifier = rng_modifier or 0
+  local cursor = Cursor()
+  repeat
+    cursor:next()
+    rng_table:next()
+  until (cursor:getPos() == 203)
+  while wait > 0 do
+    cursor:next()
+    rng_table:next()
+    wait = wait - 1
+  end
+  while true do
+    local roll = simulateRollRNGTable(cursor, rng_table, rng_modifier)
+    if player ~= PLAYERS.Tai_Ho then return roll end
+    if isValidTaiHoRoll(roll) then return roll end
+  end
+end
+
+local function simulateRollFromGameStartRNGTable(rng_table, frames_before_wait_calculation, player, rng_modifier)
+  player = player or PLAYERS.Tai_Ho
+  if frames_before_wait_calculation == nil then
+    if player == PLAYERS.Tai_Ho then
+      frames_before_wait_calculation = 203
+    elseif player == PLAYERS.Gaspar then
+      frames_before_wait_calculation = 441
+    else
+      frames_before_wait_calculation = 1
+    end
+  end
+  rng_modifier = rng_modifier or 0
+
+  local initial_rng_str = string.format("0x%08x", rng_table:getRNG())
+  rng_table:next(frames_before_wait_calculation)
+  local wait = calculateWait(rng_table:getShortRNG())
+  if should_log then print('Wait '.. wait) end
+  local roll_rng_str = string.format("0x%08x", rng_table:getRNG())
+  local roll_rng_index = rng_table.pos
+  local roll = calculateOpponentRoll(rng_table, wait, player, rng_modifier)
+  return {
+    initial_rng = initial_rng_str,
+    roll_rng = roll_rng_str,
+    roll_rng_index = roll_rng_index,
+    roll = roll,
+    wait = wait
+  }
+end
+
 return {
   calculateWait = calculateWait,
   calculateOpponentRoll = calculateOpponentRoll,
@@ -357,6 +493,7 @@ return {
   simulateRoll = simulateRoll,
   simulateRollFromGameStart = simulateRollFromGameStart,
   simulateRollsFromGameStart = simulateRollsFromGameStart,
+  simulateRollFromGameStartRNGTable = simulateRollFromGameStartRNGTable,
   Cursor = Cursor,
   PLAYERS = PLAYERS,
 }
