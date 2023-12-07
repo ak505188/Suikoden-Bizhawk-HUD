@@ -47,13 +47,13 @@ local cursor_positions = {
 local PLAYERS = {
   Tai_Ho = 'Tai Ho',
   Gaspar = 'Gaspar',
-  Player = 'Player',
+  -- Player = 'Player',
 }
 
 local PLAYERS_LIST = {
   PLAYERS.Tai_Ho,
   PLAYERS.Gaspar,
-  PLAYERS.Player
+  -- PLAYERS.Player
 }
 
 local function Cursor()
