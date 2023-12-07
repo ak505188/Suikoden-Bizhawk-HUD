@@ -68,6 +68,7 @@ local function generateRNGBuffer(rngTable, bufferLength)
     index = index + 1
     rngTable.byRNG[rng] = index
     rngTable.byIndex[startingTableSize + i] = rng
+    rngTable.short[startingTableSize + i] = RNGLib.getRNG2(rng)
 
     handleEncounterRNG()
   end
@@ -84,6 +85,9 @@ local function createNewRNGTable(rng, table_size)
     },
     byIndex = {
       [0] = rng
+    },
+    short = {
+      [0] = RNGLib.getRNG2(rng)
     },
     last = rng,
     [Locations.OVERWORLD] = {},
@@ -126,11 +130,17 @@ local function RNGTable(start_rng, table_size)
     local pos = self.pos + iterations
     local real_size = self:getRealSize()
     self.pos = pos <= real_size and pos or real_size
+    return self
   end
 
-  function rngTable:getShortRNG(rng)
-    rng = rng or self:getRNG(self.pos)
-    return RNGLib.getRNG2(rng)
+  function rngTable:getShortRNG(index)
+    index = index or self.pos
+    return self.short[index]
+  end
+
+  function rngTable:getShortRNGByRNG(rng)
+    local index = rng and self:getIndex(rng) or self.pos
+    return self.short[index]
   end
 
   function rngTable:increaseBuffer(rng, size, force)
