@@ -5,9 +5,10 @@ local RNGLib = require "lib.RNG"
 
 -- These affect how far ahead in the RNG the script looks. Don't touch if things are working well.
 -- If you set these too small, the script might stop working if RNG advances too quickly.
+local SECRET_BUFFER_SIZE = 2000
 local INITITAL_BUFFER_SIZE = Config.RNG_MONITOR.INITITAL_BUFFER_SIZE -- Initial look-ahead
 local BUFFER_INCREMENT_SIZE = Config.RNG_MONITOR.BUFFER_INCREMENT_SIZE -- Later look-ahead size per frame
-local BUFFER_MARGIN_SIZE = Config.RNG_MONITOR.BUFFER_MARGIN_SIZE -- When difference between current length & current RNG Index is greater than this, look ahead again.
+local BUFFER_MARGIN_SIZE = Config.RNG_MONITOR.BUFFER_MARGIN_SIZE + SECRET_BUFFER_SIZE -- When difference between current length & current RNG Index is greater than this, look ahead again.
 
 local function generateRNGBuffer(rngTable, bufferLength)
   -- This handles the base RNG
@@ -111,15 +112,20 @@ local function RNGTable(start_rng, table_size)
   end
 
   function rngTable:getSize()
+    local real_size = self:getRealSize()
+    if real_size < INITITAL_BUFFER_SIZE + SECRET_BUFFER_SIZE then return INITITAL_BUFFER_SIZE end
+    return real_size - SECRET_BUFFER_SIZE
+  end
+
+  function rngTable:getRealSize()
     return self.byRNG[self.last]
   end
 
   function rngTable:next(iterations)
     iterations = iterations or 1
     local pos = self.pos + iterations
-    local current_size = self:getSize()
-    self.pos = pos <= current_size and pos or current_size
-    if self:shouldIncreaseBuffer() then self:increaseBuffer() end
+    local real_size = self:getRealSize()
+    self.pos = pos <= real_size and pos or real_size
   end
 
   function rngTable:getShortRNG(rng)
@@ -131,14 +137,9 @@ local function RNGTable(start_rng, table_size)
     rng = rng or self:getRNG()
     size = size or BUFFER_INCREMENT_SIZE
     force = force or false
-    if (self:getSize() - self:getIndex(rng) < BUFFER_MARGIN_SIZE) or force == true then
+    if (self:getSize() - self:getIndex(rng) < BUFFER_MARGIN_SIZE - SECRET_BUFFER_SIZE) or force == true then
       generateRNGBuffer(self, size)
     end
-  end
-
-  function rngTable:shouldIncreaseBuffer(rng)
-    rng = rng or self:getRNG()
-    return self:getSize() - self:getIndex(rng) < BUFFER_MARGIN_SIZE
   end
 
   return rngTable

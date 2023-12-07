@@ -1,5 +1,4 @@
 local Chinchironin = require "lib.Chinchironin"
-local RNGLib = require "lib.RNG"
 local Config = require "Config"
 
 local function ChinchironinTable(player, rng_table, rng_modifier)
