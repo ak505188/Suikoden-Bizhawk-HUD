@@ -23,8 +23,9 @@ local Address = {
   ROOM_POINTER = 0x17DAA0,
   STONE_TABLET_NAMES_START = 0x084EAC, --Starts on slot 2, Lepant
   SESSION_FRAMECOUNT = 0x1783f8, -- Kinda loadless, not completely accurate to save IGT
-  SAVE_FRAMECOUNT = 0x18B0A8 -- Not sure how to calculate real IGT, missing some value
+  -- SAVE_FRAMECOUNT = 0x18B0A8, -- Not sure how to calculate real IGT, missing some value
   -- Other IGT options are 17DBE8 (stops on loads?), 1B9B8C (Updated on save)
+  SAVE_FRAMECOUNT = 0x1B9B8C, -- Used for Chinchironin randomization
 }
 
 function Address.sanitize(addr)

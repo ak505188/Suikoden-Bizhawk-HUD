@@ -1,3 +1,4 @@
+local Address = require "lib.Address"
 local RNGMonitor = require "monitors.RNG_Monitor"
 local Drawer = require "controllers.drawer"
 local Chinchironin = require "lib.Chinchironin"
@@ -12,6 +13,7 @@ local Worker = {
 }
 
 function Worker:run()
+  self.RNG_Modifier = memory.read_u32_le(Address.SAVE_FRAMECOUNT)
   self.ChinchironinTableKey = self:generateChinchironinTableKey()
   local chinchironin_table = self:getChinchironinTable()
   if chinchironin_table == nil then

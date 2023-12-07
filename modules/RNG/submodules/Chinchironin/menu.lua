@@ -1,7 +1,9 @@
+local Address = require "lib.Address"
 local Drawer = require "controllers.drawer"
 local Buttons = require "lib.Buttons"
 local MenuProperties = require "menus.Properties"
 local ListMenuBuilder = require "menus.Builders.List"
+local NumberEditorBuilder = require "menus.Builders.Number"
 local Worker = require "modules.RNG.submodules.Chinchironin.worker"
 local Chinchironin = require "lib.Chinchironin"
 
@@ -13,7 +15,7 @@ local PlayerMenu = ListMenuBuilder:new(Chinchironin.PLAYERS_LIST, {
 local list = {
   'Select Player',
   'Frames To Wait',
-  -- 'RNG Modifier',
+  'RNG Modifier',
 }
 
 local Menu = ListMenuBuilder:new(list, {
@@ -24,7 +26,8 @@ local Menu = ListMenuBuilder:new(list, {
 function Menu:draw()
   local options_draw_table = {
     self.list[1],
-    string.format("%s < %d >", self.list[2], Worker.FramesToAdvance)
+    string.format("%s < %d >", self.list[2], Worker.FramesToAdvance),
+    string.format("%s: 0x%08x", self.list[3], Worker.RNG_Modifier)
   }
 
   local info_table = {
@@ -33,9 +36,9 @@ function Menu:draw()
     "Hold R1: Amount x 10",
     "Hold R2: Amount x 100",
     "Up: Cursor 1 Up",
-    "Down: Cursor 1 Down",
-    "Left: Adjust by -1",
-    "Right: Adjust by 1",
+    "Do: Cursor 1 Down",
+    "Le: Adjust by -1",
+    "Ri: Adjust by 1",
   }
 
   local frames_info_table = {
@@ -82,6 +85,13 @@ function Menu:run()
         elseif player == Chinchironin.PLAYERS.Gaspar then frames_to_advance = 441 end
         Worker.Player = player
         Worker.FramesToAdvance = frames_to_advance
+      end
+    elseif self.pos == 3 then
+      local rng_modifier_menu = NumberEditorBuilder:new(Worker.RNG_Modifier, { name = "RNG Modifier Editor" })
+      local rng_modifier = self:openMenu(rng_modifier_menu)
+      if rng_modifier then
+        memory.write_u32_le(Address.SAVE_FRAMECOUNT, rng_modifier)
+        Worker.RNG_Modifier = rng_modifier
       end
     end
   elseif Buttons.Circle:pressed() then
