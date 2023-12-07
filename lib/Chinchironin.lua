@@ -50,6 +50,12 @@ local PLAYERS = {
   Player = 'Player',
 }
 
+local PLAYERS_LIST = {
+  PLAYERS.Tai_Ho,
+  PLAYERS.Gaspar,
+  PLAYERS.Player
+}
+
 local function Cursor()
   local cursor = {
     index = 1,
@@ -468,7 +474,7 @@ local function simulateRollFromGameStartRNGTable(rng_table, frames_before_wait_c
   if should_log then print('Wait '.. wait) end
   local roll_rng_str = string.format("0x%08x", rng_table:getRNG())
   local roll_rng_index = rng_table.pos
-  local roll = calculateOpponentRoll(rng_table, wait, player, rng_modifier)
+  local roll = calculateOpponentRollRNGTable(rng_table, wait, player, rng_modifier)
   return {
     initial_rng = initial_rng_str,
     roll_rng = roll_rng_str,
@@ -496,4 +502,5 @@ return {
   simulateRollFromGameStartRNGTable = simulateRollFromGameStartRNGTable,
   Cursor = Cursor,
   PLAYERS = PLAYERS,
+  PLAYERS_LIST = PLAYERS_LIST,
 }
