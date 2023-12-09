@@ -7,19 +7,6 @@ local ListMenuBuilder = require "menus.Builders.List"
 local RNGMonitor = require "monitors.RNG_Monitor"
 local StateMonitor = require "monitors.State_Monitor"
 
-local ToolsMenu = require "menus.Tools.Menu"
-local ToolMenus = require "menus.Tools.ToolMenus"
-
--- Exposed methods should be:
--- open()
--- close() but never really used
--- how should closing menus be handled?
--- can do stuff on close, or can initialize on first run
--- i think just have init method that's called for every method before running
--- call it in MenuController:open?
--- how do i handle nested menus?
--- will there be issues if I call one menu from another?
-
 local MenuController = {
   stack = {},
   onCloseDone = true
@@ -35,25 +22,6 @@ end
 
 function MenuController:getCurrentMenu()
   return self.stack[#self.stack]
-end
-
-function MenuController:onClose()
-  if self.onCloseDone == false then
-    self.stack = {}
-    self.current = {}
-  end
-end
-
--- Perhaps should have methods open and push, and get rid of onclose
--- open will work the same as before + initialize stack/current/other variables
--- push will add a menu to the stack without clearing everything
--- already have a push though, so different name?
-
-function MenuController:openTool(tool_name)
-  if ToolMenus[tool_name] then
-    self.stack = {}
-    MenuController:open(ToolMenus[tool_name])
-  end
 end
 
 function MenuController:open(menu)
