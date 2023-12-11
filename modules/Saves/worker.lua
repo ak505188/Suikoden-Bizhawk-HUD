@@ -4,7 +4,9 @@ local lib = require "modules.Saves.lib"
 
 local Worker = {}
 
-function Worker:init() end
+function Worker:init()
+  lib.setupSaveDirectories()
+end
 
 function Worker:onChange() end
 

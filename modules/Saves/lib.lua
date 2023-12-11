@@ -1,4 +1,5 @@
 local fs = require "lib.fs"
+local OS = require "lib.os"
 local Address = require "lib.Address"
 local Gamestates = require "lib.Enums.Gamestate"
 local Charmap = require "lib.Charmap"
@@ -28,7 +29,7 @@ end
 
 local function getSaveName()
   local area_name = areaDataToStr(StateMonitor.WM_ZONE.current, StateMonitor.AREA_ZONE.current, StateMonitor.IG_CURRENT_GAMESTATE.current):gsub(" ", "_")
-  local igt = string.format("%02d:%02d:%02d", StateMonitor.IGT_HOURS.current, StateMonitor.IGT_MINUTES.current, StateMonitor.IGT_SECONDS.current)
+  local igt = string.format("%02dh%02dm%02ds", StateMonitor.IGT_HOURS.current, StateMonitor.IGT_MINUTES.current, StateMonitor.IGT_SECONDS.current)
   return string.format("%s-%s.State", igt, area_name)
 end
 
@@ -42,12 +43,14 @@ end
 
 local function getSavePath(save_name)
   save_name = save_name or ""
-  return string.format("%s/%s/%s", Config.Saves.SAVE_DIRECTORY, getCategoryName(), save_name)
+  local path = OS:convertPath(string.format("%s/%s/%s", Config.Saves.SAVE_DIRECTORY, getCategoryName(), save_name))
+  return path
 end
 
 local function getAutoSavePath(save_name)
   save_name = save_name or ""
-  return string.format("%s/%s/%s", Config.Saves.AUTOSAVE_DIRECTORY, getCategoryName(), save_name)
+  local path = OS:convertPath(string.format("%s/%s/%s", Config.Saves.AUTOSAVE_DIRECTORY, getCategoryName(), save_name))
+  return path
 end
 
 local function setupSaveDirectories()

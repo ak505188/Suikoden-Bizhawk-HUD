@@ -22,10 +22,6 @@ function Menu:draw()
   Drawer:draw(draw_table, Drawer.anchors.TOP_RIGHT)
 end
 
-function Menu:init()
-  lib.setupSaveDirectories()
-end
-
 function Menu:run()
   if Buttons.Circle:pressed() then
     return true

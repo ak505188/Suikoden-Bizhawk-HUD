@@ -89,7 +89,8 @@ end
 function LoadStateMenu:readSaves(preserve_slot)
   preserve_slot = preserve_slot or false
   local path = self.save_type == SAVETYPES.SAVE and lib.getSavePath() or lib.getAutoSavePath()
-  self.saves = fs.readdir(path)
+  local saves = fs.readdir(path)
+  self.saves = saves
   if preserve_slot then
     self:adjustSlot(0)
   else
