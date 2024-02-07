@@ -64,6 +64,7 @@ for btnName,btnKey in pairs(buttonNames) do
   local button = {}
   button.key = btnKey
   button.name = btnName
+  button.turbo_value = false
 
 
   if not string.match(btnName, "Stick") then
@@ -89,6 +90,13 @@ for btnName,btnKey in pairs(buttonNames) do
 
     function button:released()
       return not Buttons._values[self.key] and Buttons._prev_values[self.key]
+    end
+
+    function button:turbo()
+      local values = Buttons._values
+      self.turbo_value = not self.turbo_value
+      values[self.key] = self.turbo_value
+      joypad.set(values)
     end
   end
 
