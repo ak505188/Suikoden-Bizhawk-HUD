@@ -1,9 +1,13 @@
+local Utils = require "lib.Utils"
+
 local btns = joypad.get()
+local initial_values = Utils.cloneTableDeep(joypad.get())
 local core = "Octoshock"
 
 if btns["P1 X"] ~= nil then
   core = "Nymashock"
 end
+
 
 local OctoshockButtons = {
   Up = "P1 Up",
@@ -66,7 +70,6 @@ for btnName,btnKey in pairs(buttonNames) do
   button.name = btnName
   button.turbo_value = false
 
-
   if not string.match(btnName, "Stick") then
     function button:value()
       return Buttons._values[self.key]
@@ -84,12 +87,19 @@ for btnName,btnKey in pairs(buttonNames) do
       return Buttons._values[self.key]
     end
 
+    -- TODO: Finish this, currently a copy of pressed()
     function button:ramp()
       return Buttons._values[self.key] and not Buttons._prev_values[self.key]
     end
 
     function button:released()
       return not Buttons._values[self.key] and Buttons._prev_values[self.key]
+    end
+
+    function button:press()
+      local values = Buttons._values
+      values[self.key] = true
+      joypad.set(values)
     end
 
     function button:turbo()
@@ -106,6 +116,12 @@ end
 function Buttons:update()
   self._prev_values = self._values
   self._values = joypad.get()
+end
+
+function Buttons:clear()
+  self._prev_values = Utils.cloneTableDeep(initial_values)
+  self._values = Utils.cloneTableDeep(initial_values)
+  joypad.set(self._values)
 end
 
 return Buttons

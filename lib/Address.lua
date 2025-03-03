@@ -26,6 +26,7 @@ local Address = {
   -- SAVE_FRAMECOUNT = 0x18B0A8, -- Not sure how to calculate real IGT, missing some value
   -- Other IGT options are 17DBE8 (stops on loads?), 1B9B8C (Updated on save)
   SAVE_FRAMECOUNT = 0x1B9B8C, -- Used for Chinchironin randomization
+  BIRDS_PTR = 0x199f7c
 }
 
 function Address.sanitize(addr)

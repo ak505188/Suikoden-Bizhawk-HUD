@@ -1,6 +1,5 @@
 local Config = require "Config"
 local StateMonitor = require "monitors.State_Monitor"
-local Utils = require "lib.Utils"
 
 local Drawer = require "controllers.drawer"
 
