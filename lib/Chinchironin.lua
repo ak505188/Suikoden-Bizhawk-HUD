@@ -157,9 +157,10 @@ local function calculateWait(rng_short)
 end
 
 
-local function isTripleWin(cursor, rng_short, rng_modifier)
+local function isTripleWin(cursor, rng_short, speed, rng_modifier)
   rng_modifier = rng_modifier or 0
-  local r2 = 0
+  speed = speed or 0
+  local r2 = speed // 8
   local r3 = cursor:getValue()
   local r4 = math.abs(cursor:getValue() // 2^0x1f)
   r3 = r3 + r4
@@ -171,6 +172,7 @@ local function isTripleWin(cursor, rng_short, rng_modifier)
   r2 = r2 - r3
 
   local r5 = (rng_short + rng_modifier) % 100
+
   if should_log then
     print(string.format("3W r2:%d r5:%d", r2, r5))
   end
@@ -180,14 +182,14 @@ local function isTripleWin(cursor, rng_short, rng_modifier)
   return r2 >= r5
 end
 
-local function isTripleLose(cursor, rng_short, rng_modifier)
+local function isTripleLose(cursor, rng_short, speed, rng_modifier)
   rng_modifier = rng_modifier or 0
+  speed = speed or 0
   local r2 = cursor:getValue()
   local r3 = math.abs(r2 // 2^0x1f)
 
-  r2 = r2 + r3
-  r2 = r2 // 2^1
-  r2 = r2 + 5
+  local cursor_value = r2 + r3
+  r2 = 5 - (speed // 8) + (cursor_value // 2)
 
   local r5 = (rng_short + rng_modifier) % 100
   if should_log then
@@ -199,10 +201,10 @@ local function isTripleLose(cursor, rng_short, rng_modifier)
   return r2 >= r5
 end
 
-local function isDoubleWin(cursor, rng_short, rng_modifier)
+local function isDoubleWin(cursor, rng_short, speed, rng_modifier)
   rng_modifier = rng_modifier or 0
-  local r3 = cursor:getValue() - 5
-  local r2 = -r3
+  speed = speed or 0
+  local r2 = 5 + (speed // 4) - cursor:getValue()
   local r5 = (rng_short + rng_modifier) % 100
 
   if should_log then
@@ -214,10 +216,10 @@ local function isDoubleWin(cursor, rng_short, rng_modifier)
   return r2 >= r5
 end
 
-local function isDoubleLose(cursor, rng_short, rng_modifier)
+local function isDoubleLose(cursor, rng_short, speed, rng_modifier)
   rng_modifier = rng_modifier or 0
-  local r3 = cursor:getValue() + 5
-  local r2 = r3
+  speed = speed or 0
+  local r2 = 5 - (speed // 4)+ cursor:getValue()
   local r5 = (rng_short + rng_modifier) % 100
 
   if should_log then
@@ -229,8 +231,9 @@ local function isDoubleLose(cursor, rng_short, rng_modifier)
   return r2 >= r5
 end
 
-local function isPiss(cursor, rng_short, rng_modifier)
+local function isPiss(cursor, rng_short, speed, rng_modifier)
   rng_modifier = rng_modifier or 0
+  speed = speed or 0
   local r3 = rng_short + rng_modifier
   local r4 = r3 % 100
   local r2 = cursor:getPos()
@@ -238,7 +241,7 @@ local function isPiss(cursor, rng_short, rng_modifier)
 
   if (r2 >= 0 and r2 < 0x21) then return false end
 
-  r2 = cursor:getValue() + 5
+  r2 = 5 + speed + cursor:getValue()
 
   if (r2 < r4) then return false end
 
@@ -388,13 +391,13 @@ local function getStandardRollDieRNGTable(rng_table, rng_modifier, can_be_one)
   return roll + 1, counter
 end
 
-local function simulateRollRNGTable(cursor, rng_table, rng_modifier)
+local function simulateRollRNGTable(cursor, rng_table, speed, rng_modifier)
   rng_modifier = rng_modifier or 0
   rng_table:next()
   if should_log then
     print(string.format("Simulate Roll Start: %x I:%d", rng_table:getRNG(), rng_table.pos))
   end
-  local is_triple_win = isTripleWin(cursor, rng_table:getShortRNG(), rng_modifier)
+  local is_triple_win = isTripleWin(cursor, rng_table:getShortRNG(), speed, rng_modifier)
   if is_triple_win then
     if should_log then print(string.format("%x I:%d 3W", rng_table:getRNG(), rng_table.pos)) end
     rng_table:next()
@@ -403,25 +406,25 @@ local function simulateRollRNGTable(cursor, rng_table, rng_modifier)
     return string.format("%d%d%d", roll, roll, roll)
   end
   rng_table:next()
-  local is_triple_lose = isTripleLose(cursor, rng_table:getShortRNG(), rng_modifier)
+  local is_triple_lose = isTripleLose(cursor, rng_table:getShortRNG(), speed, rng_modifier)
   if (is_triple_lose) then
     if should_log then print(string.format("%x I:%d 3L", rng_table, rng_table.pos)) end
     return '111'
   end
   rng_table:next()
-  local is_double_win = isDoubleWin(cursor, rng_table:getShortRNG(), rng_modifier)
+  local is_double_win = isDoubleWin(cursor, rng_table:getShortRNG(), speed, rng_modifier)
   if is_double_win then
     if should_log then print(string.format("%x I:%d 2W", rng_table, rng_table.pos)) end
     return '456'
   end
   rng_table:next()
-  local is_double_lose = isDoubleLose(cursor, rng_table:getShortRNG(), rng_modifier)
+  local is_double_lose = isDoubleLose(cursor, rng_table:getShortRNG(), speed, rng_modifier)
   if is_double_lose then
     if should_log then print(string.format("%x I:%d 2L", rng_table, rng_table.pos)) end
     return '123'
   end
   rng_table:next()
-  local is_piss = isPiss(cursor, rng_table:getShortRNG(), rng_modifier)
+  local is_piss = isPiss(cursor, rng_table:getShortRNG(), speed, rng_modifier)
   if is_piss then
     rng_table:next()
     local rolls = getStandardRollFull(rng_table, rng_modifier)
@@ -435,7 +438,7 @@ local function simulateRollRNGTable(cursor, rng_table, rng_modifier)
   return roll
 end
 
-local function calculateOpponentRollRNGTable(rng_table, wait, player, rng_modifier)
+local function calculateOpponentRollRNGTable(rng_table, wait, player, speed, rng_modifier)
   player = player or PLAYERS.Tai_Ho
   rng_modifier = rng_modifier or 0
   local cursor = Cursor()
@@ -449,13 +452,13 @@ local function calculateOpponentRollRNGTable(rng_table, wait, player, rng_modifi
     wait = wait - 1
   end
   while true do
-    local roll = simulateRollRNGTable(cursor, rng_table, rng_modifier)
+    local roll = simulateRollRNGTable(cursor, rng_table, speed, rng_modifier)
     if player ~= PLAYERS.Tai_Ho then return roll end
     if isValidTaiHoRoll(roll) then return roll end
   end
 end
 
-local function simulateRollFromGameStartRNGTable(rng_table, frames_before_wait_calculation, player, rng_modifier)
+local function simulateRollFromGameStartRNGTable(rng_table, frames_before_wait_calculation, player, speed, rng_modifier)
   player = player or PLAYERS.Tai_Ho
   if frames_before_wait_calculation == nil then
     if player == PLAYERS.Tai_Ho then
@@ -474,7 +477,7 @@ local function simulateRollFromGameStartRNGTable(rng_table, frames_before_wait_c
   if should_log then print('Wait '.. wait) end
   local roll_rng_str = string.format("0x%08x", rng_table:getRNG())
   local roll_rng_index = rng_table.pos
-  local roll = calculateOpponentRollRNGTable(rng_table, wait, player, rng_modifier)
+  local roll = calculateOpponentRollRNGTable(rng_table, wait, player, speed, rng_modifier)
   return {
     initial_rng = initial_rng_str,
     roll_rng = roll_rng_str,

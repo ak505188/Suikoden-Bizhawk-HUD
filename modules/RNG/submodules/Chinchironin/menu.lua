@@ -13,6 +13,7 @@ local PlayerMenu = ListMenuBuilder:new(Chinchironin.PLAYERS_LIST, {
 })
 
 local list = {
+  'Dice Speed',
   'Select Player',
   'Frames To Wait',
   'RNG Modifier',
@@ -25,9 +26,10 @@ local Menu = ListMenuBuilder:new(list, {
 
 function Menu:draw()
   local options_draw_table = {
-    self.list[1],
-    string.format("%s < %d >", self.list[2], Worker.FramesToAdvance),
-    string.format("%s: 0x%08x", self.list[3], Worker.RNG_Modifier)
+    string.format("%s < %d >", self.list[1], Worker.Speed),
+    self.list[2],
+    string.format("%s < %d >", self.list[3], Worker.FramesToAdvance),
+    string.format("%s: 0x%08x", self.list[4], Worker.RNG_Modifier)
   }
 
   local info_table = {
@@ -35,10 +37,6 @@ function Menu:draw()
     "O: Back",
     "Hold R1: Amount x 10",
     "Hold R2: Amount x 100",
-    "Up: Cursor 1 Up",
-    "Do: Cursor 1 Down",
-    "Le: Adjust by -1",
-    "Ri: Adjust by 1",
   }
 
   local frames_info_table = {
@@ -64,6 +62,13 @@ function Menu:adjustFramesToAdvance(amount)
   Worker.FramesToAdvance = new_amount
 end
 
+function Menu:adjustSpeed(amount)
+  local new_speed = Worker.Speed + amount * 4
+  if new_speed <= 0 then new_speed = 0
+  elseif new_speed >= 64 then new_speed = 64 end
+  Worker.Speed = new_speed
+end
+
 function Menu:run()
   local modifier = 1
   if Buttons.R1:held() then modifier = modifier * 10 end
@@ -72,12 +77,14 @@ function Menu:run()
     self:adjust(modifier * -1)
   elseif Buttons.Down:pressed() then
     self:adjust(modifier * 1)
-  elseif Buttons.Left:pressed() and self.pos == 2 then
-    self:adjustFramesToAdvance(-1 * modifier)
-  elseif Buttons.Right:pressed() and self.pos == 2 then
-    self:adjustFramesToAdvance(1 * modifier)
+  elseif Buttons.Left:pressed() then
+    if self.pos == 1 then self:adjustSpeed(-1 * modifier) end
+    if self.pos == 3 then self:adjustFramesToAdvance(-1 * modifier) end
+  elseif Buttons.Right:pressed() then
+     if self.pos == 1 then self:adjustSpeed(1 * modifier) end
+     if self.pos == 3 then self:adjustFramesToAdvance(1 * modifier) end
   elseif Buttons.Cross:pressed() then
-    if self.pos == 1 then
+    if self.pos == 2 then
       local player = self:openMenu(PlayerMenu)
       if player then
         local frames_to_advance = 1

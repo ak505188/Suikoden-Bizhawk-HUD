@@ -7,6 +7,7 @@ local ChinchironinTableBuilder = require "modules.RNG.submodules.Chinchironin.Ch
 local Worker = {
   Player = Chinchironin.PLAYERS.Tai_Ho,
   FramesToAdvance = 203,
+  Speed = 0,
   ChinchironinTables = {},
   ChinchironinTableKey = '',
   RNG_Modifier = 0,
@@ -17,7 +18,7 @@ function Worker:run()
   self.ChinchironinTableKey = self:generateChinchironinTableKey()
   local chinchironin_table = self:getChinchironinTable()
   if chinchironin_table == nil then
-    chinchironin_table = ChinchironinTableBuilder(self.Player, RNGMonitor:getTable(), self.RNG_Modifier, self.FramesToAdvance)
+    chinchironin_table = ChinchironinTableBuilder(self.Player, RNGMonitor:getTable(), self.Speed, self.RNG_Modifier, self.FramesToAdvance)
     self.ChinchironinTables[self.ChinchironinTableKey] = chinchironin_table
   end
   chinchironin_table:generateRolls()
@@ -60,9 +61,10 @@ end
 
 function Worker:generateChinchironinTableKey()
   return string.format(
-    "%s_%x_%x_%d",
+    "%s_%x_%d_%x_%d",
     self.Player,
     RNGMonitor.StartingRNG,
+    self.Speed,
     self.RNG_Modifier,
     self.FramesToAdvance)
 end

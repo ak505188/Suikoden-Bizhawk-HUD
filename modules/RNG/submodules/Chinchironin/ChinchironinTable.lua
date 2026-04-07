@@ -1,7 +1,7 @@
 local Chinchironin = require "lib.Chinchironin"
 local Config = require "Config"
 
-local function ChinchironinTable(player, rng_table, rng_modifier, frames_to_advance)
+local function ChinchironinTable(player, rng_table, speed, rng_modifier, frames_to_advance)
   if frames_to_advance == nil then
     if player == Chinchironin.PLAYERS.Tai_Ho then
       frames_to_advance = 203
@@ -18,6 +18,7 @@ local function ChinchironinTable(player, rng_table, rng_modifier, frames_to_adva
     RNG_table = rng_table,
     RNG_modifier = rng_modifier,
     FramesToAdvance = frames_to_advance,
+    Speed = speed,
     Rolls = {},
     Size = 0,
   }
@@ -35,7 +36,7 @@ local function ChinchironinTable(player, rng_table, rng_modifier, frames_to_adva
 
     for i = start_index, finish_size, 1 do
       self.RNG_table.pos = i
-      local roll = Chinchironin.simulateRollFromGameStartRNGTable(rng_table, self.FramesToAdvance, self.Player, self.RNG_modifier)
+      local roll = Chinchironin.simulateRollFromGameStartRNGTable(rng_table, self.FramesToAdvance, self.Player, self.Speed, self.RNG_modifier)
       self.Rolls[i] = roll
     end
     self.Size = finish_size
