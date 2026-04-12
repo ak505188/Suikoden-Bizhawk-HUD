@@ -36,7 +36,7 @@ local function ChinchironinTable(player, rng_table, speed, rng_modifier, frames_
 
     for i = start_index, finish_size, 1 do
       self.RNG_table.pos = i
-      local roll = Chinchironin.simulateRollFromGameStartRNGTable(rng_table, self.FramesToAdvance, self.Player, self.Speed, self.RNG_modifier)
+      local roll = Chinchironin.simulateRollFromGameStart(rng_table, self.FramesToAdvance, self.Player, self.Speed, self.RNG_modifier)
       self.Rolls[i] = roll
     end
     self.Size = finish_size
