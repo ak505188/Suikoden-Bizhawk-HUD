@@ -5,7 +5,7 @@ local RNGLib = require "lib.RNG"
 
 -- These affect how far ahead in the RNG the script looks. Don't touch if things are working well.
 -- If you set these too small, the script might stop working if RNG advances too quickly.
-local SECRET_BUFFER_SIZE = 2000
+local SECRET_BUFFER_SIZE = 3000
 local INITITAL_BUFFER_SIZE = Config.RNG_MONITOR.INITITAL_BUFFER_SIZE -- Initial look-ahead
 local BUFFER_INCREMENT_SIZE = Config.RNG_MONITOR.BUFFER_INCREMENT_SIZE -- Later look-ahead size per frame
 local BUFFER_MARGIN_SIZE = Config.RNG_MONITOR.BUFFER_MARGIN_SIZE + SECRET_BUFFER_SIZE -- When difference between current length & current RNG Index is greater than this, look ahead again.
