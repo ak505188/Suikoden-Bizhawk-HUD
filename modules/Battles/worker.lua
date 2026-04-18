@@ -1,6 +1,6 @@
 local Location = require "lib.Enums.Location"
 local Drawer = require "controllers.drawer"
-
+local Utils = require "lib.Utils"
 local StateHandler = require "modules.Battles.StateHandler"
 
 local RNGMonitor = require "monitors.RNG_Monitor"
@@ -12,7 +12,9 @@ local Worker = {
     EnemyDrawTableLength = 10
   },
   StateHandler = StateHandler,
+  RNGIndex = 0,
   TablePosition = nil,
+  FindRanCount = 0,
 }
 
 function Worker:draw(options)
@@ -27,6 +29,15 @@ function Worker:draw(options)
   local draw_data = self:genDrawData(options)
 
   Drawer:draw(draw_data.Enemies, Drawer.anchors.BOTTOM_LEFT, true)
+  Drawer:draw({
+    string.format("FindRanCount: %d", self.FindRanCount),
+    string.format("PosType: %s", self.PosType),
+    string.format("Table length: %d", #self:getTable()),
+    string.format("Table 1 RNG index: %d", self:getTable()[1].index),
+    string.format("Table pos RNG index: %d", self:getTable()[self.TablePosition].index),
+    string.format("Table pos: %d", self.TablePosition),
+    string.format("RNGIndex: %d", self.RNGIndex),
+  }, Drawer.anchors.BOTTOM_RIGHT, true)
   Drawer:draw({ draw_data.Area }, Drawer.anchors.TOP_LEFT, nil, true)
   Drawer:draw(draw_data.Battles, Drawer.anchors.TOP_LEFT)
 end
@@ -46,11 +57,20 @@ end
 
 function Worker:findTablePosition(table, RNGIndex)
   table = table or self:getTable()
-  if table == nil or #table <= 0 then return nil end
+  self.FindRanCount = self.FindRanCount + 1
+  if table == nil or #table <= 0 then
+    self.PosType = "Table nil"
+    return nil
+  end
   RNGIndex = RNGIndex or RNGMonitor:getIndex()
+  self.RNGIndex = RNGIndex
 
-  if RNGIndex > table[#table].index then return nil end
+  if RNGIndex > table[#table].index then
+    self.PosType = "RNG Index > table len"
+    return nil
+  end
   if RNGIndex < table[1].index then
+    self.PosType = "Less than 1"
     return 1
   end
 
@@ -61,14 +81,19 @@ function Worker:findTablePosition(table, RNGIndex)
   -- Shortcut if RNGIndex >= current position index, which should be most common scenario
   if RNGIndex >= table[self.TablePosition].index then
     pos = self.TablePosition
+    self.PosType = "Shortcut"
   end
   repeat
     -- This only works because we're going in order.
     -- If doing more optimal search we would need to
     -- compare both current and next entry
-    if RNGIndex < table[pos].index then return pos end
+    if RNGIndex < table[pos].index then
+      self.PosType = "Increment Search"
+      return pos
+    end
     pos = pos + 1
   until pos > #table
+  self.PosType = "Not found"
   return nil
 end
 
