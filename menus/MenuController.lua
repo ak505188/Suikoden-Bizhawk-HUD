@@ -3,6 +3,7 @@ local Drawer = require "controllers.drawer"
 local ModuleManager = require "modules.Manager"
 local MenuProperties = require "menus.Properties"
 local ListMenuBuilder = require "menus.Builders.List"
+local SavesLib = require "modules.Saves.lib"
 
 local RNGMonitor = require "monitors.RNG_Monitor"
 local StateMonitor = require "monitors.State_Monitor"
@@ -66,6 +67,13 @@ function MenuController:run()
 
     local currentMenu = self:getCurrentMenu()
     local menu_type = currentMenu.properties.type
+
+    -- Quick and dirty faster save.
+    -- TODO: Implement this properly.
+    if Buttons.R3:pressed() then
+      local save_path = SavesLib.getSavePath(SavesLib.getSaveName())
+      savestate.save(save_path)
+    end
 
     if menu_type == MenuProperties.MENU_TYPES.module then
       if Buttons.Select:pressed() then

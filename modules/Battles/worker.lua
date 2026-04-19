@@ -1,6 +1,5 @@
 local Location = require "lib.Enums.Location"
 local Drawer = require "controllers.drawer"
-local Utils = require "lib.Utils"
 local StateHandler = require "modules.Battles.StateHandler"
 
 local RNGMonitor = require "monitors.RNG_Monitor"
@@ -14,32 +13,39 @@ local Worker = {
   StateHandler = StateHandler,
   RNGIndex = 0,
   TablePosition = nil,
-  FindRanCount = 0,
+  Battles = {},
+  Display = {},
+  Diagnostics = {
+    FindRanCount = 0,
+
+  }
 }
 
-function Worker:draw(options)
-  if not self:shouldDraw() then
-    return
-  end
+DRAW_DIAGNOSTICS = true
 
-  -- local battles = self.Drawdata.Battles
-  -- if options and options.table_position then
-  --   battles = self:genBattlesDrawTable(options)
-  -- end
-  local draw_data = self:genDrawData(options)
-
-  Drawer:draw(draw_data.Enemies, Drawer.anchors.BOTTOM_LEFT, true)
+function Worker:drawDiagnostics()
   Drawer:draw({
-    string.format("FindRanCount: %d", self.FindRanCount),
-    string.format("PosType: %s", self.PosType),
+    string.format("FindRanCount: %d", self.Diagnostics.FindRanCount),
+    string.format("PosType: %s", self.Diagnostics.PosType),
     string.format("Table length: %d", #self:getTable()),
     string.format("Table 1 RNG index: %d", self:getTable()[1].index),
     string.format("Table pos RNG index: %d", self:getTable()[self.TablePosition].index),
     string.format("Table pos: %d", self.TablePosition),
     string.format("RNGIndex: %d", self.RNGIndex),
   }, Drawer.anchors.BOTTOM_RIGHT, true)
+end
+
+function Worker:draw(options)
+  if not self:shouldDraw() then
+    return
+  end
+
+  local draw_data = self:genDrawData(options)
+
+  if DRAW_DIAGNOSTICS then self:drawDiagnostics() end
   Drawer:draw({ draw_data.Area }, Drawer.anchors.TOP_LEFT, nil, true)
-  Drawer:draw(draw_data.Battles, Drawer.anchors.TOP_LEFT)
+  Drawer:draw(draw_data.Battles, Drawer.anchors.TOP_LEFT, nil, true)
+  Drawer:draw(draw_data.Enemies, Drawer.anchors.BOTTOM_LEFT, true)
 end
 
 function Worker:shouldDraw()
@@ -47,30 +53,27 @@ function Worker:shouldDraw()
 end
 
 function Worker:getTable(location)
-  if self.Tables == nil then
-    return nil
-  end
   location = location or self.StateHandler:getState().Location
-  local table = self.Tables[location]
-  return table
+  local tbl = RNGMonitor:getTable()[location] or {}
+  return tbl
 end
 
 function Worker:findTablePosition(table, RNGIndex)
   table = table or self:getTable()
-  self.FindRanCount = self.FindRanCount + 1
+  self.Diagnostics.FindRanCount = self.Diagnostics.FindRanCount + 1
   if table == nil or #table <= 0 then
-    self.PosType = "Table nil"
+    self.Diagnostics.PosType = "Table nil"
     return nil
   end
   RNGIndex = RNGIndex or RNGMonitor:getIndex()
   self.RNGIndex = RNGIndex
 
   if RNGIndex > table[#table].index then
-    self.PosType = "RNG Index > table len"
+    self.Diagnostics.PosType = "RNG Index > table len"
     return nil
   end
   if RNGIndex < table[1].index then
-    self.PosType = "Less than 1"
+    self.Diagnostics.PosType = "Less than 1"
     return 1
   end
 
@@ -81,19 +84,19 @@ function Worker:findTablePosition(table, RNGIndex)
   -- Shortcut if RNGIndex >= current position index, which should be most common scenario
   if RNGIndex >= table[self.TablePosition].index then
     pos = self.TablePosition
-    self.PosType = "Shortcut"
+    self.Diagnostics.PosType = "Shortcut"
   end
   repeat
     -- This only works because we're going in order.
     -- If doing more optimal search we would need to
     -- compare both current and next entry
     if RNGIndex < table[pos].index then
-      self.PosType = "Increment Search"
+      self.Diagnostics.PosType = "Increment Search"
       return pos
     end
     pos = pos + 1
   until pos > #table
-  self.PosType = "Not found"
+  self.Diagnostics.PosType = "Not found"
   return nil
 end
 
@@ -115,12 +118,11 @@ function Worker:jumpToBattle(pos)
   RNGMonitor:goToIndex(newRNGIndex)
 end
 
-function Worker:isValidEncounter(tableIndex)
-  tableIndex = tableIndex or self.TablePosition
+function Worker:isValidEncounter(battle)
   local game_state = self.StateHandler:getState()
-  local battle = self:getTable()[tableIndex]
 
-  if battle.value >= game_state.EncounterRate then
+  -- FIX: I sometimes error here when loading saves
+  if battle.encounter_roll >= game_state.EncounterRate then
     return false
   end
 
@@ -135,24 +137,25 @@ end
 
 function Worker:getValidEncounter(tableIndex)
   tableIndex = tableIndex or self.TablePosition
-  local table = self:getTable()
-  if table == nil or #table <= 0 then return end
+  local rng_table = self:getTable()
+  if rng_table == nil or #rng_table <= 0 then return end
 
   local possibleBattle
   local validBattleFound = false
 
   repeat
-    possibleBattle = table[tableIndex]
-    validBattleFound = self:isValidEncounter(tableIndex)
+    possibleBattle = rng_table[tableIndex]
+    if possibleBattle == nil then return nil, tableIndex end
+    validBattleFound = self:isValidEncounter(possibleBattle)
 
     if not validBattleFound then
       tableIndex = tableIndex + 1
     end
-    if tableIndex > #table then return nil, tableIndex end
+    if tableIndex > #rng_table then return nil, tableIndex end
   until validBattleFound
 
   local encounter_table = self.StateHandler:getState().EncounterTable
-  local group = encounter_table[table[tableIndex].battles[#encounter_table]]
+  local group = encounter_table[rng_table[tableIndex].battles[#encounter_table]]
 
   return {
     index = possibleBattle.index,
@@ -193,6 +196,7 @@ function Worker:genBattlesDrawTable(options, battle_table)
   local drawTable = {}
 
   repeat
+    if self:getTable()[current_table_position] == nil then return drawTable end
     battle, current_table_position = self:getValidEncounter(current_table_position)
     if battle then
       local run = battle.run and "R" or "F"
@@ -213,6 +217,7 @@ function Worker:genEnemiesDrawTable()
   local enemiesTable = {}
   for index,enemy in ipairs(self.StateHandler:getState().Enemies) do
     table.insert(enemiesTable, string.format("%d:%s", index, enemy))
+    self.Diagnostics.EnemiesTable = table.concat(enemiesTable, ',')
   end
   return enemiesTable
 end
@@ -231,10 +236,6 @@ end
 function Worker:init()
   self.CurrentStartingRNG = RNGMonitor.StartingRNG
   self.CurrentRNGIndex = RNGMonitor.RNGIndex
-  self.Tables = {
-    [Location.WORLD_MAP] = RNGMonitor:getTable()[Location.WORLD_MAP],
-    [Location.OVERWORLD] = RNGMonitor:getTable()[Location.OVERWORLD],
-  }
   self.StateHandler:updateState()
   self.TablePosition = 1
   if self:getTable() then self:findTablePosition() end
@@ -268,7 +269,7 @@ function Worker:run()
     return
   end
 
-  if self.Tables == nil or startRNGChanged then
+  if startRNGChanged then
     self:init()
   elseif RNGIndexChanged or stateChanged then
     self:updateTablePosition()

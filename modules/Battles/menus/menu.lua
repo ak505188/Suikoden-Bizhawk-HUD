@@ -39,10 +39,13 @@ function Menu:getAdjustedTablePosition(amount, pos)
   if Worker:getTable() == nil then return end
   pos = pos or self.table_position
 
+  local battle = Worker:getTable()[pos]
+  if battle == nil then return 0 end
+
   -- if amount = 0 check if current position is valid and if not find first valid one
   -- can get this behavior by setting it to 1 if invalid battle
   if amount == 0 then
-    if Worker:isValidEncounter(pos) then
+    if Worker:isValidEncounter(battle) then
       return pos
     else
       amount = 1
@@ -62,7 +65,8 @@ function Menu:getAdjustedTablePosition(amount, pos)
 
   repeat
     pos = pos + direction
-    local isValid = Worker:isValidEncounter(pos)
+    battle = Worker:getTable()[pos]
+    local isValid = Worker:isValidEncounter(battle)
 
     if isValid then
       last_good_pos = pos

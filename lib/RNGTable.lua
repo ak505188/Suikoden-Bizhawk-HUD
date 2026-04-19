@@ -32,7 +32,7 @@ local function generateRNGBuffer(rngTable, bufferLength)
       table.insert(rngTable[Locations.WORLD_MAP], {
         index = index,
         rng = rng,
-        value = isBattleWM,
+        encounter_roll = isBattleWM,
         run = isRun,
         battles = battles,
       })
@@ -50,7 +50,7 @@ local function generateRNGBuffer(rngTable, bufferLength)
         index = index,
         rng = rng,
         -- value is the encounter roll. if lower than encounter rate, is battle
-        value = isBattleOW,
+        encounter_roll = isBattleOW,
         run = isRun,
         battles = battles,
       })
