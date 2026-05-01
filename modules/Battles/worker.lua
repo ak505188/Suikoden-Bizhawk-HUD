@@ -15,25 +15,7 @@ local Worker = {
   TablePosition = nil,
   Battles = {},
   Display = {},
-  Diagnostics = {
-    FindRanCount = 0,
-
-  }
 }
-
-DRAW_DIAGNOSTICS = true
-
-function Worker:drawDiagnostics()
-  Drawer:draw({
-    string.format("FindRanCount: %d", self.Diagnostics.FindRanCount),
-    string.format("PosType: %s", self.Diagnostics.PosType),
-    string.format("Table length: %d", #self:getTable()),
-    string.format("Table 1 RNG index: %d", self:getTable()[1].index),
-    string.format("Table pos RNG index: %d", self:getTable()[self.TablePosition].index),
-    string.format("Table pos: %d", self.TablePosition),
-    string.format("RNGIndex: %d", self.RNGIndex),
-  }, Drawer.anchors.BOTTOM_RIGHT, true)
-end
 
 function Worker:draw(options)
   if not self:shouldDraw() then
@@ -42,7 +24,6 @@ function Worker:draw(options)
 
   local draw_data = self:genDrawData(options)
 
-  if DRAW_DIAGNOSTICS then self:drawDiagnostics() end
   Drawer:draw({ draw_data.Area }, Drawer.anchors.TOP_LEFT, nil, true)
   Drawer:draw(draw_data.Battles, Drawer.anchors.TOP_LEFT, nil, true)
   Drawer:draw(draw_data.Enemies, Drawer.anchors.BOTTOM_LEFT, true)
@@ -58,22 +39,15 @@ function Worker:getTable(location)
   return tbl
 end
 
-function Worker:findTablePosition(table, RNGIndex)
-  table = table or self:getTable()
-  self.Diagnostics.FindRanCount = self.Diagnostics.FindRanCount + 1
-  if table == nil or #table <= 0 then
-    self.Diagnostics.PosType = "Table nil"
-    return nil
-  end
+function Worker:findTablePosition(tbl, RNGIndex)
+  tbl = tbl or self:getTable()
+  if tbl == nil or #tbl <= 0 then return nil end
+
   RNGIndex = RNGIndex or RNGMonitor:getIndex()
   self.RNGIndex = RNGIndex
 
-  if RNGIndex > table[#table].index then
-    self.Diagnostics.PosType = "RNG Index > table len"
-    return nil
-  end
-  if RNGIndex < table[1].index then
-    self.Diagnostics.PosType = "Less than 1"
+  if RNGIndex > tbl[#tbl].index then return nil end
+  if RNGIndex < tbl[1].index then
     return 1
   end
 
@@ -82,21 +56,19 @@ function Worker:findTablePosition(table, RNGIndex)
   local pos = 1
 
   -- Shortcut if RNGIndex >= current position index, which should be most common scenario
-  if RNGIndex >= table[self.TablePosition].index then
+  -- FIX: Sometimes get an error here.
+  if tbl[self.TablePosition] ~= nil and RNGIndex >= tbl[self.TablePosition].index then
     pos = self.TablePosition
-    self.Diagnostics.PosType = "Shortcut"
   end
   repeat
     -- This only works because we're going in order.
     -- If doing more optimal search we would need to
     -- compare both current and next entry
-    if RNGIndex < table[pos].index then
-      self.Diagnostics.PosType = "Increment Search"
+    if RNGIndex < tbl[pos].index then
       return pos
     end
     pos = pos + 1
-  until pos > #table
-  self.Diagnostics.PosType = "Not found"
+  until pos > #tbl
   return nil
 end
 
@@ -217,7 +189,6 @@ function Worker:genEnemiesDrawTable()
   local enemiesTable = {}
   for index,enemy in ipairs(self.StateHandler:getState().Enemies) do
     table.insert(enemiesTable, string.format("%d:%s", index, enemy))
-    self.Diagnostics.EnemiesTable = table.concat(enemiesTable, ',')
   end
   return enemiesTable
 end
