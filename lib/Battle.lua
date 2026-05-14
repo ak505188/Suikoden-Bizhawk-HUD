@@ -121,6 +121,7 @@ local function calculateDrop(battle, rng_index)
   local rng = RNGMonitor:getRNG(rng_index)
   for i = 1, battle.GroupSize do
     local enemy = battle.Enemies[i]
+    if enemy == nil then return nil end
     rng_index = rng_index + 1
     -- Because rng_index can be greater than RNGMonitor table size by up to 12
     -- For those instances we calculate the RNG manually
