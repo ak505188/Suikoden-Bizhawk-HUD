@@ -26,7 +26,8 @@ local Address = {
   -- SAVE_FRAMECOUNT = 0x18B0A8, -- Not sure how to calculate real IGT, missing some value
   -- Other IGT options are 17DBE8 (stops on loads?), 1B9B8C (Updated on save)
   SAVE_FRAMECOUNT = 0x1B9B8C, -- Used for Chinchironin randomization
-  BIRDS_PTR = 0x199f7c
+  BIRDS_PTR = 0x199f7c,
+  BATTLE_STATE_PTR = 0x17be3c, -- Pointer to the live in-battle combatant/turn-order struct (DAT_8017be3c in Ghidra). See docs/game_mechanics/Turn_Order.md and Battle_Damage_Formula.md.
 }
 
 function Address.sanitize(addr)

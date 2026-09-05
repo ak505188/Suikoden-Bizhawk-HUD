@@ -2,6 +2,7 @@ local RNGMonitor = require "monitors.RNG_Monitor"
 local Drawer = require "controllers.drawer"
 local StatsSubmodule = require "modules.RNG.submodules.Stats.submodule"
 local ChinchironinSubmodule = require "modules.RNG.submodules.Chinchironin.submodule"
+local CombatSubmodule = require "modules.RNG.submodules.Combat.submodule"
 local Modes = require "modules.RNG.modes"
 
 local Worker = {
@@ -9,6 +10,7 @@ local Worker = {
   submodules = {
     [Modes.Table.Stats] = StatsSubmodule,
     [Modes.Table.Chinchironin] = ChinchironinSubmodule,
+    [Modes.Table.Combat] = CombatSubmodule,
   }
 }
 
