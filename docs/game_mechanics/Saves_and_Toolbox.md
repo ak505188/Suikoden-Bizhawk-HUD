@@ -115,23 +115,9 @@ position = `character.Address.Recruited - RECRUIT_FIRST_SLOT + 1`
 a numeric "Recruitment State" (Left/Right ±1, ×16 with R1, displayed in
 hex), but **no enum or lookup table exists anywhere in the codebase for what
 specific values mean** (e.g. "not met" vs. "met" vs. "recruited" vs. "in
-castle"). This is left entirely to the operator's own game knowledge — a
-documentation gap worth flagging for anyone extending this tool.
+castle"). This is left entirely to the operator's own game knowledge.
 
 The 108-byte ordering is **not** alphabetical or in `Names`-enum order — it
 appears to loosely follow in-game recruitment order at the low offsets
 (GREMIO, EILEEN, CLEO, CAMILLE, KIRKIS, ...), but this is unverified against
-disassembly and should be confirmed before being relied on for slot→character mapping.
-
-## Flagged uncertainties
-
-- IGT address selection remains genuinely unresolved — four candidates
-  tried, none confirmed accurate; see the table above.
-- `getSaveName`'s `-- TODO: Add events using event index and state check` —
-  event/cutscene locations aren't distinguished in save naming.
-- EXP write endianness inconsistency between `Characters.lua` and
-  `lib/Characters/Utils.lua` — see
-  [Characters_and_Stats.md](./Characters_and_Stats.md#character-struct-0x50--80-bytes-relative-to-stats-address).
-- No recruitment-state value legend exists anywhere — real reverse
-  engineering work still needed if precise state semantics are wanted.
-- Recruitment slot ordering is inferred, not confirmed against disassembly.
+disassembly.

@@ -28,6 +28,7 @@ local Address = {
   SAVE_FRAMECOUNT = 0x1B9B8C, -- Used for Chinchironin randomization
   BIRDS_PTR = 0x199f7c,
   BATTLE_STATE_PTR = 0x17be3c, -- Pointer to the live in-battle combatant/turn-order struct (DAT_8017be3c in Ghidra). See docs/game_mechanics/Turn_Order.md and Battle_Damage_Formula.md.
+  SOUL_EATER_CTX = 0x17a060, -- Pointer to a generic, reused VFX scratch struct (DAT_8017a060 in Ghidra), read+written by Hell/Black Shadow's tick_state_machines (and other, not-yet-identified VFX effects). See Battle_Damage_Formula.md's "Hell"/"Black Shadow" sections and docs/game_mechanics/Black_Shadow_Simulation_Workflow.md.
 }
 
 function Address.sanitize(addr)

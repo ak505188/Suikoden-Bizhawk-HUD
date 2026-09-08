@@ -2,6 +2,7 @@ local Address = require "lib.Address"
 local RNGLib = require "lib.RNG"
 local Gamestate = require "lib.Enums.Gamestate"
 local Drawer = require "controllers.drawer"
+local EnemyAIPredictor = require "lib.EnemyAIPredictor"
 
 -- Offsets are all relative to the live battle-state struct pointed to by
 -- Address.BATTLE_STATE_PTR (DAT_8017be3c in Ghidra). See:
@@ -42,10 +43,9 @@ local BattleOffsets = {
 
 -- Offsets relative to a single combatant record (COMBATANT_ARRAY + idx*COMBATANT_STRIDE)
 local CombatantFields = {
-  -- NOTE 2026-09: the raw stat fields below are kept as reference (offsets confirmed,
-  -- see docs/game_mechanics/Battle_Damage_Formula.md and Turn_Order.md for cross-check
-  -- methodology) but are deliberately UNUSED - removed from this display, not read in
-  -- readBattleState, not shown in the table.
+  -- RE-ENABLED 2026-09 (user request): now read in readBattleState and shown in the table,
+  -- to visually confirm ATK/DEF's own accuracy lag (see the NOTE above CombatantFields) - user
+  -- recalled ATK/DEF specifically read wrong until a combatant's own turn actually starts.
   AGL = 0x2a,          -- CONFIRMED: the turn-order speed stat (weight = AGL*10 - 5 + rand()%10); == persistent SPD exactly
   SKL = 0x26,          -- CONFIRMED (matches persistent SKL exactly): used for hit chance (opposed, attacker vs target) and crit chance ((SKL+LUK)/8)
   LUK = 0x2e,          -- CONFIRMED (matches persistent LUK exactly): used with SKL for crit chance
@@ -101,8 +101,25 @@ local EnemyDataFields = {
                   -- do NOT use this field alone to filter out dead combatants - see HPCurrent.
 }
 
--- ACTION_TYPE(+0x47) decode, for display only - see CombatantFields.ACTION_TYPE above
-local ActionTypeNames = { [0] = "Atk", [1] = "Def", [2] = "Run", [3] = "Itm", [4] = "Unt" }
+-- ACTION_TYPE(+0x47) decode, for display only - see CombatantFields.ACTION_TYPE above.
+-- "Mag" (not "Run") for Rune - user-flagged 2026-09: "Run" reads too easily as the Flee/Run
+-- command, which this is not.
+local ActionTypeNames = { [0] = "Atk", [1] = "Def", [2] = "Mag", [3] = "Itm", [4] = "Unt" }
+local ACTION_TYPE_MAX = 4 -- highest valid ActionType value (Unite)
+
+-- CONFIRMED 2026-09 (user): ACTION_TYPE/ABILITY_SLOT/TARGET (+0x47/+0x48/+0x49) all read
+-- 255 (0xFF) when a combatant's action is uninitialized/cleared - not a real ActionType==255
+-- enum value, just a "nothing queued yet" fill pattern. Distinct from ACTION_TAG(+0x46)'s own
+-- 0/1 "resolved" flag.
+local UNSET_VALUE = 255
+ActionTypeNames[UNSET_VALUE] = "---"
+
+-- Which CombatantFields offset backs each writable key exposed via Worker:writeCombatantField.
+local WritableFieldOffsets = {
+  ActionType = CombatantFields.ACTION_TYPE,
+  AbilitySlot = CombatantFields.ABILITY_SLOT,
+  Target = CombatantFields.TARGET,
+}
 
 -- CONFIRMED 2026-09: Suikoden 1's automatic magic Unite spells (Scorched Earth, Storm
 -- Fang, Water Dragon, Thor, Blazing Camp - see Suikosource's Unite Magic page) trigger
@@ -134,6 +151,9 @@ local Worker = {
   ShowHPExperimental = true,
   InBattle = false,
   State = nil,
+  ActionTypeNames = ActionTypeNames,
+  ActionTypeMax = ACTION_TYPE_MAX,
+  UnsetValue = UNSET_VALUE,
 }
 
 local function isInBattle()
@@ -171,10 +191,41 @@ function Worker:readBattleState()
       HPMax = memory.read_u16_le(rec + CombatantFields.HP_MAX),
       Id = memory.read_u8(ed + EnemyDataFields.ID),
       Busy = memory.read_u8(ed + EnemyDataFields.BUSY),
+      AGL = memory.read_u16_le(rec + CombatantFields.AGL),
+      SKL = memory.read_u16_le(rec + CombatantFields.SKL),
+      LUK = memory.read_u16_le(rec + CombatantFields.LUK),
+      MGC = memory.read_u16_le(rec + CombatantFields.MGC),
+      ATK = memory.read_u16_le(rec + CombatantFields.ATK),
+      DEF = memory.read_u16_le(rec + CombatantFields.DEF),
     }
   end
 
   return state
+end
+
+-- idx is a raw 1-indexed actor number, same convention as readBattleState's Combatants table.
+function Worker:getCombatantRecordAddress(idx)
+  if not self.State then return nil end
+  return self.State.Base + BattleOffsets.COMBATANT_ARRAY + idx * BattleOffsets.COMBATANT_STRIDE
+end
+
+-- Directly overwrites a combatant's queued action (ActionType/AbilitySlot/Target) in live
+-- battle memory - the same fields the table above reads, at CombatantFields.ACTION_TYPE/
+-- ABILITY_SLOT/TARGET. This lets a player's already-selected command be changed before it
+-- resolves; it does not validate that `value` is a legal AbilitySlot/Target for the resulting
+-- ActionType (see docs/game_mechanics/Battle_Damage_Formula.md's "Action selection" section -
+-- an out-of-range slot/target is whatever the game's own resolver does with it, untested here).
+function Worker:writeCombatantField(idx, key, value)
+  local offset = WritableFieldOffsets[key]
+  if not offset then return end
+  local rec = self:getCombatantRecordAddress(idx)
+  if not rec then return end
+  memory.write_u8(rec + offset, value)
+  -- Patch the already-read State too, so the menu reflects the write this same frame instead
+  -- of lagging one frame behind the next readBattleState().
+  if self.State and self.State.Combatants[idx] then
+    self.State.Combatants[idx][key] = value
+  end
 end
 
 function Worker:run()
@@ -216,18 +267,35 @@ function Worker:draw()
   for idx, c in ipairs(state.Combatants) do
     local marker = ""
     if idx == state.CurrentActor then marker = ">" end
-    local actName = ActionTypeNames[c.ActionType] or tostring(c.ActionType)
-    -- ACTION combines ACT/SLT/TGT: slot only shown for Rune/Item/Unite (2/3/4), where it's
-    -- meaningful - see CombatantFields.ABILITY_SLOT.
-    local slotStr = ""
-    if c.ActionType >= 2 and c.ActionType <= 4 then
-      slotStr = tostring(c.AbilitySlot)
+    local actionStr
+    if c.ActionType == UNSET_VALUE then
+      actionStr = "---"
+    else
+      local actName = ActionTypeNames[c.ActionType] or tostring(c.ActionType)
+      -- ACTION combines ACT/SLT/TGT: slot only shown for Rune/Item/Unite (2/3/4), where it's
+      -- meaningful - see CombatantFields.ABILITY_SLOT.
+      local slotStr = ""
+      if c.ActionType >= 2 and c.ActionType <= 4 then
+        slotStr = c.AbilitySlot == UNSET_VALUE and "--" or tostring(c.AbilitySlot)
+      end
+      local targetStr = c.Target == UNSET_VALUE and "--" or tostring(c.Target)
+      actionStr = string.format("%s%s>%s", actName, slotStr, targetStr)
     end
-    local actionStr = string.format("%s%s>%d", actName, slotStr, c.Target)
-    table.insert(rows, string.format("%1s%1d %3d %1d %1d %s",
+    table.insert(rows, string.format("%1s%1x %3d %1d %1d %s",
       marker, idx, c.Id, c.ActionTag, c.Busy, actionStr))
   end
   Drawer:draw(rows, Drawer.anchors.TOP_LEFT)
+
+  -- RE-ENABLED 2026-09 (user request): watch ATK/DEF specifically for the pre-turn accuracy
+  -- lag the user recalled (SKL/AGL/MGC/LUK are already confirmed accurate at all times, shown
+  -- alongside for comparison).
+  Drawer:draw({ " #  SKL AGL MGC LUK  ATK   DEF" }, Drawer.anchors.TOP_LEFT, nil, true)
+  local stat_rows = {}
+  for idx, c in ipairs(state.Combatants) do
+    table.insert(stat_rows, string.format("%1x %4d %4d %4d %4d %5d %5d",
+      idx, c.SKL, c.AGL, c.MGC, c.LUK, c.ATK, c.DEF))
+  end
+  Drawer:draw(stat_rows, Drawer.anchors.TOP_LEFT)
 
   local uniteCandidates = findPendingMagicUnite(state)
   if #uniteCandidates >= 2 then
@@ -244,6 +312,45 @@ function Worker:draw()
       end
     end
     Drawer:draw(hp_rows, Drawer.anchors.TOP_LEFT)
+  end
+
+  -- ADDED 2026-09-06, CHANGED TO PROBABILITIES 2026-09-06 (user request: odds for every enemy,
+  -- not a single simulated result for whoever's currently acting): for every LIVING enemy
+  -- whose AI formula has been traced (see lib/EnemyAIPredictor.lua and
+  -- Enemy_AI_Tracing_Methodology.md - only Zombie Dragon is live-validated, the rest are
+  -- structurally confirmed only), shows the exact move and target probability distribution,
+  -- computed from the formula's own known RNG2 odds - not from rolling/simulating anything, so
+  -- this is stable frame-to-frame (unlike a sampled outcome would be) and meaningful even
+  -- before it's actually that enemy's turn.
+  local aiPredictions = EnemyAIPredictor:predictAll()
+  if aiPredictions and #aiPredictions > 0 then
+    Drawer:draw({ "Enemy AI odds" }, Drawer.anchors.TOP_LEFT, nil, true)
+    local ai_rows = {}
+    for _, p in ipairs(aiPredictions) do
+      -- Move names vary per monster (Zombie Dragon: Attack/Fire Breath; most others: Attack/
+      -- Special - see EnemyAIPredictor.lua's KNOWN_AI) - iterate whatever keys are actually
+      -- present rather than a hardcoded pair.
+      local moveNames = {}
+      for moveName in pairs(p.MoveProbs) do table.insert(moveNames, moveName) end
+      table.sort(moveNames)
+      local moveParts = {}
+      for _, moveName in ipairs(moveNames) do
+        table.insert(moveParts, string.format("%s:%d%%", moveName, math.floor(p.MoveProbs[moveName] * 100 + 0.5)))
+      end
+      local targetParts = {}
+      for targetIdx, prob in pairs(p.TargetProbs) do
+        table.insert(targetParts, { targetIdx, prob })
+      end
+      table.sort(targetParts, function(a, b) return a[1] < b[1] end)
+      local targetStrs = {}
+      for _, pair in ipairs(targetParts) do
+        table.insert(targetStrs, string.format("%d:%d%%", pair[1], math.floor(pair[2] * 100 + 0.5)))
+      end
+      table.insert(ai_rows, string.format("%1d: %s | tgt %s",
+        p.EnemyActorIdx, table.concat(moveParts, " "),
+        #targetStrs > 0 and table.concat(targetStrs, " ") or "none eligible"))
+    end
+    Drawer:draw(ai_rows, Drawer.anchors.TOP_LEFT)
   end
 end
 

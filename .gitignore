@@ -2,3 +2,7 @@ old/
 Release/
 not_needed/
 outputs/**
+*.State
+.trash/
+.obsidian/
+

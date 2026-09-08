@@ -39,7 +39,7 @@ using `rng2 = getRNG2(rng)`:
 The division by `0x7f` (127) for overworld, instead of a power-of-two mask
 like the world-map path, is unexplained in any comment and looks like it
 mirrors the original PS1 assembly rather than being an arbitrary tool design
-choice — worth verifying against a disassembly if one becomes available.
+choice.
 
 ### Encounter rate gating
 
@@ -73,13 +73,6 @@ level-sum ceiling for `encounters[i]`).
 3. If the Champion Rune is **not** equipped, this level check is skipped
    entirely — any rolled group is accepted.
 
-This implies the base game normally downgrades/rescales which encounter
-groups can appear as the party's total level rises past each `champVal`
-threshold, and equipping the Champion Rune prevents that automatic
-downgrade, letting tougher/rarer groups keep appearing regardless of level.
-**This inference is not stated in any comment — it is inferred purely from
-the check's structure and should be verified against real game behavior.**
-
 ## Data structures
 
 ### `EncounterTable.lua` (per area)
@@ -93,8 +86,7 @@ the check's structure and should be verified against real game behavior.**
   `1..N` = index into that area's `enemies` list. **This digit → enemy
   mapping is never explicitly decoded anywhere in the code** — it's inferred
   by cross-checking digit ranges against `enemies` list lengths per area, and
-  is only ever displayed as a raw string in the Battles UI. Verify against
-  real battles before treating as fact.
+  is only ever displayed as a raw string in the Battles UI.
 - `enemies` — ordered list of enemy names appearing in that area, referenced
   positionally by the `encounters` digit strings
 

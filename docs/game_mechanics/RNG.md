@@ -18,7 +18,7 @@ this tool builds on (encounters, drops, stat growth, Chinchironin).
 
 `0x1b9af6` (the Dragon Ride selector byte, read directly in `lib/RNG.lua`) is
 **not** defined in `lib/Address.lua`, breaking the project's own convention of
-centralizing addresses there. Worth fixing if this file is touched again.
+centralizing addresses there.
 
 ## Core algorithm
 
@@ -50,11 +50,8 @@ end
 ```
 
 This is displayed in the Battles module as `R` (Run) vs `F` (Fail) next to
-each predicted encounter. **Its true in-game meaning is not documented
-anywhere in the code** — it's consumed two RNG advances ahead of the "does an
-encounter happen" roll, but nothing confirms what it actually represents
-in-game (ambush type, formation, something else). Flagged as an open RE
-question.
+each predicted encounter, consumed two RNG advances ahead of the "does an
+encounter happen" roll.
 
 ## RNG event resets
 
@@ -85,9 +82,7 @@ candidate set for that event (1-indexed: `eventRNGValues[eventID + 1]`):
 | 14 | Kasios | `0x1E6,0x1E7,0x1E8,0x1ED` |
 | 15 | Georges | `0x4E` |
 
-Events 11–15 are named after NPCs rather than battles — plausibly related to
-the Chinchironin dice-gambling minigame or other scripted NPC sequences, but
-this is **not confirmed anywhere in the code**.
+Events 11–15 are named after NPCs rather than battles.
 
 **Dragon Ride** (eventID 9) is special-cased: it reads a *different* byte at
 `0x1b9af6` to disambiguate which of three flights is happening:
@@ -168,22 +163,3 @@ BUFFER_MARGIN_SIZE     = 50000 -- once remaining look-ahead drops below this, ex
   used by ad hoc route-optimization scripts (e.g. `scripts/HolyBirds.lua`,
   which repeatedly calls `RNGMonitor:setRNG(rng)` in a search loop; treat
   content from `scripts/` as a hint of intent only, per project convention).
-
-## Open questions / flagged uncertainties
-
-- **`isRun` semantics** are undocumented — the R/F label's actual in-game
-  meaning is unconfirmed.
-- **Event ID 10 ("0x0A Unknown") has an empty reset table** — unresolved RE
-  work; its actual reset values were never recorded.
-- **`Address.ENCOUNTER_RATE` (`0x17159D`) is tracked by `StateMonitor` but
-  never consulted by `Encounter.lua`'s `isPossibleBattle`**, which instead
-  uses hardcoded thresholds. If the in-game encounter rate is dynamic (e.g.
-  repel effects), prediction could silently diverge from the live game in
-  some states — see [Battles_and_Encounters.md](./Battles_and_Encounters.md).
-- Several explicit `TODO`s exist around whether manual RNG index adjustments
-  should fire events (`monitors/RNG_Monitor.lua`), and whether confirming a
-  reset value always needlessly creates a new table
-  (`menus/RNG_Reset_Menu.lua`).
-- `issues.md` documents a known display glitch: after setting a new RNG via
-  the battle selection menu, the RNG monitor visibly blinks to a different
-  value for one frame before settling.

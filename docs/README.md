@@ -31,20 +31,37 @@ verified or current understanding.
 - [Battle Damage Formula](./game_mechanics/Battle_Damage_Formula.md) — the
   actual combat-resolution code (damage formula, crit chance, elemental
   affinity), reverse-engineered from `main.exe` disassembly in Ghidra
-  rather than from this tool's own source — see that page's note on
-  methodology before treating it the same as the pages below.
+  rather than from this tool's own source.
 - [Turn Order](./game_mechanics/Turn_Order.md) — who acts next: confirmed
   RNG2 usage, live-verified combatant indexing and "current actor" field,
   still in progress (the exact speed-comparison loop isn't found yet).
-- [Spell RNG Tracing Methodology](./game_mechanics/Spell_RNG_Tracing_Methodology.md)
-  — the repeatable process for tracing a new spell's RNG consumption and
-  animation duration, written as a checklist since this keeps coming up.
+- [Scripted Battle Actions](./game_mechanics/Scripted_Battle_Actions.md) — how
+  to drive a full battle round (every party member's command) from a Lua
+  script with no controller input, for simulation purposes.
+- [Monster/Boss AI Static Catalog](./game_mechanics/Monster_AI_Static_Catalog.md)
+  — a disc-wide, no-emulator-needed index of every monster/boss record found
+  (file, offset, stats, AI function pointer) via `scripts/ScanMonsterRecords.py`,
+  cross-referenced against `EncounterTable.lua`'s area rosters to flag which
+  extra records per file are scripted bosses.
+
+## Notes
+
+[`notes/`](../notes/) (a sibling of `docs/`, at the repo root) holds two
+kinds of content deliberately kept out of the pages above: the
+investigation history behind each Ghidra-derived doc (dated findings,
+corrections, dead ends, open questions — one `notes/X.md` per
+`docs/game_mechanics/X.md` it documents), and reusable process
+checklists for repeatable RE tasks
+([Enemy AI Tracing Methodology](../notes/Enemy_AI_Tracing_Methodology.md),
+[Spell RNG Tracing Methodology](../notes/Spell_RNG_Tracing_Methodology.md),
+[Soul Eater Spell Offline Simulation Workflow](../notes/Black_Shadow_Simulation_Workflow.md)).
+Treat `docs/` as the settled reference and `notes/` as the lab notebook
+behind it.
 
 ## Notes on accuracy
 
 Several addresses and data structures in this codebase were arrived at by
-observation/trial rather than disassembly, and the code itself flags a
-number of open questions (unlabeled struct fields, unverified heuristics,
-dead/renamed code paths). Each page calls these out explicitly where found
-— treat anything phrased as "inferred," "unconfirmed," or "not stated in a
-comment" as a lead for further reverse engineering, not settled fact.
+observation/trial rather than disassembly. Anything genuinely open or
+unconfirmed has been moved to the corresponding `notes/` file rather than
+left in these pages — if a page doesn't say a fact is uncertain, treat it
+as settled.

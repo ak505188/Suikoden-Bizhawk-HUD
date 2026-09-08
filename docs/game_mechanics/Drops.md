@@ -12,7 +12,7 @@ struct this builds on, and [RNG.md](./RNG.md) for the RNG primitives.
 | `0x197F10` | `ENEMY_GROUP_PTR` | Pointer to the current battle's enemy-group struct |
 | `0x197F14` | `ENCOUNTER_TABLE_PTR` | Pointer to the current encounter/enemy table |
 | `0x16765C` | `ITEM_NAME_PTR_1` | Base of the item-name pointer array: `item_name_addr = u32[ITEM_NAME_PTR_1 + (id-1)*4] & 0x7fffffff` |
-| `0x18FAF0` | `BATTLE_ITEM_DROP` | Declared in `Address.lua` but **never read anywhere in the codebase** — dead/unused. Plausibly the address the game itself writes the actually-rolled drop item to post-battle, which would make it a great live-verification address for the prediction algorithm below, but this is speculation. |
+| `0x18FAF0` | `BATTLE_ITEM_DROP` | Declared in `Address.lua` but **never read anywhere in the codebase** — dead/unused. |
 
 The enemy struct's drop fields (bytes 54–59, three `{id, chance}` pairs) are
 documented in [Battles_and_Encounters.md](./Battles_and_Encounters.md#enemy-struct-60-bytes-per-enemy-libbattleluareadenemytable).
@@ -118,17 +118,3 @@ itself, as `enemy.Drops[1..3] = {id, chance, name}`).
   unique droppable item in the current battle (`Y/N <name> <chance>`), Cross
   toggles show/hide, letting a user hide "junk" items from the scrolling
   timeline without altering the underlying prediction data.
-
-## Flagged uncertainties
-
-- `BATTLE_ITEM_DROP` (`0x18FAF0`) is unused dead data — worth investigating
-  live to see if it holds the actual post-battle drop, which would let the
-  prediction algorithm above be verified directly.
-- `enemy.Bits` (enemy struct offset 52–53) is parsed but never consumed
-  anywhere — meaning unknown (candidate guesses: elemental
-  affinity/resistance, steal-eligibility, or an AI flag — unconfirmed).
-- Item name string length differs between the live path (24 bytes) and the
-  dead legacy `helpers/BattleDetector.lua` path (16 bytes).
-- `issues.md` notes "Drops has crashed before" as an open, unresolved issue,
-  consistent with the battle-detection timing concerns noted in
-  [Battles_and_Encounters.md](./Battles_and_Encounters.md).

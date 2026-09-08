@@ -45,8 +45,7 @@ purposes); Room = the current screen's dynamic actor table.
 **never `require`d anywhere** — only `ZoneInfo.lua` is used, exclusively by
 `StateHandler.lua`. It contains a raw-string placeholder
 `"Cave of the Past (Inaccessible)"` and a comment `--Not listed in my
-spreadsheet`, both signaling unfinished/unverified mapping work. Worth
-reconciling the two files rather than treating `ZoneInfoComplete.lua` as current.
+spreadsheet`, both signaling unfinished/unverified mapping work.
 
 ## Area categories: Forced / Random / Random_Forced / All
 
@@ -160,7 +159,7 @@ CANDIDATE_POINTER_2."* A second, independent value, `NUM_SLOTS_OLD`, is read
 as a plain byte at `ROOM_ADDRESS - 0x10` and displayed side-by-side (`N:` vs
 `O:` in the RoomInfo worker) — kept for cross-checking, since the two
 methods can disagree. **Treat this entire mechanism as an unverified
-heuristic, not confirmed memory layout** — a good target for further RE.
+heuristic, not confirmed memory layout.**
 
 ## Hero position/direction
 
