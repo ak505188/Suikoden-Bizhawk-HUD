@@ -164,10 +164,13 @@ frame in practice. Seeing them match is expected behavior, not a bug.
   (`battle_dispatch_current_actor_action`) resets it to whatever a
   separate, fixed-address global (`0x8017be44` — not `BattleState`'s own
   `dwCurrentActorIdx` field) holds. That global has exactly one writer in
-  all of `main.exe`: `battle_menu_fight_run_bribe_freewill` (`0x800ea480`)
+  all of `main.exe`: `battle_menu_fight_run_bribe_freewill` (`0x800ea2a8`)
   sets it to the literal constant `10`, only on the Free Will branch
-  (choice `3`) — Fight/Run/Bribe never touch it. So this reset really means
-  "10 if the round was entered via Free Will, otherwise a stale leftover
+  (choice `3` — see
+  [Battle_Damage_Formula.md](./Battle_Damage_Formula.md#free-will-automatic-action-selection)
+  for how Free Will picks each character's target) — Fight/Run/Bribe never
+  touch it. So this reset really means "10 if the round was entered via
+  Free Will, otherwise a stale leftover
   value" — a fixed constant, just conditionally written.
 - Rune/Item/Unite never touch the field directly — they defer to their own
   wait-for-animation coroutine states.

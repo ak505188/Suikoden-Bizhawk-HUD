@@ -15,7 +15,9 @@ an action into that field in the first place goes through a **separate, real inp
 system**:
 
 1. **Fight / Run / Bribe / Free Will** — the round-start prompt. Fight leads into per-character
-   command selection (below). Free Will has the AI pick every command automatically. Run and
+   command selection (below). Free Will has the AI pick every command automatically — see
+   [Battle_Damage_Formula.md](./Battle_Damage_Formula.md#free-will-automatic-action-selection)
+   for exactly how it assigns each character's target. Run and
    Bribe set every living party member's `ActionType` to `1` (Defend) immediately and
    unconditionally, before anything else — `LAB_800ee124` (Run) and `LAB_800ee38c` (Bribe),
    neither yet a Ghidra-bounded function. Run then calls the escape-roll resolver

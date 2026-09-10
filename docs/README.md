@@ -32,12 +32,16 @@ verified or current understanding.
   actual combat-resolution code (damage formula, crit chance, elemental
   affinity), reverse-engineered from `main.exe` disassembly in Ghidra
   rather than from this tool's own source.
-- [Turn Order](./game_mechanics/Turn_Order.md) — who acts next: confirmed
-  RNG2 usage, live-verified combatant indexing and "current actor" field,
-  still in progress (the exact speed-comparison loop isn't found yet).
+- [Turn Order](./game_mechanics/Turn_Order.md) — who acts next: the
+  weighted-RNG speed roll, the roll-gate countdown, and how a turn actually
+  starts.
 - [Scripted Battle Actions](./game_mechanics/Scripted_Battle_Actions.md) — how
   to drive a full battle round (every party member's command) from a Lua
   script with no controller input, for simulation purposes.
+- [Battle Algorithm](./game_mechanics/Battle_Algorithm.md) — the master
+  per-round loop (turn selection → action resolution → round-end processing),
+  assembling Turn Order/Battle Damage Formula/Scripted Battle Actions into one
+  walkthrough for implementing a pure-code battle simulator against.
 - [Monster/Boss AI Static Catalog](./game_mechanics/Monster_AI_Static_Catalog.md)
   — a disc-wide, no-emulator-needed index of every monster/boss record found
   (file, offset, stats, AI function pointer) via `scripts/ScanMonsterRecords.py`,
