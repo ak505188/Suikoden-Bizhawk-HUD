@@ -8,1160 +8,527 @@ sections in that doc.
 
 ## The central battle-state struct
 
-`class_ptrs` offset was cited ambiguously across earlier session notes as
-either `+0xF84` or `+0xF90` (two different sessions disagreed) — resolved
-in favor of `+0xF84`, confirmed directly from Ghidra's own decompiled
-pointer arithmetic once the struct was formally typed.
+`class_ptrs` offset was cited ambiguously as either `+0xF84` or `+0xF90` in
+earlier session notes — resolved in favor of `+0xF84`, confirmed directly
+from Ghidra's own decompiled pointer arithmetic once the struct was
+formally typed.
 
-**Formalized as real Ghidra struct types 2026-09-07** (`BattleState`,
-`CombatantRec`, `EnemyData`, `MonsterRecord`, `ClassPtrEntry` — in
-`main.exe`'s own data type manager, not just this doc): the global pointer
-(`DAT_8017be3c`, renamed `g_pBattleState`) is now typed `BattleState *`,
-and every function that touches it decompiles with real field names
-(`.wSKL`, `.bActionType`, `.wStatusFlags`, `.pClassDataPtr`, etc.) instead
-of raw offset arithmetic — verified across `calc_hit_chance`, `calc_
-damage`, `apply_status_effect`, `apply_elemental_multiplier`, and `mark_
-enemy_formation_slot_occupancy`. Large regions where fields are known to
-exist but aren't confidently pinned down (the sync-signal array around
-`+0x30`, most of the `+0xdc`-`+0xb40` and `+0xb94`-`+0x1258` gaps,
-`+0x1268`-`+0x1344`, `+0x1348`-`+0x3420` including the per-status
-duration-slot table at `+0x30a0`) are left as explicit `undefined1[]`
-padding rather than guessed at — safer than baking in a wrong layout.
-`CombatantRec`/`EnemyData`/`ClassPtrEntry` are declared as single array
-elements at their correct starting offsets (real counts vary by battle) —
-index further via pointer arithmetic using each struct's own confirmed
-size rather than array subscripting.
+Formalized as real Ghidra struct types (`BattleState`, `CombatantRec`,
+`EnemyData`, `MonsterRecord`, `ClassPtrEntry`): the global pointer
+(`DAT_8017be3c`, renamed `g_pBattleState`) is now typed `BattleState *`, and
+every touching function decompiles with real field names instead of raw
+offset arithmetic — verified across `calc_hit_chance`, `calc_damage`,
+`apply_status_effect`, `apply_elemental_multiplier`, and `mark_enemy_
+formation_slot_occupancy`. Large regions known to hold fields not yet
+pinned down are left as explicit `undefined1[]` padding rather than guessed
+at.
 
 Still worth reconciling against the independently-derived RAM-side enemy
 struct in
 [Battles_and_Encounters.md](../docs/game_mechanics/Battles_and_Encounters.md#enemy-struct-60-bytes-per-enemy-libbattlelua-readenemytable)
-(found via a completely different method — live memory reads, not
-disassembly).
+(found via live memory reads, not disassembly).
 
 ## `calc_hit_chance`
 
-The halving condition (Bucket-status for party members, Hazy-Rune check
-for enemies) was, at the time this section was first written, not
-independently confirmed — later resolved via the status-effects and
-passive-rune-effects investigations below.
+The halving condition (Bucket-status for party members, Hazy-Rune check for
+enemies) wasn't independently confirmed when this section was first
+written — resolved later via the status-effects and passive-rune-effects
+investigations below.
+
+## Dodge and counter: from "does an enemy-side mechanic even exist" to fully confirmed
+
+Prompted by the user asking directly whether an enemy can counter a party member's miss.
+First pass traced `battle_execute_player_attack`/`check_dodge_counter` and correctly ruled
+out that path for enemy-side counters (its eligibility guard structurally requires an enemy
+attacker). Found a second mechanism in `battle_execute_enemy_attack`, keyed on the *target's*
+`MonsterRecord+0x26` bit 1 — first write-up wrongly said this fires "on a hit"; re-reading the
+decompile showed it's nested inside the same branch as `calc_hit_chance`'s failure, i.e. a
+miss only, same shape as the party's own mechanic.
+
+**Wrongly concluded the whole path was dead code.** A first static scan found bit 1 set on 47
+of 96 unique monsters — common enough that, reasoning the user would have already noticed such
+a mechanic, this was written up as "very likely dead code." **The user pushed back with real
+game knowledge**: "I know for a fact that Sonya Shulen and Ain Gide can counter" — both were
+already on the list, falsifying the conclusion outright, and flagged the disc scan itself was
+undercounting (user: "I know there's over 100 enemies in the game," vs. the scan's 96).
+Root-caused: the scanner only validated AI pointers against base `0x80010000` (boss-overlay
+convention); per-area `*_data.bin` files load at `0x80080000` instead. Fixing this found 122
+monsters and 38 with bit 1 set.
+
+Closed the loop by confirming the exact opcode (26 = `anim_op_set_effect_flags`) and reading
+all 6 living party members' own basic-Attack scripts live (`ZombieDragonStart.State`,
+resolved via each combatant's live `EnemyData+8` `pActionScriptTable`, *not*
+`pAttackDataTable[bId]`, which holds no valid rows for party roster IDs — a separate minor
+gotcha worth remembering). Every script contained opcode 26; 5 of 6 set the checked bit on
+themselves, Cleo sets it on her target instead. The user's own guess — "long range characters
+can't be countered" — checked out exactly: Cleo is the only one of the 6 with weapon-reach
+category 2 (ranged/any-row); the other five are melee/normal reach.
+
+**Lesson**: two real corrections in one thread — a plain "hit" vs "miss" re-reading error, then
+a much bigger "probably dead" conclusion drawn from data that was silently incomplete due to an
+already-known-but-unapplied scanning quirk. A "this is rare" argument for "probably unused" is
+only as good as the underlying survey — sanity-check a completeness claim against a number the
+user might already know.
 
 ## Magic Unite spells
 
-Not yet done: confirming the MGC/2 bonus and resistance-priority rules
-Suikosource describes against the actual consumer code (the `+0x14`
-handler this resolves to isn't traced past `battle_check_magic_unite`
-itself); naming Earth's/Water's Lv4/Lv5 spells (handler addresses known,
-not yet cross-referenced against the external spell-name reference).
+Not yet done: confirming the MGC/2 bonus and resistance-priority rules against the actual
+consumer code (the `+0x14` handler isn't traced past `battle_check_magic_unite` itself); naming
+Earth's/Water's Lv4/Lv5 spells (handler addresses known, not cross-referenced yet).
 
 ## The unique-rune ability table (`DAT_8016a630`)
 
-Originally an open mystery: the `+0x16` flag byte was thought to be a
-simple two-value flag, and `DAT_8016a630` was guessed to be an
-enemy/monster table. Reading all 34 entries of the equipped-rune lookup
-table directly showed it's actually three-valued, and settled that
-`DAT_8016a630` is not an enemy/monster table — it's a separate
-special-ability definition table for the 6 unique/single-character runes.
-
-Not yet determined: what value-`2` entries (index 14 onward, unconditionally
-rejected) actually represent, or whether they're reachable through some
-other resolver entirely — open for a future pass.
-
-(The Defend handler and the `[0]`/Attack dispatch entry are resolved — see
-[Turn_Order.md](../docs/game_mechanics/Turn_Order.md#how-a-turn-actually-starts-battle_dispatch_current_actor_action).)
+Originally thought to be a simple two-value flag on an enemy/monster table; reading all 34
+entries showed it's three-valued and `DAT_8016a630` is actually a separate special-ability
+table for the 6 unique/single-character runes. Not yet determined: what flag-value-`2` entries
+(unconditionally rejected) represent, or whether they're reachable some other way.
 
 ## Status effects
 
-Found 2026-09-06 while investigating what looked like an unexplored
-counterattack gate (`anim_op_roll_status_effect_chance`, one of
-`play_attack_animation`'s 45 script opcodes) — tracing what it actually
-*called* revealed a status-ailment/buff system, not a counter. Two fields
-from this system were already independently referenced elsewhere in this
-project's docs before their real meaning was known: `calc_hit_chance`'s
-"`+0x4a` bit `0x10` halves accuracy" note and `Turn_Order.md`'s "`+0x4a`
-bit `0x20` = can't act, skip AI" note — both turned out to be 2 of the same
-9 statuses.
+Found while investigating what looked like an unexplored counterattack gate
+(`anim_op_roll_status_effect_chance`) — tracing its callees revealed a full status system, not
+a counter. Two fields already referenced elsewhere before their real meaning was known
+(`calc_hit_chance`'s Bucket check, `Turn_Order.md`'s "can't act" note) turned out to be 2 of the
+same 9 statuses.
 
-**`id1`/`id2`/`id3` are one escalating ailment, not three separate ones**
-— per the user's own game knowledge, 2026-09-06.
+`id1`/`id2`/`id3` being one escalating ailment (not three separate ones) came from the user's
+own game knowledge. The `id5`/`id7` `ActionTag=1` behavior was initially misread as forcing
+`ActionType`=Attack; live-testing corrected this — it marks the turn already-resolved without
+going through normal action selection, so `ActionType` reads back as the `255` sentinel and the
+turn is silently skipped.
 
-**`id5`/`id7` ActionTag correction (2026-09-06)**: `id5` and `id7` setting
-`ActionTag=1` was previously misread as forcing `ActionType`=Attack.
-Live-testing confirmed this actually marks the combatant's turn as
-already-resolved without ever going through normal action selection, so
-`ActionType` reads back as the `255` sentinel rather than `0`(Attack) — the
-ailment silently skips the turn rather than forcing an uncontrolled Attack.
+**Live-editing sessions**: a menu-paused savestate attempt was inconclusive (frame-advancing
+alone never progresses a round waiting on the Fight/Run menu). Switching to a mid-round
+savestate and injecting input via `joypad.set` worked. **Safety finding**: poking the
+per-status duration-slot table (`+0x30a0`) alongside the bitmask hung the battle completely —
+that region isn't safe to write blindly; a bitmask-only poke on `+0x4a` was always safe.
 
-### Live-editing sessions
+Round-end testing confirmed `id3` (vanishes/KO'd, matching a real death) and `id5`
+(`ActionType` reads `255` after a round — tentatively named "Sleep" per the user's own
+best guess, treated as provisional). `id7`/`id8` use their own dedicated countdown fields
+rather than the generic duration-slot table.
 
-**Attempt #1 (menu-paused savestate, inconclusive)**: poked
-`combatant_rec+0x4a` directly in a real battle (`Gigantes.State`, one
-status id at a time, also populating the per-status duration-slot fields so
-the bit wouldn't get silently cleared) and screenshotted — all 9 came back
-visually identical to baseline. Root cause: the savestate is frozen at the
-"Fight/Run/Bribe/Free Will" decision menu, and frame-advancing alone never
-progresses a round while that menu is waiting on input — the headless
-spawn process clears all input bindings (so it can't steal the user's real
-controller), so nothing was ever going to reach the round-end code that
-would react to the status.
+Further rounds of testing (multiple ids against a controlled HP-trajectory baseline) confirmed
+`id0` (Poison) as a clean periodic-damage signature, and `id8` (**confirmed by the user as
+Copper Flesh**, HP-locked for 3 turns) once its dedicated countdown byte was properly seeded.
+`id1`/`id2`/`id6` showed no detectable effect within a short window — explained afterward by
+the balloon-escalation mechanic (`id1`/`id2`) and (for `id6`) the afflicted character simply
+never trying to cast a spell during the test.
 
-**Attempt #2 (mid-round savestate + injected input, successful)**:
-switched to `GigantesEnd.State` (mid-round, not menu-paused) and drove the
-round to completion by directly calling BizHawk's `joypad.set({["P1
-X"]=true})` for a burst of frames — works even with input bindings
-cleared, since it sets button state programmatically. Confirmed via
-`combatant_rec+0x46`/`+0x47` reads that rounds genuinely advance this way.
-**Important safety finding**: poking the per-status duration-slot table
-(`+0x30a0` region) alongside the bitmask caused the battle to hang
-completely (no further progress no matter how much input was injected/how
-many frames advanced) — the assumed 4×u32 slot layout is apparently not
-safe to write blindly. Do not poke that region without further care; a
-bitmask-only poke on `+0x4a` was sufficient for every id tested and never
-caused a hang.
-
-With that fixed, round-end processing gave clean confirmation on 2 of the
-9 ids:
-- **`id3`**: live-confirmed visually — vanishes from the HP list, sprite
-  lies face-down, matching a KO. Bit never cleared throughout testing.
-- **`id5`**: live-confirmed behaviorally — `ActionType` read back as `255`
-  after a round passed. **Tentatively named "Sleep" (2026-09-07, per the
-  user's own best guess** — "likely sleep or petrify, but I can't think of
-  any enemy that sets either — there is only 1 player way to set sleep"):
-  treat this identification as provisional/unconfirmed, unlike the other 8
-  ids which are either code-solid or user-confirmed outright.
-
-`id7`/`id8` use their own dedicated countdown fields rather than the
-generic duration-slot table — both resolve in 1-2 rounds. Live-tested both
-(bitmask-only poke) without incident, but a clean read wasn't possible this
-way: a bitmask-only poke leaves `+0x4d`/`+0x4c` at pre-existing garbage, so
-the round-end countdown-to-`0` check never fires within a short window.
-
-**Round 2 of live testing (2026-09-06, `id0`/`id1`/`id2`/`id4`/`id6`/`id7`/`id8`,
-bitmask-only, `GigantesEnd.State`, 3 mashed-through rounds each)**:
-Gigantes' own HP trajectory across the 3 rounds came back bit-for-bit
-identical (`3900→3900→3707→3661`) across `id0`, `id1`, `id2`, `id6`, `id8`
-tests — the underlying combat played out identically in all five. Yet the
-afflicted character's own HP only dropped (`266→253`) in the `id0` test
-specifically, staying flat at `266` in the other four — a clean
-confirmation of a Poison-style periodic-damage effect. `id0` is also one of
-the 4 "persists across battles" ids — Poison lingering across fights until
-cured is the expected classic mechanic.
-
-`id4`/`id7` showed different Gigantes trajectories, consistent with them
-genuinely altering something (a changed hit/miss outcome or a skipped turn
-cascades into different RNG outcomes), matching their already-established
-mechanics, though neither produced a clean standalone signature this pass.
-`id1`, `id2`, `id6`, `id8` showed no detectable effect within this 3-round
-window — an honest negative, most likely because their real behavior needs
-duration-slot/counter data this project can't safely initialize via a raw
-poke.
-
-**Round 3 of live testing (2026-09-06)**: re-ran `id1`/`id2`/`id6` against
-a proper 6-round baseline for a cleaner control, and properly initialized
-`id7`/`id8`'s dedicated countdown bytes (`+0x4d=1`, `+0x4c=2`) so their
-real short lifecycle could run to completion.
-
-- `id1`/`id2`/`id6`: completely identical to baseline across all 6 rounds.
-  Now explained for `id1`/`id2` by the "balloon" escalation mechanic — a
-  lone poke never escalating to `id3` producing no visible effect is
-  exactly what the mechanic predicts. `id6` remains a genuine unexplained
-  negative, most likely a conditional effect (e.g. Silence-like) that
-  never got a chance to trigger since the afflicted character just kept
-  physically attacking.
-- `id7`: with `+0x4d` seeded, decrement matched the code (`1→0` after one
-  round) but the status got stuck rather than expiring — traced to
-  `clear_status_effect`'s own guard clause, which no-ops for every status
-  except `id8` unless the generic duration-slot's "active" flag is also
-  set.
-- `id8`: entire lifecycle completed correctly (`+0x4c` ticked `2→1→0`,
-  status bit cleared by round 6). Screenshots at the same checkpoint showed
-  the afflicted character at full HP (`266/266`) vs. `250/266` in
-  baseline/every other id — a clean, isolated signal the character avoided
-  a hit landing in every other test. **Confirmed by the user (2026-09-07):
-  `id8` is the effect from the "Copper Flesh" spell, which locks HP for 3
-  turns.**
-
-**Mechanism fully traced in code (2026-09-07, corrected same day)**: not
-via `combatant_rec+0x4c` at all — the real check lives in `apply_hp_
-damage_display` (`0x800e1654`), whose first check is `if
-(combatant_rec.StatusFlags & 0x8000) hp_delta = 0;` followed by `if
-(hp_delta == 0) return -1`. **Correction**: this function is NOT the
-"single choke point where any computed damage/heal value gets applied to
-HP" as first described — full disassembly (not just decompile) shows it
-never writes `HP_Current` at all; it only accumulates the delta into a
-running `nHpDeltaAccumulator` field (`+0x4e`) and queues the floating
-damage-number display. Some other, not-yet-identified function applies
-that accumulator to real HP afterward. Functionally this doesn't change the
-conclusion. **Also corrected 2026-09-07**: this function's `hp_delta` sign
-convention was documented backwards in an earlier pass — it's negative =
-healing, positive = damage (confirmed both by its own overheal-clamp
-logic and by `apply_uncovered_attack_damage`/`apply_covered_attack_damage`
-passing `calc_damage`'s raw positive return through unmodified). This
-directly explains the Sunbeam mixup below. `combatant_rec+0x4c` (the field
-`apply_status_effect` actually sets to `2`) is purely id8's own duration
-countdown, not something the damage-blocking check itself reads — the
-earlier assumption sent the search down the wrong field.
-
-Checked every `lbu ...,0x4c(...)` site in `main.exe` (29 hits) looking for
-a `combatant_rec+0x4c` reader; the one promising-sounding candidate,
-`check_dodge_counter`, turned out to read the persistent Stats struct's
-`Rune.Id`, not `combatant_rec+0x4c` — a red herring for this specific
-mystery, though a genuine, useful find for the passive-rune-effects thread.
-The remaining ~28 `+0x4c` sites haven't all been individually traced back
-to their base struct.
+**Mechanism correction**: the real HP-lock check lives in `apply_hp_damage_display`
+(`0x800e1654`, `if (StatusFlags & 0x8000) hp_delta = 0`), which — corrected after a full
+disassembly read — never writes `HP_Current` directly; it only accumulates into a
+`nHpDeltaAccumulator` (`+0x4e`) field for later application and the floating damage-number
+display. Also corrected: this function's `hp_delta` sign convention is negative=healing,
+positive=damage (documented backwards in an earlier pass) — this directly explains an earlier
+Sunbeam mixup below.
 
 ### Passive rune effects — major correction
 
-**Major correction, per the user's own game knowledge.** Everything
-documented in an earlier session as "`equip_ptr+0x4c`, the weapon-type
-byte" was never a separate weapon/equipment-type concept —
-"`equip_ptr`" (reached via the `class_ptrs[idx]->+0x1c` chain) **is the
-character's persistent Stats address**, and `+0x4c` on it is `Rune.Id`.
-There is no separate "weapon-type" struct or field; every check is really
-"does this combatant have rune `N` equipped."
+**Major correction, per the user's own game knowledge**: everything documented earlier as
+"`equip_ptr+0x4c`, the weapon-type byte" was wrong — `equip_ptr` (via `class_ptrs[idx]->+0x1c`)
+is the character's persistent Stats address, and `+0x4c` is `Rune.Id`. There is no separate
+weapon-type struct.
 
-Confirmation/narrative-fit notes per rune, gathered while mapping the table
-now in docs:
-- **Killer (`15`)**: confirmed by the user exactly.
-- **Counter (`16`)**: strong match by name — the user's own instinct was
-  "nothing guarantees dodge," but the function resolves both dodge and
-  counter outcomes, so this fits the counter half cleanly.
-- **Hazy (`18`)**: confirmed, and a correction of an earlier misread — the
-  check reads `param_2` (the target, i.e. the Hazy-wearer), not the
-  attacker; the first pass mixed up which argument was indexed and wrongly
-  reported this as "halves the attacker's own accuracy."
-- **Gale (`19`)**: found 2026-09-07; "Gale" doubling speed is an exact
-  narrative fit, inherits confidence from `battle_compute_ally_derived_
-  stats` already being byte-for-byte validated against real game data.
-- **Sunbeam (`20`)**: corrected 2026-09-07 — Regen, not damage. Confirmed
-  by the user exactly: "Regen +5. Heals 1 HP of the party per step on the
-  field." The `DAT_8017db24` subsystem is very likely the overworld
-  step-counter, not a scripted event as first guessed.
-- **Fortune (`22`)**: corrected 2026-09-07 — doubles a different
-  per-party-member field (`+0x10`) than the aggro score itself (`+0x14`),
-  which had been originally conflated since both are computed in the same
-  function with overlapping-looking address arithmetic. Confirmed by the
-  user: "Fortune doubles XP growth."
-- **Prosperity (`23`)**: confirmed by the user ("Prosperity doubles money
-  (bits) drops") and independently verified 2026-09-07: statically read
-  `+0x34` from 2 monster records via the disc-file charmap name-search
-  technique (no live emulator needed) — Zombie Dragon (`vb5g.bin`) reads
-  `2000`, Killer Rabbit (`b_data.bin`) reads `80`, both exact matches
-  against `Suikoden-RNG-lib`'s `enemies.js` `"bits"` field. Neither sample
-  exercised the bit-0 "compressed large value" branch, so it remains
-  unconfirmed by live data, just by the code path itself.
-- **Turtle (`25`)**: plausible per the user ("could also be some equipment
-  for specific statuses").
-- **Holy (`21`)**: plausible, unconfirmed — found 2026-09-07 via the same
-  shared `FUN_801261b0(21)` helper Sunbeam/Champion's use.
-- **Champion's (`24`)**: plausible — found 2026-09-07; fits "guarantees
-  success" narratively, but the actual scene/event wasn't identified.
-- **Phero (`26`)**: confirmed by the user exactly: "Phero makes characters
-  cover for the opposing gender" — resolved what `find_cover_target`
-  (renamed from `find_heal_target`) actually does, once its real caller
-  (`battle_check_counter_attack`) was traced.
+Per-rune notes gathered while mapping the table now in docs: **Killer**/**Counter** confirmed
+by the user directly. **Hazy** confirmed, correcting an earlier misread that had the
+attacker/target argument backwards. **Gale** (doubles SPD) fits the name exactly. **Sunbeam**
+corrected from an earlier "damage" guess to Regen — confirmed by the user: "+5, heals 1 HP of
+the party per step on the field." **Fortune**: confirmed by the user ("doubles XP growth"), but
+an earlier pass believed it doubled a *separate* field (`+0x10`) from an "aggro score" (`+0x14")
+— that was wrong on two levels: there never was an aggro score (see the `battle_calc_enemy_
+aggro` misidentification below), and `+0x10`/`+0x14` are the same address on every loop
+iteration, algebraically, not two overlapping-looking fields. **Prosperity**: confirmed by the
+user and independently verified via 2 monsters' static gold values matching Suikoden-RNG-lib
+exactly. **Turtle**, **Holy**, **Champion's** are plausible but only loosely confirmed.
+**Phero**: confirmed by the user exactly ("makes characters cover for the opposing gender").
 
-Given several of these narrative fits were genuinely uncertain (the user
-flagged real doubt on Double-Beat/AOE specifically, though Hazy and the
-aggro/XP conflation both turned out to be misreads rather than real
-uncertainty), the *numeric* mapping (id → mechanism) is solid — it's
-directly read from code — but the *flavor* interpretation is a secondary
-layer, now mostly user-confirmed.
-
-**All 29 original `lbu ...,0x4c(...)` sites traced 2026-09-07** (adding
-`19` Gale, `20`'s second context, `21` Holy, `24` Champion's): 2 turned out
-to be false positives on a completely different struct's own `+0x4c`/
-`+0x4d` (the `id8`/`id7` status countdowns — unrelated to `Rune.Id`), the
-rest are genuine `Rune.Id` reads, either already covered or confirmed as
-re-resolving the same ability-set table various UI/menu screens already
-use to display a rune's name (no new mechanical effect). One genuine read
-remains unresolved: `0x800f81e8` compares two combatants' MGC-stat
-difference (`<10`) and conditionally calls the RNG wrapper — purpose not
-pinned down.
+All 29 `lbu ...,0x4c(...)` sites in `main.exe` were traced: 2 were false positives on the
+unrelated `id7`/`id8` status-countdown struct, the rest are genuine `Rune.Id` reads. One
+remains unresolved: `0x800f81e8` compares two combatants' MGC difference (`<10`) and
+conditionally calls the RNG wrapper.
 
 ### Cover mechanic
 
-Prompted by the user asking "have you looked at the cover mechanics at
-all?" while discussing Phero Rune — traced the full mechanism starting
-from `find_cover_target`'s one real caller, `battle_check_counter_attack`
-(name is a misnomer from an earlier session).
+Prompted by the user asking about cover mechanics while discussing Phero Rune. The story-pairing
+lookup table's layout was initially off by one byte before landing on the correct interleaved
+`(self_id, partner_id)` format — every pairing matches a real canon relationship (Eileen/Lepant
+married, Tai Ho/Yam Koo the fishing duo, etc.), confirming it's a hardcoded story table.
+classData layout search exhausted all 31 `+0xf84` access sites plus the full call graph
+downstream of the cover functions with no new fields found; a handful of sites with no Ghidra
+function boundary remain genuinely unchecked.
 
-The story-pairing lookup table's true layout was initially off by one byte
-(`DAT_8016c815` looked like the array, but the true layout is interleaved
-`(self_id, partner_id)` pairs starting one byte earlier). Every pairing
-matches a real canon relationship (Eileen/Lepant are married; Tai Ho/Yam
-Koo are the comic fishing duo; Tengaar/Hix are the known couple;
-Sylvina/Kirkis are both elves) — confirms this is a hardcoded
-story-relationship table, not a stat-based heuristic.
+Real status names (`id7`="Unbalanced", exact match via `battle_menu_compute_command_
+availability`) and `id4`="Bucket" (user-confirmed, with the caveat that a bitmask-only poke test
+can't reproduce the real bucket icon since it needs a live-spawned handle) both confirmed per
+the user's own game knowledge.
 
-**classData layout search (2026-09-07): exhausted, no new fields found on
-classData itself.** Traced all 31 direct `ClassPtrsArray` (`+0xf84`) access
-sites in `main.exe`, plus every function reachable from `find_cover_
-target`/`battle_check_counter_attack`'s call graph (`check_critical_hit`,
-`check_dodge_counter`, `calc_hit_chance`, `calc_damage`, `battle_select_
-special_ability`, `battle_try_special_attack`, `battle_execute_enemy_
-attack`, `battle_calc_enemy_aggro`, `battle_refresh_combatant_derived_
-stats`, `anim_op_roll_status_effect_chance`, `apply_covered_attack_damage`,
-`apply_uncovered_attack_damage`, `battle_check_magic_unite`, `battle_menu_
-select_target`, `battle_menu_confirm_rune_level`, and others). A handful of
-`+0xf84` sites have no Ghidra function boundary (`0x800e861c`, `0x800e896c`,
-`0x800ea664`, `0x800ecc34`, `0x800f5b60`, `0x800f81d8`) and remain
-genuinely unchecked — the only unexplored thread if this comes up again.
+### Poison — full solve
 
-**Unconfirmed side-note**: `ClassPtrEntry`'s own 8-byte `aUnk_0x04` blob's
-first 4 bytes look like they may be a cached, redundant direct pointer to
-the same `PersistentStats` struct (not a separate one) — `calc_damage` and
-`check_dodge_counter`/`battle_execute_enemy_attack` read `+0x55`/`+0x56`
-through it identically to the `classData+0x1c` path — but this wasn't
-confirmed with a live memory comparison, so `ClassPtrEntry` itself hasn't
-been changed to reflect it.
-
-**Real names confirmed (2026-09-06/07, per the user's own game knowledge)**
-via `battle_menu_compute_command_availability` (renamed from
-`FUN_800eedd0`), previously only found as an incidental `+0x4a` reader.
-This is an exact match for **`id7` = "Unbalanced"**: Attack and Rune both
-disabled, leaving only Defend/Item/Unite — "the character can only defend
-or use items for 1 turn," exactly as described. It also revealed `id6`'s
-real mechanism for the first time (Rune-only disable), which fully
-explains why the earlier live-poke test of `id6` alone showed zero
-observable effect — the test character never tried to cast a spell.
-
-`id4` confirmed as "Bucket" with an important caveat from the user: the
-real game shows a visible bucket icon over the afflicted character, which
-the earlier raw memory-poke test failed to reproduce — consistent with the
-icon needing a real handle computed by `FUN_800e1e3c` (spawned only
-through the genuine `apply_status_effect` code path), not something a
-bitmask-only poke can fake.
-
-### Poison — full solve, 2026-09-07
-
-Two entirely separate mechanisms, found while tracing Neclord's Bats
-attack — one consumes RNG, the other is fully deterministic. Duration's
-specific decrement-and-clear consumer for Poison's own duration slot (the
-generic per-status table, used for the 6 status ids `battle_process_
-round_end_status_and_formation` doesn't handle) was not located this pass
-— still a genuine open item, separate from the now fully-solved per-tick
-damage formula.
+Two entirely separate mechanisms found while tracing Neclord's Bats attack: the RNG-consuming
+infliction roll, and the fully-deterministic per-tick damage. Duration's specific
+decrement-and-clear consumer wasn't located this pass — a genuine open item separate from the
+now-solved damage formula.
 
 ## Formation management: front-row auto-backfill
 
-Found 2026-09-05→06 while chasing the status-effect ids above into their
-round-end processing — `battle_process_round_end_status_and_formation`
-turned out to also run this front-row auto-backfill system, and following
-it resolved the long-standing `monster_record+0x11` mystery. Neither this
-function nor its callee existed as a disassembled Ghidra function until
-this investigation created them — meaning every earlier, believed-
-exhaustive `+0x11` code search (several passes, spanning `main.exe`, every
-boss AI overlay, every regular-enemy AI function, and the complete
-45-entry animation-script opcode table) was structurally blind to this
-code the whole time. Worth remembering: an "exhaustive" instruction-level
-search is only as exhaustive as what Ghidra has already disassembled —
-worth re-running after any new function gets created nearby, not trusted
-to stay valid forever.
-
-This resolves the one case that had broken the "sprite size" hypothesis:
-Gigantes is visually one of the tallest sprites checked (confirmed via
-live VRAM capture, clips off the top of the screen), yet apparently narrow
-enough to need only a single formation slot.
+Found while chasing the status-effect ids into their round-end processing —
+`battle_process_round_end_status_and_formation` also runs this system, resolving the
+long-standing `monster_record+0x11` mystery. Neither this function nor its callee existed as a
+disassembled Ghidra function until this investigation created them, meaning every earlier
+"exhaustive" `+0x11` search was structurally blind to this code — worth remembering that an
+exhaustive instruction search is only as exhaustive as what Ghidra has already disassembled.
+This also resolves Gigantes' sprite-height/formation-footprint mismatch (tallest sprite
+checked, but only needs 1 slot).
 
 ## `calc_hit_chance`/`check_critical_hit`/`apply_elemental_multiplier`
 
-`check_critical_hit`'s Killer-Rune doubling was confirmed 2026-09-07 (per
-the user's own game knowledge).
-
-`apply_elemental_multiplier`'s magic damage formula was confirmed via a
-live cast prediction (attacker MGC 190 / base_power 500 / weak target →
-`(500+95)*2=1190`, matched observed damage exactly).
-
-`apply_elemental_multiplier` is called from 21 sites. `get_xrefs_to` only
-found 17 of these; 4 more (`0x800ff174`, `0x801033e8`, `0x80105748`,
-`0x80111ce8`) sat in undisassembled bytes invisible to xref analysis and
-were found by a raw byte-pattern search for the `jal` opcode encoding
-(`ca96040c`). Worth doing this kind of byte-level completeness check
-whenever a suspiciously-round xref count comes out of a region with large
-undefined-code gaps.
+Killer-Rune crit doubling confirmed per the user's game knowledge. `apply_elemental_
+multiplier`'s formula confirmed via a live cast prediction matching observed damage exactly.
+Called from 21 sites; `get_xrefs_to` only found 17 — 4 more sat in undisassembled bytes
+invisible to xref analysis and were found by a raw byte-pattern search for the `jal` opcode
+encoding. Worth doing this completeness check whenever a suspiciously-round xref count comes
+out of a region with large undefined-code gaps.
 
 ## Enemy elemental attacks: the third damage formula — full investigation arc
 
-This was one of the longest-running open threads in the project: Zombie
-Dragon's fire-breath damage was confirmed by exact live RNG matching
-against a captured cast (`ZombieDragonT2.State`, seed `0x00000001`) to be
-MGC-based, not the ATK-DEF shape every traceable `calc_damage` call site
-computes — a genuine contradiction that took several passes to resolve.
+One of the longest-running open threads: Zombie Dragon's fire-breath damage was confirmed by
+exact live RNG matching to be MGC-based, contradicting `calc_damage`'s ATK-DEF shape — every
+traceable call site computed ATK-DEF, yet the live numbers matched `130 − target.MGC` exactly
+(6/6 targets, including a 0.5× "resist" hit). Re-tracing the full call graph downstream of
+`battle_execute_enemy_attack` showed every damage-computing branch actually found (normal, crit,
+cover) calls the ordinary `calc_damage` (ATK-DEF) — none reach an MGC formula. Ruled out
+"targets coincidentally had DEF==MGC" via a live read (clearly different values per target).
 
-**Initial capture**: one `rand()` call per living target, six total,
-matched by hand against each target's real MGC stat (`130 - target.MGC`,
-Zombie Dragon's own MGC is 130):
+A full opcode audit (all 45 animation-script opcodes) found none of them touch stat fields or
+call `calc_damage`/`apply_hp_damage_display` — purely visual. Also found `RngCallbackTable`
+(`BattleState+0x1258`) is a static `main.exe` table, not per-battle heap data as previously
+assumed — meaning overlay code *could* reach `calc_damage` indirectly through it, but no such
+caller was found in Zombie Dragon's own functions at that point.
 
-| Target | MGC | base (130−MGC) | roll | formula result | observed damage | ratio |
-|---|---|---|---|---|---|---|
-| 0 | 47 | 83 | 4978 | 75 | 75 | 1.0 (neutral) |
-| 1 | 39 | 91 | 20495 | 96 | 96 | 1.0 (neutral) |
-| 2 | 80 | 50 | 10311 | 52 | 26 | 0.5 (resist) |
-| 3 | 93 | 37 | 11367 | 39 | 39 | 1.0 (neutral) |
-| 4 | 21 | 109 | 30054 | 104 | 20 (overkill) | consistent |
-| 5 | 36 | 94 | 17031 | 100 | 41 (overkill) | consistent |
+Re-validated the original 6-target match completely from scratch (fresh emulator instance,
+independently-simulated LCG, real HP deltas) — reproduced exactly, and MGC-MGC clearly fit
+where ATK-DEF was wildly off for every target.
 
-The initial attempt used *target DEF* (matching `calc_damage`'s own
-shape) and only landed in the right ballpark, not exact; swapping in
-*target MGC* produced the exact match above.
+**A previously-undocumented VFX subsystem** (identified by its own debug string, "`fire func
+%d`") was found via a raw byte-pattern search for the cross-overlay callback-table pointer.
+Fully parsed — zero damage calls anywhere in it — and an indirect-call audit initially found no
+path to it from either confirmed dispatch function, leading to a **wrong conclusion that it was
+dead code**.
 
-**"Not yet reconciled — deepened, not resolved, 2026-09-07"**: re-traced
-the full call graph downstream of `battle_execute_enemy_attack` via raw
-disassembly (most of these are inline state-machine continuations Ghidra
-never function-boundaried, hence missed by earlier passes): the normal
-non-crit path, the CRIT path, and the cover-mechanic path **all three**
-call `calc_damage` itself — which computes `wATK-wDEF` with no MGC
-reference anywhere, gated to party-member attackers only for the elemental
-bonus. So every damage-computing branch actually found calls the ATK-DEF
-formula — none reach an MGC-based one. Two live-hypotheses: (a) the
-per-monster attack SCRIPT applies its own damage-override opcode between
-`calc_damage`'s return and `apply_hp_damage_display`; (b) the captured
-savestate's targets coincidentally had `wDEF == wMGC`.
+**Resolved**: the user directly challenged the dead-code conclusion ("does it call RNG? that
+would disprove it's dead"), prompting a closer re-read of the tick state machine — once its
+internal tick counter passes 249, it loops every living party member and calls `RngCallbackTable`
+slot 86 (`calc_rune_element_attack_damage`), a completely separate formula function, explaining
+why a direct xref search on `calc_damage` never found it. Confirmed live: the target showing the
+0.5× "resist" ratio had Soul Eater equipped (category-7 universal resist, not an element match);
+a Fire-Rune target took full damage (Fire doesn't resist Fire Breath); Resurrection Rune
+confirmed live to reduce damage too.
 
-**Hypothesis (b) definitively ruled out, 2026-09-07**: live-read
-`wDEF`/`wMGC` for all 6 party members from the same savestate — `DEF` and
-`MGC` are clearly different, unrelated values for every target (e.g.
-target 0: `MGC=47` vs `DEF=92`). Hypothesis (a) became the only remaining
-explanation. An earlier attempted live execution-breakpoint on `calc_
-damage` (`event.onmemoryexecute`) never fired, suggesting execution hooks
-may not work reliably on this core.
+**A real compiled bug, found and confirmed live**: moving non-Fire-Rune characters into party
+slot 6 reduced Fire Breath damage despite none of their runes being in the resistance table.
+Raw disassembly showed why: for any `Rune.Id` not in the explicit table, the switch jumps to the
+halving comparison without writing the "category" register (`$s1`), which the caller's own
+damage loop is reusing as its target-slot counter — a register-reuse bug that always favors the
+player. Confirmed by the user's own test results (Cleo's Fire Rune masks the bug, everyone
+else's doesn't). A byte-pattern search across every touched overlay found 11+ more call sites
+across 7 bosses/monsters with the same bug — only the original Zombie Dragon/slot-6 case is
+confirmed in actual gameplay, the rest are static predictions.
 
-**Deep dive into hypothesis (a), 2026-09-07: substantially narrowed, still
-not fully closed.** Fully audited all 45 animation-script opcodes via
-batch decompile — none of them read/write `CombatantRec`'s
-`PWR`/`DEF`/`MGC`/`ATK` fields, or call `calc_damage`/`apply_hp_damage_
-display`. Every opcode is purely visual/state-management.
-
-Also discovered along the way: `RngCallbackTable` (`BattleState+0x1258`)
-is a STATIC `main.exe` table, not per-battle heap data as previously
-assumed. This means overlay code *could* invoke `calc_damage`/`apply_hp_
-damage_display` indirectly through this table — but no caller doing so was
-found in Zombie Dragon's own AI functions, her fire-breath
-self-positioning script, or the post-fire-breath wait-state.
-
-The actual per-target hit animation during the multi-target loop uses a
-different script — slot `[4]` of the monster's own script table — which
-was partially parsed (opens with the same sync-signal + move shape) but
-not walked to completion at this point; several of its opcodes are
-"dual-mode" (branch on a `param_2` argument the main dispatch loop always
-passes as `0`), implying some other not-yet-found per-tick "resume" caller
-must invoke them with `param_2=1` — the VM's exact resumption semantics
-weren't fully reverse-engineered yet, so a damage-triggering opcode later
-in this script couldn't be ruled out with full confidence at this stage.
-
-**Re-confirmed ATK-DEF genuinely doesn't fit, using real live DEF
-values**: Zombie Dragon's ATK (her PWR, 175) minus each of the 6 targets'
-DEF (92, 90, 82, 80, 35, 33) gives `83, 85, 93, 95, 140, 142` vs. the real
-captured `base` values `83, 91, 50, 37, 109, 94` — only target 0 lines up,
-and even that's a numerical accident (`175−130 == 92−47 == 45` by
-coincidence).
-
-### Re-validated from scratch, 2026-09-07
-
-Given this project found one other "confirmed by an earlier session"
-result resting on a wrong assumption earlier the same day
-(`apply_hp_damage_display`'s sign convention), the original 6-target RNG
-match was re-verified completely from scratch — loaded `ZombieDragonT2.
-State` in a fresh headless emulator instance, injected RNG seed
-`0x00000001`, independently simulated the LCG forward in Python, then let
-the real attack play out and read the real HP deltas.
-
-Real damage reproduced exactly: `75, 96, 26, 39, 20 (overkill), 41
-(overkill)` — identical to the original table.
-
-| Target | Real damage | MGC-MGC prediction | ATK-DEF prediction |
-|---|---|---|---|
-| 0 | 75 | 77 | 77 |
-| 1 | 96 | 95 | 81 |
-| 2 | 26 | 52 → 26 exactly with resist ×0.5 | 89 (no relation) |
-| 3 | 39 | 37 | 97 |
-| 4 | ≥20 (overkill) | 101 | 132 |
-| 5 | ≥41 (overkill) | 88 | 139 |
-
-`ATK-DEF` is wildly off for every target. `MGC-MGC` lands in the right
-ballpark for every target, with an exact match on target 2 once the
-elemental resist multiplier is applied. The small remaining misalignment
-on targets 0/1/3 (off by 1-2) is consistent with the target-selection
-loop's own variable reject-and-reroll mechanism consuming an unaccounted,
-non-fixed number of `rand()` calls before the move-decision roll — an
-alignment detail, not a contradiction of the core result.
-
-**Conclusion at this stage**: this is a real, independently-reconfirmed
-phenomenon, not an artifact of a wrong assumption. The mystery narrowed
-entirely to *where in the code* the MGC-based override happens.
-
-### The VM's cross-frame resumption mechanism decoded — still unresolved at this point
-
-Decoded the animation VM's "dual-mode opcode" puzzle: a second driver
-function, `FUN_800e358c`, runs once per frame for every active combatant,
-reads a cached "currently paused opcode," re-invokes it with `mode=1` to
-tick it, and resumes normal `mode=0` dispatch on completion. Slot `[4]`'s
-complete bytecode was walked start to finish: 18 words, no sub-animation
-spawn, no frame-callback install, no damage logic anywhere — closing off
-the "dual-mode opcodes might hide something later" concern.
-
-A genuinely new discovery while chasing this: a raw byte-pattern search
-for instructions loading the cross-overlay callback-table pointer turned
-up an entire, previously-undocumented VFX subsystem in Zombie Dragon's
-overlay, identified by its own embedded debug string ("`fire func %d`").
-Fully parsed end to end — zero calls to `calc_damage`/`apply_hp_damage_
-display`, zero stat-field reads, anywhere in this chain.
-
-An indirect-call audit across the whole overlay initially found no path to
-it from either confirmed Zombie Dragon dispatch function, leading to a
-**wrong conclusion (retracted below) that this subsystem was dead code**.
-
-### RESOLVED, 2026-09-07: this is the real mechanism — the "dead code" conclusion was wrong
-
-The user directly challenged the dead-code conclusion ("fire func looks
-like fire breath, could be reachable — does it call RNG? that would
-disprove it's dead"), which prompted a closer re-read of the tick state
-machine's own decompile — already fully captured minutes earlier, but with
-one critical call missed on first pass. Once its internal tick counter
-passes 249, it loops every living party member and calls `RngCallbackTable`
-slot 86 — a completely separate, dedicated formula function
-(`calc_rune_element_attack_damage`) — then feeds the result into
-`apply_hp_damage_display`. This is why a direct xref search on `calc_
-damage`'s own address never found it: the real code doesn't call `calc_
-damage` at all.
-
-**Confirmed live 2026-09-07** against the real captured Fire Breath data:
-read all 6 party members' actual equipped `Rune.Id`. The target showing
-the 0.5× "resist" ratio (`MGC=80`, real damage `26` vs `~52` unscaled) has
-`Rune.Id=1` (Soul Eater) equipped — confirming the resist was Soul Eater's
-unconditional category-7 rule, not an element match. A separate target
-with `Rune.Id=2` (Fire) took full, unreduced damage — confirming Fire Rune
-does not resist Fire Breath, matching what the user independently recalled
-from testing. **Category 6 (Resurrection alone) — confirmed live**: the
-user directly tested Resurrection Rune against Fire Breath in-game and
-confirmed it does reduce damage.
-
-### A real compiled bug, found and confirmed live
-
-Further user testing surfaced something the switch table alone didn't
-predict: moving Cleo (Fire Rune) into party slot 6 did not reduce Fire
-Breath damage (expected — Fire doesn't match `element=6`). But moving
-Gremio (Holy Rune), or Viktor/Tai Ho/Camille (no rune equipped) into slot
-6 *did* reduce it — despite none of those runes appearing in the
-resistance table.
-
-Reading the raw MIPS disassembly (not just the decompile) explained why:
-for every `Rune.Id` not in the explicit table, the switch jumps straight
-to the halving comparison without ever writing the "category" variable
-(register `$s1`), which the *caller* (the fire_func tick state machine's
-own damage loop) is reusing as the loop's own target-party-slot counter
-(confirmed via disassembly: `addiu s1,s1,1` drives the loop, `move
-a1,s1` passes that same register as `target_idx`). Confirmed exactly by
-the user's own test results — Cleo's Fire Rune masks the bug (it
-explicitly sets category 1 before the buggy read would otherwise occur),
-while everyone else's rune (or lack of one) leaves the leftover
-slot-index value in place. **Confirmed live** further: moving the
-"resisted" characters to slots other than 6 made the reduction disappear
-entirely.
-
-A raw byte-pattern search for the exact call sequence across every monster
-overlay this project has touched turned up at least 11 more call sites
-across 7 different bosses/monsters — confirming this "beneficial exploit"
-is a general property of the shared formula function, not Fire-Breath-
-specific. Only the original Zombie Dragon/slot-6 case has been confirmed
-in actual gameplay; every other "live" row in the table is a static
-prediction from disassembly alone, not yet tested in-game.
-
-### Reconciling the multi-target mechanism with fire_func
-
-The multi-target mechanism (`battle_enemy_attack_advance_multitarget`/
-`battle_enemy_attack_multitarget_continue`, gated on class/equip byte
-`==0x0e`) describes real, existing code — `calc_damage`, ATK-DEF, one
-`battle_execute_enemy_attack` call per target — but the actual empirically-
-confirmed Fire Breath damage comes from the separate `fire_func`/
-`calc_rune_element_attack_damage` path instead. Since `apply_hp_damage_
-display` only accumulates a delta rather than overwriting HP outright, if
-both mechanisms genuinely fired for the same cast the two damage
-contributions should stack — but the live re-validation matched
-`fire_func`'s formula alone with no sign of an additional ATK-DEF-shaped
-component. Likely explanation, not confirmed: Zombie Dragon's specific
-attacker/equip check (`class_ptrs[attacker]->+0x1c->+0x4c == 0x0e`) may not
-actually evaluate true for her during a real Fire Breath cast — meaning
-this multi-target mechanism may describe a different monster's or move's
-own code path that happens to share the same general-purpose functions.
-Worth checking directly (read `combatant_rec+0x4a` bit `0x4000` live
-during a real fire-breath cast) if this comes up again. The exact call
-site that resolves and invokes catalog slot 6 (as opposed to slots 1/4)
-wasn't pinned down either.
+The multi-target mechanism (`battle_enemy_attack_advance_multitarget`, gated on Double-Beat
+Rune) describes real code, but the empirically-confirmed Fire Breath damage comes from the
+separate `fire_func`/`calc_rune_element_attack_damage` path instead — likely because Zombie
+Dragon's own equip check doesn't actually evaluate true during a real cast, meaning this
+multi-target mechanism may belong to a different monster/move sharing the same generic
+functions. Not confirmed further.
 
 ## Neclord's real Castle fight
 
-Started as a deliberate exercise in how far pure Ghidra analysis can get
-without any live capture, following
-[Enemy_AI_Tracing_Methodology.md](./Enemy_AI_Tracing_Methodology.md),
-then continued with two user-supplied savestates (`Neclord.State`,
-`NeclordBats.State` — the same battle position, RNG modified in the second
-to force the Bats branch) once static analysis hit a real wall on the
-poison mechanism.
+Following [Enemy_AI_Tracing_Methodology.md](./Enemy_AI_Tracing_Methodology.md) with two
+user-supplied savestates once static analysis hit a wall on the poison mechanism. The "always
+uses its one special move" note was incomplete, not wrong — the real move choice (a 3-way
+split) lives in the continuation, not the target-selection function.
 
-**"Always uses its one special move" note was incomplete, not wrong** —
-that earlier description only covered the target-selection function
-itself, which just schedules a fixed continuation; the real move choice
-lives in the continuation, and turned out to be a 3-way split rather than
-Dragon's simple two-way gate.
+**Wrongly concluded all three scripts share one damage handler** (inferred from code proximity).
+**The user, who knows Neclord's real moveset, corrected this directly**: AoE Wind, AoE
+Lightning, and a single-target physical bat-swarm attack. Tracing each script's own actual
+damage call site confirmed exactly that. Lesson: trace the specific call site for each claimed
+outcome rather than inferring from a plausible-looking nearby function.
 
-**Three genuinely different attacks, confirmed after an initial wrong
-conclusion.** The first pass wrongly concluded all three scripts converge
-on one shared damage handler (reasoning from code proximity — a small
-busy-gate function gets installed as the post-dispatch continuation
-regardless of which script ran, and the nearest subsequent code happened
-to belong to only one of the three attacks). **The user, who knows
-Neclord's real moveset, directly corrected this**: he has an AoE Wind
-attack, an AoE Lightning attack, and a single-target physical bat-swarm
-attack. Tracing each script's own actual damage call site (rather than
-assuming shared control flow from proximity) confirmed this exactly.
-Matches the user's "probably physical" guess for Bats exactly.
+Bats' poison mechanism resisted every static lead (no `apply_status_effect` call visible in the
+tick machine's own decompile) and was resolved by tracing RNG advancement end-to-end, which
+surfaced the poison call site as a byproduct — 86 total `rand()` calls for a Bats attack. One
+correction along the way: a savestate labeled "before a Wind attack" was actually pre-Lightning,
+settled by the formula's own prediction plus the user's follow-up confirmation.
 
-**Process note**: the wrong "one shared handler" conclusion came from
-assuming code adjacency implied control flow, without actually checking
-each of the three paths' own eventual damage call. The fix was the same
-discipline used elsewhere in this project — trace the *specific* call site
-for each claimed outcome rather than inferring from a plausible-looking
-nearby function.
-
-**Where static analysis hit its actual wall (poison)**: the exact
-addresses of the 3 per-script custom frame callbacks were not resolved
-through the natural static candidate for the table's own base (turned out
-to be a different, unrelated data block). The Wind/Lightning damage
-mechanisms were found by directly disassembling forward from each script's
-dispatch point and a byte-pattern search, but a live-confirmed poison
-effect resisted every static lead: no `apply_status_effect` call in the
-Bats tick machine's own decompile, and two nearby "hit-reaction"-shaped
-scripts had no `anim_op_roll_status_effect_chance` call in either.
-
-**Bats' poison mechanism** was resolved by tracing the RNG advancement
-mechanic end-to-end (`scripts/SettleNeclordBatsRNG.lua`), which surfaced
-the poison call site as a direct byproduct. Ground truth: LCG-step-
-counting against `NeclordBats.State`'s own seed gave an exact total of 86
-`rand()` calls. One correction along the way: the user had originally
-labeled `Neclord.State` "before a Wind attack," but the traced move-choice
-formula predicted Lightning for that seed — a live HP-damage-pattern check
-plus the user's own follow-up ("My label was wrong, it was Lightning")
-settled it in the formula's favor. This also resolved why an earlier live
-trace found the target's own script-cursor field never changing: that
-trace only polled once per frame, and the second script's entire execution
-window completes within frames the per-frame poll's snapshots didn't
-happen to land on — the same "multiple opcodes run within one frame,
-invisible to per-frame polling" gotcha already documented elsewhere for
-RNG call-counting, newly confirmed for script-cursor polling too.
-
-**All three damage formulas, bit-exact confirmed (13/13 targets)**:
-Lightning matched exactly including the register-reuse "resistance" bug on
-both slot 3 and slot 5 — neither target's own equipped Rune maps to a real
-category. Wind matched exactly too, but only slot 3 shows the halving this
-time, not slot 5. Slot 3 being hit for *both* Wind's `element=5` and
-Lightning's `element=4` rules out a naive "target index == element"
-explanation for the bug's trigger — the exact register/loop-position
-responsible isn't pinned down, but the bug's reality and reproducibility
-are confirmed two ways. Bats: predicted 313 raw damage; observed live
-damage was 156 = `313 // 2` exactly — all 6 party members had
-`ActionType==1` (Defend) at the time, this is `calc_damage`'s own
-already-documented Defend-halving rule applying normally, nothing
-Neclord-specific.
-
-Only a broader multi-seed sweep (matching Dragon's own 92-seed validation)
-remains as a nice-to-have; the mechanism itself is closed out.
+All three damage formulas bit-exact confirmed (13/13 targets), including the register-reuse
+resistance bug on Lightning (2 different targets, ruling out a naive "target index == element"
+explanation for the bug's exact trigger condition, though the real trigger still isn't pinned
+down). Bats matched `calc_damage`'s own Defend-halving rule exactly once accounting for all 6
+targets Defending.
 
 ## Two identity corrections surfaced along the way
 
-**"Dragon" is not the final boss.** This project had labeled
-`dragon_overlay.bin`'s monster (HP 6000) "the final boss dragon" based only
-on matching her HP/Id against an external stat reference — never confirmed
-via her own in-game name. A direct charmap name-search within that overlay
-for both "Dragon" and "Golden Hydra" found neither as plain text, prompting
-a disc-wide search for "Hydra" instead, which found exactly one hit:
-`vzv.bin`. Her own overlay has 3 `calc_rune_element_attack_damage` call
-sites — more than the 2 moves she's known to have, so at least one of her
-moves likely has 2 damage phases, not yet disambiguated. "Dragon" herself
-remains a real, separate, still-unidentified mid/late-game boss under this
-framing — her true identity wasn't re-established this pass.
+**"Dragon" is not the final boss.** This project had labeled `dragon_overlay.bin`'s monster (HP
+6000) "the final boss" based only on stat matching against an external reference, never
+confirmed via her own name. A charmap search for "Dragon"/"Golden Hydra" found neither as plain
+text; a disc-wide "Hydra" search found exactly one hit, `vzv.bin` — the real final boss. "Dragon"
+herself remains a separate, real boss.
 
-**`vc3.bin` hosts multiple monsters, confirmed** — this project already
-had CrimsonDwarf's AI documented in `vc3.bin`; a fresh pass investigating
-the new slot-86 call site found a second, previously-undocumented AI
-function in the same file, self-identified as `gigantes_ai_select_target_
-and_move`.
+**`vc3.bin` hosts multiple monsters, confirmed**: already had CrimsonDwarf documented there; a
+fresh pass investigating a new slot-86 call site found a second AI function in the same file,
+`gigantes_ai_select_target_and_move`.
 
 ## How monster overlays are actually organized
 
-Prompted by the `vc3.bin` finding above — checked whether overlay files
-carry some kind of internal "monster directory" a human (or the game)
-could read to enumerate everyone packed into one file. No such structure
-was found; the start of `vc3.bin` is just code and two debug strings
-("bunshin" = Japanese for "clone/double," fitting flavor for a monster
-whose own move is a repeat-attack), not an index.
-
-The real answer turned out to already exist on the Lua side:
-`lib/EncounterTable.lua`, listing every area's random-encounter roster by
-name. Cross-referencing `vc3.bin`'s two known bosses against
-`EncounterTable.lua`'s `DWARVES_VAULT` entry and charmap-searching `vc3.bin`
-for those names directly confirmed both Death Machine variants also live
-in `vc3.bin`. (Death Boar itself wasn't found in `vc3.bin` — it's shared
-with the neighboring `DWARF_TRAIL` encounter table too, so it likely lives
-in a separate, common file referenced by both areas; not chased further.)
-
-**Practical technique for any future overlay-mapping work**: find one
-boss's overlay via the usual name-search method, identify the area from
-context, then charmap-search that same overlay for every name in that
-area's `enemies` list. One gotcha: `EncounterTable.lua` sometimes appends a
-disambiguating suffix (`"Death Machine R"`/`"Death Machine B"`) when two
-monsters share an in-game name — that suffix is human-added, not part of
-the real charmap-encoded name, and searching for it verbatim will silently
-fail. Strip it before encoding.
+No internal "monster directory" structure exists in overlay files. The real answer is on the
+Lua side: `lib/EncounterTable.lua` lists every area's random-encounter roster by name.
+Cross-referencing `vc3.bin`'s known bosses against `EncounterTable.lua`'s `DWARVES_VAULT` entry
+and charmap-searching for those names confirmed both Death Machine variants also live in
+`vc3.bin`. Gotcha: `EncounterTable.lua` sometimes appends a human-added disambiguating suffix
+(`"Death Machine R"`) not present in the real charmap-encoded name — strip it before encoding.
 
 ## Dead end: `vc61.bin` ("Dragon")'s garbled AI code is NOT explained by LZ compression
 
-Goal was to read boss AI statically, with no live emulator session, for
-small overlays like `vc61.bin` (31412 bytes) where the monster record
-decodes correctly in plaintext (file offset 0x3f4, AI pointer value
-`0x80012594` matching the already-known live-derived address) but the raw
-bytes at that same address under a naive `file_offset = runtime_addr -
-0x80010000` mapping are not valid MIPS.
+Goal was reading boss AI statically for small overlays like `vc61.bin` (31KB) where the monster
+record decodes correctly but the AI code at the expected address isn't valid MIPS. Found and
+fully decompiled `lz_decompress` (`0x800c3144`), reimplemented in Python, tested several ways —
+none produced valid code; every actual caller of this function in Ghidra decompresses into
+texture/sprite buffers only, never code overlays. Ruled out.
 
-Found and fully decompiled `lz_decompress` (`0x800c3144`, `main.exe`) — a
-real 1024-byte ring-buffer LZSS-style decompressor — plus its wrapper
-`decompress_4bit_graphics`. Reimplemented it in Python and tested it
-against `vc61.bin` several ways; none produced anything resembling the
-decompressed AI code or even preserved the plaintext "Dragon" name that
-should survive if the record itself is outside any compressed span.
-Checking every actual caller of `lz_decompress` in Ghidra showed all of
-them decompress into texture/sprite-dimension-sized buffers — this
-function is used exclusively for compressed graphics assets in this
-engine, never for code overlays. Ruled out.
+**Correction**: `vc61.bin` is genuinely Dragon's own disc file, not unrelated — a later pass
+found its monster record decodes perfectly (name, level, HP, PWR, DEF, SPD, MGC, LUK, and the
+AI pointer value all matching the live-derived data exactly) at a meaningful file offset. That
+many independent structured fields agreeing cannot be coincidence, unlike a raw byte-diff
+percentage. The real explanation for why this overlay's code doesn't decode directly under the
+naive mapping remains open. Dragon herself was ultimately resolved via a user-supplied savestate
+inside the fight instead (name-search couldn't work — "Dragon" is too short/common a string).
 
-**Leading unproven hypothesis for next time**: `vc61.bin`'s small size
-(31KB, vs. 250-600KB for "normal" self-contained boss overlays that read
-their AI code directly with no compression) suggests it may be a small
-delta/patch overlay carrying only monster-specific *data*, while its AI
-*code* actually lives in a larger shared/generic template overlay already
-resident in memory by the time `vc61.bin` loads. Not yet tested.
-
-**Correction, 2026-09-07: `vc61.bin` is NOT an unrelated file — retracting
-the earlier "94% different, coincidental match" conclusion above.** A
-later, independent pass (using the disc-wide `MonsterRecord`-shape
-scanner, see
-[Monster_AI_Static_Catalog.md](../docs/game_mechanics/Monster_AI_Static_Catalog.md))
-found `vc61.bin`'s own monster record decodes perfectly at file offset
-`0x3f4`: name "Dragon", level 40, HP 6000, PWR 250, DEF 35, SPD 40, MGC
-150, LUK 65 — all seven fields exact matches — and its `pAiFunction`
-field's raw VALUE is `0x80012594`, exactly the live-derived AI address.
-That many independent structured fields agreeing, at a meaningful (not
-arbitrary) file offset, cannot reasonably be coincidence — unlike a raw
-whole-file byte-diff percentage, which proves nothing about a *compressed*
-file. The correct current understanding: `vc61.bin` **is** genuinely
-Dragon's own disc file; its data section is plaintext, but its code
-section does not decode as valid MIPS under the naive mapping every other
-overlay in this project uses. The real explanation for why this one
-overlay's code doesn't decode directly remains open. Always verify a
-disc-file identification against multiple independent structured fields
-(not just a plausible address, and not just a raw byte-diff percentage)
-before concluding a match is right *or* wrong — the same standard
-`vb5g.bin` was confirmed against for Zombie Dragon.
-
-Also: **Dragon was resolved after all**, once the user supplied a
-savestate actually inside that fight (`TurnOrderRNGCall.State`) — the
-name-search approach genuinely couldn't have found this one ("Dragon" is
-too short/common a string; a full-disc search turned up 144 raw hits,
-every single one ordinary story dialogue about "Dragon Knights"/"Dragon's
-Den", no genuine monster record among them). Live-resolved via the
-reliable method instead: read `Id`/HP directly (`Id=1`, `HP=5818/6000` —
-matches the known Dragon boss stats exactly), followed `attack_data_
-table[Id]+0x30`, and dumped the live overlay fresh rather than trust
-either of the earlier disc-search candidates.
-
-**Sydonia's counterattack investigation**: investigating a suspicious
-debug string (`"sid wait\n"`) scheduled after her special move led to a
-whole side-investigation. Initial read: a Varkas tag-team combo.
-Corrected (user pushback + re-reading `play_attack_animation`'s own
-confirmed semantics for `enemy_data+4`): it's actually a counterattack
-structure. Manually parsed Sydonia's own special-move script bytecode end
-to end — opcode 26 never appears in it, so her own attack can never arm
-this counter. User confirmed live this never triggers in the actual fight.
+**Sydonia's counterattack investigation**: a suspicious debug string ("`sid wait`") led to
+tracing what first looked like a Varkas tag-team combo, corrected (user pushback + re-reading
+`play_attack_animation`'s semantics) to a genuine counterattack structure. Her own special-move
+script never calls the required opcode 26 on herself, so it's confirmed dead/leftover code — the
+user confirmed live it never triggers in the actual fight.
 
 ## Dragon's move selection
 
-Fully solved and validated to a perfect 92/92 across three independent
-random-seed sweeps (12 + 30 + 50 seeds).
+Fully solved and validated to a perfect 92/92 across three independent random-seed sweeps (12 +
+30 + 50 seeds).
 
 <details>
-<summary>Investigation notes (two wrong turns, both caught by direct user challenge, before landing on the final answer)</summary>
+<summary>Investigation notes (two wrong turns, both caught by direct user challenge)</summary>
 
-The move-choice roll's real location took three passes to find. First
-guess — `dragon_move_confirm_or_override_to_fire_breath` (`c_data.bin @
-0x80080490`, found via a raw byte-search for Zombie Dragon's own `0x7fff`
-divisor constant) — had the identical formula and looked entirely
-plausible, matching ~90% of a 12+30-seed live sample. But it was wrong:
-directly checking whether it ever writes its own target-lock fields a
-second time across full-length live traces showed those fields are
-written exactly once, by the first scan, and never again — that function's
-code never actually executes for Dragon's turn. The formula match was a
-coincidence (likely a shared/templated pattern reused elsewhere in the
-same shared area overlay), not causation.
+The move-choice roll's location took three passes. First guess — a function with the identical
+formula, matching ~90% of a live sample — turned out to never actually execute for Dragon's
+turn (its target-lock fields are written once, by the initial scan, and never touched again);
+the formula match was coincidental. Chasing the ~10% gap, a VFX-interleaving theory was
+proposed and the user caught the flaw directly ("the vfx rng rolls start after a move is
+selected, which means they can't interfere") — retracted. The real location,
+`dragon_special_move_real_frame_callback`, was found by abandoning the dead coroutine chain and
+checking `main.exe`'s separate per-frame callback system instead, confirmed by directly
+watching its install address.
 
-Chasing the resulting ~10% prediction gap, a first theory blamed
-hit-effect/particle VFX consumption interleaving with the decision roll.
-The user caught the flaw directly: "the vfx rng rolls start after a move
-is selected, which means they can't interfere with the move selection
-roll" — correct, and retracted. The real location was found by abandoning
-the `battle_base+0xc` coroutine chain entirely (confirmed dead past frame
-2, even at the exact frame damage lands) and checking `main.exe`'s
-separate per-frame callback system instead, which led to `dragon_special_
-move_real_frame_callback` — confirmed by directly watching `enemy_data
-[Dragon]+0x54` install that function's address at the right moment, not
-inferred.
+Even after finding the right function, every mismatch (4/42) had the target-scan reject all 3
+candidates — the model was rolling once on an all-reject outcome instead of retrying the whole
+scan fresh. Fixing the retry loop scored 42/42, then 50/50 independently.
 
-Even after finding the right function, the ~90%-only match rate had one
-more real bug, not random noise: every single mismatch (4 of 42, across
-both live batches) had the simulated target-scan reject all 3 candidates —
-0/4 correct there, vs. 38/38 correct whenever any candidate accepted. The
-Python model was rolling once more on an all-reject outcome and treating
-that as the move-choice roll, instead of retrying the whole 3-candidate
-scan fresh (matching the real dispatcher's own retry behavior). Fixing the
-retry loop scored 42/42, and a fully independent 50-seed re-verification
-held at 50/50 with no changes — 92/92 total, zero residual.
-
-**Process lesson**: a formula that matches most of a live sample is not
-proof it's the right causal function — always verify the specific code
-path actually executes (watch its own distinctive memory writes across a
-full live sequence) before treating a numeric match as confirmation. And a
-"mostly right" result is worth checking for a 100%-clean split by some
-categorical variable before accepting it as irreducible noise — that split
-is the signature of a real, fixable bug, not something to explain away.
+**Lesson**: a formula matching most of a live sample isn't proof of causation — verify the
+specific code path actually executes before treating a numeric match as confirmation. And a
+"mostly right" result worth checking for a 100%-clean split by some categorical variable before
+accepting it as noise — that split is the signature of a real, fixable bug.
 </details>
 
-### Lightning's RNG cost — errors avoided while reverse-engineering it
+### Lightning's RNG cost — errors avoided
 
-- **Naive per-frame "did the RNG value change" counting undercounts by an
-  order of magnitude.** An early pass reported totals of 69-77, because
-  many `rand()` calls can land within a single frame's CPU execution and
-  get collapsed into "one change." The fix: let the RNG **settle**
-  (unchanged for 30 consecutive frames) after the attack fully resolves,
-  then recover the exact call count by forward-simulating from the start
-  seed until it reaches that settled value.
-- **A red herring in the disassembly**: the state-machine function called
-  immediately after move-choice resolves (formerly misnamed
-  `..._tick_state_machine`) turns out to be a texture-decompression-queue
-  waiter, not the particle driver — its own `RngCallbackTable` calls all
-  resolve to `main.exe`'s texture-decompression subsystem. The real
-  particle-spawn driver is the function it hands off to.
-- **First simulator draft undercounted** by modeling only the lifetime
-  countdown and missing the position-based deactivation entirely — found
-  by re-examining the render function and noticing it performs `posZ +=
-  velZ` as a side effect even though it makes zero `rand()` calls itself.
-- **Second draft was still off by ~5-10%** even after adding position
-  integration. The root cause was a test-harness bug, not a mechanism bug:
-  the harness was invoking the VFX simulation directly on the original
-  seed, skipping the already-validated target-scan-with-retry and
-  move-choice roll that must run first. Chaining those correctly
-  immediately produced bit-exact matches on all 16 seeds.
-
-`Queen Ant` and `Crystal Core` are traced but deliberately not wired into
-`lib/EnemyAIPredictor.lua`'s live HUD display — both have self/
-globally-triggered mechanics that don't fit a "pick a party-member target"
-probability output.
+- Naive per-frame "did the RNG value change" counting undercounted by an order of magnitude —
+  many `rand()` calls can land within one frame and collapse into "one change." Fixed by letting
+  the RNG settle (unchanged 30 frames) then forward-simulating the exact call count.
+- A red herring: the function called right after move-choice resolves is a texture-decompression
+  waiter, not the particle driver — the real driver is what it hands off to.
+- First simulator draft undercounted by missing position-based particle deactivation entirely.
+- Second draft was still off ~5-10% due to a test-harness bug (skipping the already-validated
+  target-scan/move-choice rolls that must run first, not a mechanism bug) — chaining them
+  correctly produced bit-exact matches on all 16 seeds.
 
 ### Dragon's damage formula
 
-User's hypothesis going in: "it likely uses the same structure as Zombie
-Dragon, but it might use a different value for its ATK instead of MGC."
-Confirmed the structure matches Zombie Dragon exactly, but refuted the ATK
-hypothesis — both of Dragon's moves use MGC. Confirmed three independent
-ways: the decompile reads `wMGC` for both sides; a live memory check of
-`Dragon.State` shows genuinely distinct `ATK=250`/`MGC=150` (not aliased or
-bugged together); predicted damage from `attacker.MGC(150) - target.MGC`
-matches every observed live damage value exactly (8/8 Lightning seeds, 5/6
-Fire Breath targets in one capture).
-
-Fire Breath's register-reuse bug was directly confirmed, not just
-predicted: a 6-target live Fire Breath capture matched the plain formula
-exactly on 5/6 targets, and the 6th (slot 1, predicted 31 unscaled) only
-matched the observed value of 15 once the extra halving was included
-(`31 // 2 = 15`) — the mismatch was the bug firing, not a formula error.
+User's hypothesis: "same structure as Zombie Dragon, but might use ATK instead of MGC." Confirmed
+the structure, refuted the ATK guess — both moves use MGC, confirmed 3 independent ways
+(decompile, live memory check showing distinct ATK/MGC values, and exact damage prediction
+matches, 8/8 + 5/6 targets). Fire Breath's register-reuse bug directly confirmed: 5/6 targets
+matched the plain formula, the 6th only matched once the extra halving was included — the
+mismatch was the bug firing, not a formula error.
 
 ## Queen Ant's full moveset and the 3 accompanying ants — a long correction chain
 
-User: "the Queen Ant fight in Mt. Seifu that comes with 3 ants. I want to
-understand the behavior of all enemies there." No savestate was available
-for this specific fight initially, so the first pass was read from the
-decompile only.
+User: "I want to understand the behavior of all enemies" in the Mt. Seifu Queen Ant fight. No
+savestate was available initially, so the first pass was decompile-only and **wrongly concluded
+her ~51% attack branch was visual-only, dealing no damage** — the user caught this immediately
+("she has an AoE magic that hits all characters") and supplied a savestate. The mistake was the
+same class as Neclord's hidden Poison roll: checking only C-level tick functions when the real
+damage call lives in script-installed per-frame coroutine code with no C-level xrefs. Live
+capture confirmed all 5 party members taking damage in one round, in 5 different amounts —
+exactly the AoE signature described.
 
-**Correction #1 (same day, live-validated):** that first pass concluded
-Queen Ant's own ~51% attack branch was "visual-only, dealing no damage" —
-the user caught this immediately: "You're missing at least 1 attack, she
-has an AoE magic that hits all characters, looks similar to a Voice of
-Earth spell," and supplied a fresh start-of-fight savestate
-(`QueenAnt.State`) to test with. The mistake was the same class already
-made once before with Neclord's hidden Poison roll: checking only the
-C-level tick functions for a direct damage-formula call, when the real
-call lives in script-installed per-frame coroutine code with no C-level
-xrefs at all. **Live-confirmed** via `scripts/CaptureQueenAntRounds.lua`:
-round 1 showed all 5 party members taking damage in the same round, in
-five different amounts (-8, -29, -18, -48, -38) — exactly the "hits all
-characters" signature the user described.
+The "3 ants" initially appeared to have no independent decision-making when Queen Ant triggers
+them. Move-choice probability was brute-forced exactly: AoE Earth 51.001%, CommandAnts 48.999%,
+and CommandAnts confirmed to cost zero `rand()` calls even as a no-op.
 
-**The headline finding**: the "3 ants" have no independent decision-making
-when Queen Ant triggers them — or so it initially seemed. `queen_ant_ai_
-self_heal_and_select_move` resets her own current HP to max every turn
-(matches her canonical regeneration/egg-laying lore directly in code).
-Exact probability was brute-forced 2026-09-07 (user: "I need to know it's
-probablity vs it's Earth move" — not a rounded estimate, since RNG2 is a
-direct bit-extraction from a uniformly-distributed seed, not a modulo/hash
-that could bias the split): AoE Earth = 51.0010%, CommandAnts = 48.9990%.
+**Major correction**, prompted by the user noticing the ants are faster than Queen Ant: turn
+order (`weight = SPD*10 - 5 + rand()%10`) means Soldier Ant's weight range `[215,224]` never
+overlaps Queen Ant's `[195,204]` — every living ant is *algebraically guaranteed* to act before
+Queen Ant, every time. This retracted two earlier "findings" about ant target attribution and
+RNG cost that were, unknowingly, observations of the ants' own independent turns, not of Queen
+commanding anyone — verified directly by checking each "commanded" ant's actual continuation
+pointer (always the generic single-attack resolver, never Queen's own commanded-attack function,
+which has never been observed to fire). **Lesson: a plausible-looking target+damage match isn't
+proof you're watching the function you think you are — verify the actual continuation-pointer
+address, not just outcome consistency.**
 
-**CommandAnts retested 2026-09-07 (user: "Queen Ant's Command Ants is
-essentially a dead move, but I still need to know if it pushed RNG"):
-CONFIRMED zero RNG cost even as a no-op.** Both the gate and the command
-function contain zero `rand()`-consuming instructions in every code path,
-confirmed both on paper and via a fresh live retest reading identical RNG
-state across the sequence.
+A follow-up validation pass (`scripts/TraceQueenAntMoveSelection.lua`) bit-exact confirmed the
+move-selection threshold, AoE RNG cost (dead slots cost 0 rolls), and AoE damage for all 4
+targets. **In-spec test-injection lesson**: a first attempt boosted target HP to a flat 9999,
+which overshot every target's own max and triggered an unrelated "clamp to max" correction that
+erased the AoE's own damage before it could be read; corrected to `HPMax - 1` and got a clean
+match — keep injected test values in-spec, not just "large enough."
 
-**MAJOR CORRECTION, 2026-09-07 (user: "It looks like the soldier ants are
-faster than Queen Ant, could it be running its command ants attack after
-the ants have already gone?").** Exactly right, and worse than
-"sometimes": it's algebraically guaranteed, every time. Turn order picks
-the next actor by `weight = SPD*10 - 5 + rand()%10` among everyone who
-hasn't yet acted. Soldier Ant's SPD=22 gives weight range `[215,224]`;
-Queen Ant's SPD=20 gives `[195,204]` — these ranges never overlap, so
-every living ant is guaranteed to take its own independent turn before
-Queen Ant's turn ever comes up, with zero chance for jitter to change
-that.
+An earlier "slot 3 register-reuse bug" claim was retracted after a clean counterexample showed
+slot 3's live damage matching the plain formula, not the halved prediction — it only disproves
+"slot 3 always halves," not that some other condition could still cause an occasional halving.
 
-This retracted BOTH intermediate corrections previously recorded here
-(target attribution via each ant's `bAnimTargetIdx`; the "RNG cost is 1
-roll not 2" finding) — both were, unknowingly, observations of the ants'
-own independent turns, not of Queen commanding anyone. Verified directly
-(`scripts/VerifyAntCommandAttribution.lua`): at the exact frame the
-command function executed, all 3 ants showed `ActionTag=1`, and each
-"commanded" ant's own continuation pointer was `apply_uncovered_attack_
-damage` (the generic single-attack resolver installed by the ant's own
-independent turn), never `ant_commanded_attack_damage` (Queen's own
-commanded-attack function) — which has never been observed to actually
-fire in any tested round. **The lesson: a plausible-looking target+damage
-match isn't proof you're watching the function you think you are — verify
-the actual continuation-pointer address, not just outcome consistency,
-when two different code paths could both plausibly produce "monster hits
-party member with calc_damage."**
+Soldier Ant's 77%/23% split and DoubleStrike formula were live-validated for the first time this
+pass — 2 real DoubleStrike instances captured, one exact match, one where the doubled roll
+exceeded the target's real max HP entirely (fixed by raising `HPMax` itself before testing, not
+just current HP past a stale max).
 
-`ant_commanded_attack_damage`'s own disassembly (re-confirmed, not a
-misreading) still calls `calc_damage` twice in a row with identical
-arguments, discarding the first result and applying only the second —
-`lib/Enemies/QueenAnt.lua`'s functions modeling this were reverted to a
-2-roll model, since the "1 roll" live-measurement was actually of a
-different function. Whether it really costs 2 rolls or some caching effect
-makes it 1 remains genuinely untested — no live capture of this function
-actually executing exists yet.
-
-**Third correction/validation pass, 2026-09-07 (user: "Run simulations to
-confirm our results are accurate")**: built
-`scripts/TraceQueenAntMoveSelection.lua`, watching `BattleState+0xc` plus
-`Address.RNG` and every combatant's HP/busy-flag every frame. Move-
-selection threshold bit-exact confirmed both branches (two real seeds
-captured at the exact transition frame). AoE RNG cost bit-exact confirmed
-(with party slot 2 already dead entering a later round, RNG state advanced
-by exactly 4 steps matching the 4 remaining living slots — dead slots cost
-0 rolls). AoE damage bit-exact confirmed for all 4 targets: 2 survivors
-matched immediately; the other 2 would have died naturally, so a follow-up
-(`scripts/CheckQueenAntAoeDamageNoDeath.lua`, prompted by the user: "check
-by calculating the damage rolls... regardless") boosted their HP before
-the AoE fired.
-
-**In-spec test-injection lesson**: first attempt used a flat 9999 boost —
-this overshot every target's own max and triggered an unrelated "clamp
-current HP to max" correction that erased the AoE's own damage entirely
-before it could be read (all 4 boosted targets ended up exactly at their
-own HPMax, not HPMax-minus-damage). Corrected to `HPMax - 1` and re-run:
-all 4 targets matched the plain neutral formula exactly, zero mismatches —
-a real lesson: keep injected test values in-spec, not just "large enough."
-
-**The "slot 3 register-reuse bug" is RETRACTED.** An earlier pass
-(informed by a static note from a prior session identifying `$s0` as the
-fallback register) claimed party slot 3 specifically takes an accidental
-~50% reduction in this loop. Slot 3's live-captured damage (18) contradicts
-the halved prediction (9) and matches the plain formula exactly. Whether
-some other condition still causes an occasional halving here is an open
-question this one clean counterexample doesn't fully settle — it only
-disproves "slot 3 always halves" as a blanket rule.
-
-**Fourth pass, 2026-09-07 (user: "Can we check the ant targeting and
-damage?" then a follow-up: "Ant has 2 different attacks... perhaps that's
-the 2nd roll you saw?"): SUPERSEDED by the MAJOR CORRECTION above.** This
-pass originally claimed to have live-validated `ant_commanded_attack_
-damage`'s per-ant target attribution and disproved its RNG cost down to
-"1 roll," and then further "ruled out" a hidden move-choice with a 4th
-sample. All of that live validation was actually measuring `apply_
-uncovered_attack_damage` by mistake, per the SPD-guarantee finding above —
-the numbers captured (targets 2/1/3, damage 26/10/17/12) were real, just
-attributed to the wrong function. The one genuinely-confirmed finding from
-that pass survives intact: with only 1 living party member left, only 1
-ant actually attacked that round — the other 2 ants' target fields held
-stale data rather than fresh values.
-
-**Soldier Ant live validation, 2026-09-07 (user: "Did you run sims to
-confirm our functions are accurate?" -> "I'm talking about the probability
-for ant attacks, and the damage rolls").** Neither the 77%/23% split nor
-the DoubleStrike damage formula had ever been live-tested before this
-pass — no DoubleStrike instance had even been observed. 2 real DoubleStrike
-instances captured (`scripts/HuntSoldierAntDoubleStrike.lua`, 8 rounds) —
-the first ever observed live in this project. Ant8's target survived
-naturally (32 damage, exact match). Ant6's target died even after boosting
-HP to `HPMax-1` right before the hit — the doubled roll can exceed a
-target's own real max HP entirely (base 48-21=27, doubled range ~50-58,
-above that target's own HPMax of 55). Fixed by raising `HPMax` itself to
-300 first (not just current HP past a stale max, which would trigger the
-same "clamp to max" bug already documented for Queen Ant's own AoE
-capture), then setting current to 299 — got a clean 56-damage reading.
-
-**Open ends, honestly flagged**: `QueenAnt.State`'s own formation was
-confirmed live as exactly 5 party members + 3 Soldier Ants + Queen Ant,
-but whether the ant count is always exactly 3 across other encounters of
-this fight, or variable/replenished via the round-3-callback's own
-respawn mechanic, wasn't independently re-checked; the exact opcode-level
-trigger chain from `queen_ant_own_attack_windup`'s script dispatch to
-`queen_ant_aoe_earth_cast`'s install as a frame callback wasn't read
-byte-by-byte (inferred from live behavior + code shape); `enemy_data
-[self]+0x90` bit `0x2` (the precondition gating whether her command-branch
-counter even decrements) wasn't identified; whether any condition causes
-an accidental resistance halving in the AoE loop is unresolved; and
-`ant_commanded_attack_damage`'s real RNG cost remains completely untested,
-since no live capture of it actually firing exists.
+**Open ends**: whether the ant count is always exactly 3, the exact opcode-level trigger chain
+for the AoE cast install, an unidentified precondition bit on the command-branch counter, whether
+any condition still causes an accidental resistance halving in the AoE loop, and
+`ant_commanded_attack_damage`'s real RNG cost (never observed to actually fire) all remain
+untested.
 
 ### Queen Ant's round-3 battle-end and ant-respawn mechanic
 
-Prompted by the user's own game knowledge ("the 3rd turn of Queen Ant
-always ends the fight") while discussing `Turn_Order.md`'s unresolved "who
-arms `+0x1330`" question. The user supplied a savestate
-(`QueenAntT3End.State`) sitting right at round 3 — reading live memory
-confirmed `BattleState+0x1330 = 1` and `+0x1334 = 0x8001139c`, the first
-live confirmation that any real encounter actually uses this hook
-(previously only traced structurally, never seen armed). The
-"declare victory" step wasn't traced further (the chain leads to a generic
-coroutine-state write, not an obviously-named "battle over" function), but
-the round-number threshold match against the user's own description is
-already a clean, solid confirmation.
-
-**Caveat added after checking the Ted-vs-Queen-Ant fight below**:
-`SyncSignals+4` is also set by that completely different scripted
-encounter, in a context that's obviously about forcing a turn, not ending
-a battle — so it's better understood as a general resync signal, not
-literally "end the battle" by itself. It plausibly *leads to* the battle
-ending here, but the direct causal link wasn't independently observed.
+Prompted by the user's own game knowledge ("the 3rd turn of Queen Ant always ends the fight").
+A user-supplied savestate right at round 3 gave the first live confirmation that the
+`+0x1330`/`+0x1334` scripted-turn-override hook is actually armed in a real encounter. The
+"declare victory" step itself wasn't traced further (leads to a generic coroutine-state write).
+`SyncSignals+4` is also set by the unrelated Ted-vs-Queen-Ant fight for a clearly different
+purpose (forcing a turn) — better understood as a general resync signal than literally "end the
+battle."
 
 ### The scripted Ted-vs-Queen-Ant "forced Hell cast" fight
 
-The user's second suggested candidate for the `+0x1330`/`+0x1334` hook,
-checked immediately after the round-3 finding above with another
-user-supplied savestate (`QueenAntTed.State`). As a side benefit,
-`AbilitySlot=3` for this forced Hell cast is independent live confirmation
-for the "should be level 3" open question about Hell's spell numbering
-(see Open Questions below).
+The user's second suggested candidate for the same hook, checked with another user-supplied
+savestate. As a side benefit, the forced cast's `AbilitySlot=3` is independent confirmation that
+Hell really is cast via slot 3 (level 3) in practice — see the open Hell-numbering question
+below.
 
 ## Regular (non-boss) enemy AI
 
-Dug into whether ordinary field encounters use the same hand-scripted-
-per-monster AI shape as story bosses, or some shared generic routine. So
-"regular enemies use it, bosses don't" (a hypothesis this project once
-held) is refuted, not just untested.
-
-**Killer Rabbit is the interesting exception.** User confirmed this enemy
-has genuine long-range targeting and provided a live savestate
-(`KillerRabbit.State`) to check it directly.
-
-This surfaced an important technical correction: `b_data.bin` (and almost
-certainly `h_data.bin` and every other per-area `NN_area.X/X_data.bin`
-file) actually loads at runtime base `0x80080000`, not `0x80010000` like
-the boss-specific `vXX.bin` overlays. Caught because the live-read monster
-record's sanitized address (`0x8009f748`) only lines up with the file's
-own byte offset (`0x1f748`) under that base — assuming `0x80010000` put
-the record's `+0x30` AI-function pointer outside the file's own mapped
-range, exactly the same failure hit earlier for EarthGolem/`h_data.bin` —
-that one is now understood to be the same base-address bug, not evidence
-its AI lives elsewhere entirely.
-
-A byte-pattern search for `lbu`/`lb` reads of offset `0x11` across
-`b_data.bin`'s entire ~161KB file (not just the AI functions) found zero
-hits — strong evidence against `+0x11` being the S/M/L range mechanism
-even for a monster with unambiguous, code-confirmed long-range behavior.
-
-**3 more regular monsters traced 2026-09-07 (structural decompile only,
-no live validation)** via the same static disc-file technique: Slasher
-Rabbit, Rabbit Bird, Dagon. None of these 3 have been behaviorally
-validated against a captured live seed — a future pass would need a
-savestate for each to run the full validation checklist. Dagon's exact
-branch polarity of its "commit to plain Attack vs. abandon" fallback
-wasn't independently re-verified and deserves a careful re-read before
-relying on it, given this project's history of misread branch polarities
-elsewhere (e.g. Zombie Dragon's own first-pass accept/reject mixup, see
-`Enemy_AI_Tracing_Methodology.md`).
+Checked whether ordinary field encounters share story bosses' hand-scripted-per-monster AI
+shape, or some generic routine — refuted the "regular enemies use a shared routine" hypothesis.
+**Killer Rabbit** (user-confirmed genuine long-range targeting) surfaced an important technical
+correction: `b_data.bin` (and other per-area `X_data.bin` files) load at runtime base
+`0x80080000`, not `0x80010000` like boss overlays — the same base-address bug that had earlier
+misled an EarthGolem/`h_data.bin` investigation. A byte-pattern search for reads of offset
+`0x11` across the entire file found zero hits — strong evidence against `+0x11` being any kind
+of range mechanism even for a monster with confirmed long-range behavior.
 
 ## Open questions / not yet done
 
-- ~~Full Ghidra struct definitions for the battle-state struct, the
-  combatant stat record, and the equipment/class record~~ — done
-  2026-09-07: `BattleState`, `CombatantRec`, `EnemyData`, `MonsterRecord`,
-  `ClassPtrEntry` are now real Ghidra types. What this doc was calling the
-  "equipment/class record" turned out to just be the character's
-  already-known persistent Stats struct, not a separate battle-only
-  record — no new struct needed there, just correcting the earlier
-  mislabeling. A future pass could add a `PersistentStats` Ghidra struct
-  type covering the known offsets, mirroring the existing Lua-side field
-  layout, if that struct gets touched by enough battle code to be worth
-  formalizing on the Ghidra side too.
-- ~~AI/enemy action selection~~ — resolved for Zombie Dragon 2026-09-06,
-  generalized to 9 more regular monsters 2026-09-06/07: CrimsonDwarf,
-  Colossus, DevilArmor, DevilShield, GiantSnail, Killer Rabbit, Slasher
-  Rabbit, Rabbit Bird, Dagon — all structurally decompiled via the static
-  disc-file technique, only Zombie Dragon (and Killer Rabbit, via a
-  user-supplied savestate) are behaviorally live-validated. 3 template
-  shapes identified so far: plain front-row-scan+Attack, a move-gate
-  variant (`0x33` threshold, seen in DevilShield and Dagon), and a
-  leap-clone long-range variant (Killer Rabbit, Slasher Rabbit). Every
-  OTHER monster's own AI function pointer still needs its own overlay
-  dumped and traced individually if it comes up again — the technique
-  itself is now well-proven and repeatable, just not exhaustively applied
-  to every monster in the game.
-- ~~Whether `g_abWeaponTypeToElement`'s ids `0-4` line up with the
-  magic-side element numbering~~ — resolved 2026-09-07: yes, one unified
-  enum, not a separate weapon-only scheme. Confirmed directly in `calc_
-  damage`'s own decompile: it computes `element_id` from this table then
-  indexes the exact same `attack_data_table[target.Id]+0x20+element_id`
-  compatibility row that `apply_elemental_multiplier` uses for spells.
-  `lib/Magic.lua` has no separate element-id table of its own to
-  cross-check — the magic-side numbering comes entirely from `apply_
-  elemental_multiplier`'s own 21 call sites, already cross-validated
-  against `Suikoden-RNG-lib`'s `Spells.js` damage values.
-- `0x80116078`'s (Hell's) `a0=4` still doesn't match its confirmed
-  identity (should be level 3 by spell order) — behavior confirms the
-  spell, the numbering discrepancy is unexplained. Independent supporting
-  evidence for "should be level 3" found 2026-09-07: live-reading the
-  scripted Ted-vs-Queen-Ant fight showed Ted's forced action set to
-  `AbilitySlot(+0x48) = 3` for his scripted Hell cast — directly confirms
-  level 3 is really the slot used to cast Hell in practice, leaving the
-  internal `a0=4` mismatch inside Hell's own cast-entry code as the only
-  remaining unexplained piece.
-- The external `Suikoden-RNG-lib` reference has at least one confirmed
-  inaccuracy (Charm Arrow: lists 400 dmg, the ROM's real value is 500,
-  confirmed via live gameplay math) — treat its damage numbers as a strong
-  lead, not ground truth, until cross-checked.
-- The Zombie Dragon third-formula section: the ATK-DEF-vs-MGC contradiction
-  with `calc_damage`'s own disassembled code — narrowed 2026-09-07: the
-  "coincidental DEF==MGC" explanation is now definitively ruled out via a
-  live read, leaving only "the monster's own attack script overrides the
-  damage with its own MGC-based opcode" as the explanation — that specific
-  opcode hasn't been located yet, would need Zombie Dragon's fire-breath
-  script bytecode parsed end-to-end.
-- Poison's duration-slot decrement-and-clear consumer (the generic
-  per-status table entry for `id0`) was not located.
-- Queen Ant: whether the ant count is always exactly 3 across other
-  encounters of this fight, the exact opcode-level trigger chain from her
-  attack windup to the AoE cast's install as a frame callback, the
-  `enemy_data[self]+0x90` bit `0x2` precondition, whether any condition
-  still causes an accidental resistance halving in her AoE loop, and
-  `ant_commanded_attack_damage`'s real RNG cost — all untested/unresolved.
-- Dagon's branch-polarity uncertainty on its Attack-vs-abandon fallback,
-  and the general caveat that Slasher Rabbit/Rabbit Bird/Dagon are
-  structural-only reads with no live validation yet.
+- ~~Full Ghidra struct definitions~~ — done: `BattleState`, `CombatantRec`, `EnemyData`,
+  `MonsterRecord`, `ClassPtrEntry` are real Ghidra types. The suspected separate "equipment/class
+  record" turned out to just be the already-known persistent Stats struct.
+- ~~AI/enemy action selection~~ — resolved for Zombie Dragon and generalized to 9 more regular
+  monsters via the static disc-file technique; only Zombie Dragon and Killer Rabbit are
+  behaviorally live-validated at this point in the project. 3 template shapes identified:
+  plain front-row-scan+Attack, a move-gate variant, and a leap-clone long-range variant.
+- ~~Whether `g_abWeaponTypeToElement` lines up with the magic-side element numbering~~ —
+  resolved: yes, one unified enum, confirmed directly in `calc_damage`'s own decompile.
+- `0x80116078`'s (Hell's) `a0=4` still doesn't match its confirmed identity (should be level 3)
+  — behavior confirms the spell, the numbering discrepancy is unexplained. The Ted-vs-Queen-Ant
+  fight's forced `AbilitySlot=3` is independent supporting evidence for "should be level 3."
+- Suikoden-RNG-lib has at least one confirmed inaccuracy (Charm Arrow: lists 400 dmg, real value
+  is 500) — treat its damage numbers as a strong lead, not ground truth.
+- The Zombie Dragon third-formula ATK-DEF-vs-MGC contradiction narrowed to: the monster's own
+  attack script must override the damage with its own MGC-based opcode — that opcode hasn't been
+  located (would need the fire-breath script bytecode parsed end-to-end); later resolved, see the
+  `fire_func` VFX-subsystem entry above.
+- Poison's duration-slot decrement-and-clear consumer wasn't located.
+- Queen Ant open ends listed above; Dagon's branch-polarity uncertainty and the general caveat
+  that Slasher Rabbit/Rabbit Bird/Dagon are structural-only reads with no live validation.
+- ~~`MonsterRecord+0x2c`'s consuming code~~ — RESOLVED. Every technique anchored on
+  round-combat-resolution code failed first (a `search_instructions` sweep, a hook-free memory
+  scan, and live memory-hooking — confirmed completely non-functional for this PSX core in this
+  BizHawk build, `onmemoryread`/`onmemorywrite` never fire even though `onframeend` does). The
+  real reason: the actual consumer lives in a region of `main.exe` Ghidra had never carved into a
+  `Function`, so both `get_xrefs_to` and `search_instructions` silently skip over it. Found by
+  manually walking backward from a live call site through the battle round-state dispatcher to
+  its root init call, `battle_init_sequence`. See docs for the full resolved mechanism
+  (`battle_load_enemy_combatants` → `build_sprite_poly_resource`/`apply_sprite_texture_coords`).
+- EnemyData's unexplored byte ranges: while tracing `+0x2c`, noticed `MonsterRecord` isn't
+  actually 54 bytes — it's 64, with 10 more real bytes past `wGoldDrop` nobody had scanned.
+  `+0x3c`/`+0x3e` turned out to copy verbatim into `EnemyData.nSpriteOffsetX`/`Y` — a per-monster
+  sprite-centering pixel nudge, confirmed via the party-side analog hardcoding `(0,0)` for every
+  character.
+- ~~`+0x36`/`+0x38`/`+0x3a`'s meaning~~ — IDENTIFIED, correcting a wrong same-session conclusion.
+  Checked every caller of the 3 sprite-resource functions, a statistical correlation pass, and a
+  full 2MB main-RAM literal-value scan — all came up empty, plus a raw byte-pattern search for
+  every load instruction referencing these offsets across `main.exe` and 3 overlays also found
+  nothing. On the strength of those negatives, wrongly concluded these bytes were unused
+  build-pipeline artifacts. **The user corrected this immediately**: each 2-byte field is
+  actually two independent bytes — item ID and drop chance, 3 drop slots per monster — a layout
+  already implemented in this project's own `lib/Battle.lua:readEnemyTable`, a file this
+  investigation never cross-checked before concluding "unused." Real lesson: exhausting RE
+  techniques on a *guessed* field shape doesn't rule out a different real shape the project's own
+  tooling already knew about.
+- Drop-roll consumer chase: first anchored on `BattleState+0x1260` (the gold-pool accumulator),
+  which only led to the Bribe menu's cost-check logic (a genuine, previously-undocumented
+  mechanic: cost = 3× enemy gold pool) — not drop-related. ~~Drop-roll/gold-award consumer~~ —
+  FOUND by switching to a dynamic approach: won a live battle (`chooseRoundOption` +
+  **`confirmRound`** — the critical fix, since `chooseRoundOption` alone never starts the round)
+  and watched the per-slot continuation-pointer arrays for new addresses after Gigantes' death,
+  surfacing a previously-unexplored results-screen module. Walked it forward until
+  `search_instructions` on the rare staged-item-offset pointed straight at
+  `battle_process_enemy_turns`. See docs for the full confirmed mechanic (uniform random slot,
+  direct percentage chance, one item max per battle, Prosperity Rune's exact doubling condition).
+- ~~`EnemyData`'s `aUnk_0x10`~~ — PARTIALLY RESOLVED: a live per-frame diff of Gigantes' idle
+  round found the idle sway animation (`bIdleSwayTimer` counting down, `nSIdleSwayZStep` feeding
+  `nRefPosZ` every frame). Most of the range stayed at 0 through the idle trace and remains
+  unexplored — likely only used by other animation states.
+- ~~`battle_calc_enemy_aggro`'s real purpose~~ — CORRECTED: misidentified by an earlier session
+  (complete with a detailed "live-verified aggro values" writeup that was entirely wrong). It's
+  the EXP award formula, confirmed when the user supplied the exact mechanic unprompted and every
+  one of its 30 table entries matched a live read byte-for-byte. Proof independent of the table
+  match: its output buffer is heap-allocated only at battle end, and the function it was claimed
+  to feed doesn't reference that buffer at all. Renamed to `battle_calc_party_exp_award`. This
+  also retroactively resolves the earlier "Fortune doubles a separate field" confusion — there
+  was only ever one field.
+- ~~`EnemyData.aUnk_0x42`~~ — RESOLVED, per the user's suggestion to "rig a guaranteed miss" once
+  a genuinely long trace proved infeasible for other reasons. True 100% guaranteed misses are
+  impossible (`calc_hit_chance` clamps to [60,99]) — confirmed along the way that a live SKL read
+  stays stale for ~4 frames after `confirmRound()` before settling, a timing gotcha worth
+  remembering for any stat-based rig. Getting a long enough trace took several fixes: dropping
+  already-understood per-frame diffing (the real bottleneck was logging I/O volume, not emulation
+  speed — `client.speedmode`/`invisibleemulation` made no measurable difference); re-confirming
+  Free Will every round (a first long trace came back "0 changes," a false negative from the
+  round-menu reappearing and needing re-confirmation); and re-applying the SKL rig every round
+  (a sibling stat-refresh function silently undoes a one-time edit). With those fixed, a 13-round
+  trace found `EnemyData+0x42`-`+0x5b` lights up specifically during Gigantes' AOE attack, not
+  ordinary hits/misses — see docs for the full field-by-field writeup.
+- Follow-up on `bUnk_0x43`/`aUnk_0x44`: blind searches for direct writes came up empty (same
+  undisassembled-bytes blind spot as `+0x2c`). Found `pVfxEffectHandler`'s true type (a function
+  pointer, not raw data) via `anim_op_spawn_sub_actor_from_table_slot`'s own write to the same
+  struct offset on a freshly-spawned sub-actor — but whether this is the same code path that lit
+  up on Gigantes' own slot wasn't resolved without decoding her own script bytecode.
+- Decoded Gigantes' own script bytecode per go-ahead ("Yes, decode her script bytecode"). Her
+  `MonsterRecord+0x28` slot 6 turned out to be a native compiled function (not bytecode), matching
+  the Zombie Dragon precedent. Traced the full 5-function AOE cast chain end-to-end and confirmed
+  none of it writes `EnemyData+0x43`/`+0x44`-`+0x53` — every byte of scratch state lives in heap
+  buffers instead. Cross-checked against Zombie Dragon's own independent Fire Breath chain
+  (`continue`, per the user) — same result. Two structurally independent monsters' elaborate
+  special-move chains both avoiding these bytes is strong evidence they're simply unused padding
+  in this build, not exhaustive proof (the other 122 monsters' own custom slots weren't checked).
+  See docs' "Live EnemyData fields" section for the full chain writeup; all functions renamed and
+  commented in `vc3.bin`/`enemy_ai_overlay.bin`, both programs saved.

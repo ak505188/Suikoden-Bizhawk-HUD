@@ -69,6 +69,69 @@ attacker's own Bucket status (an offensive accuracy debuff) halves their
 own chance, while an enemy attacker's chance is halved by the *target's*
 own Hazy Rune (a defensive evasion buff) — not the enemy's own equipment.
 
+### On a miss or a hit: dodge and counter
+
+Two different physical-attack functions resolve a miss differently:
+
+- **`battle_execute_player_attack`** (`0x800f4e64`, despite the name — the
+  fallback when an enemy's own AI declines to act specially, see
+  [AI/enemy move selection](#aienemy-move-selection)) is the only caller of
+  **`check_dodge_counter`** (`0x800f78e4`), on a miss only. Gated on the
+  attacker's `MonsterRecord+0x26` bit `0` ("can be countered," per-species)
+  and the defender's `PersistentStats+0x56` bit `0` ("can dodge/counter,"
+  per-character); a coin flip (`rand()&1`) decides the outcome, guaranteed
+  success if the defender is Defending or has Counter Rune (`Rune.Id==16`).
+  A success is a real counter-attack: the defender's own attack script
+  fires back, chained through `counter_attack_reprisal` →
+  `counter_attack_reprisal_continue` → `counter_attack_apply_damage`, an
+  ordinary `calc_damage` hit against the attacker — same formula as any
+  other physical attack. A confirmed off-by-one in the eligibility guard
+  (`attacker_idx > dwPartyCount+1`, not `> dwPartyCount`) means the first
+  enemy slot in any battle can never trigger this.
+- **`battle_execute_enemy_attack`** (`0x800f491c`, the normal Attack-
+  dispatch entry, used by both party and enemy) has a separate counter
+  trigger nested in the same miss branch as `calc_hit_chance`'s own
+  failure — fires on a miss only, keyed off the *target's* own
+  `MonsterRecord+0x26`: bit `1` (and the attacker's own `PersistentStats
+  +0x56 != 2`) arms the same `counter_attack_reprisal` chain; bit `2` is an
+  ordinary miss with no counter; bit `15` forces this whole branch even on
+  what would otherwise be a hit — set only on both Neclord fights
+  (`flags=0xc004`): the Warrior's Village forced-loss fight (`ve1.bin`,
+  lvl55 HP10000, AI `0x80013d18`) and the real Neclord's Castle fight
+  (`ve3.bin`, lvl55 HP7500, AI `0x8001675c`).
+
+  Confirmed live for Sonya Shulen and Ain Gide. A disc-wide scan of every
+  `MonsterRecord` (correcting an earlier scan that silently dropped every
+  monster in the per-area `*_data.bin` files, which load at base
+  `0x80080000` rather than the boss-overlay `0x80010000`) found bit `1` set
+  on 38 of 122 monsters — mostly humanoid soldier/mercenary types (Empire
+  Soldier, Robot Soldier, Veteran/Elite Soldier, Imperial Guards, Bandit)
+  plus several named bosses (Anji, Kanak, Leonardo, Sydonia, Varkas, Sonya
+  Shulen, Ain Gide, Ninja Master).
+
+  `counter_attack_reprisal` also requires a runtime flag (`enemy_data+0x40`
+  bit `0`, armed only by `anim_op_set_effect_flags`/opcode `26` in the
+  attacking combatant's own script) on top of the target's static species
+  bit. Every one of the 6 sampled party members' own basic-Attack scripts
+  contains this opcode — a normal, universal part of an ordinary Attack
+  animation. 5 of 6 (Viktor, Gremio, Hero, Camille, Tai Ho) set the flag on
+  *themselves* at that point, satisfying the check on a miss. **Cleo**
+  sets that same bit on her *target* instead, so her attacks don't arm
+  this — she's the only one of the 6 sampled with weapon-reach category
+  `2` (long-range, can hit any row); a ranged attacker not exposing itself
+  to a counter looks like a deliberate rule, though only one ranged
+  character has been checked. This is the same opcode-26-gated mechanism
+  documented as dead code on **Sydonia's own boss AI** — her own
+  special-move script never calls opcode `26` on herself, so her attacks
+  can't trigger this the analogous way.
+
+So either side can miss (same formula), and both sides have a real counter
+mechanic on a miss — the party's via `check_dodge_counter` (per-monster and
+per-character gated), and specific monsters' via the species-flag path,
+armed by the attacker's own ordinary attack script — confirmed for Sonya
+Shulen/Ain Gide and expected for the rest of the 38-monster list against
+any party member except possibly Cleo.
+
 ## Action selection: `combatant_rec+0x46..+0x49`
 
 Every combatant record carries a "what did this combatant queue up this
@@ -151,18 +214,200 @@ element has a Lv4 and Lv5 id):
 | Water | `12` | `30` |
 | Lightning | `20` | `32` |
 
-| id | Spell | Elements | Target type |
+| id | Spell | Elements | flags (`+0x16`) |
 |---|---|---|---|
-| `34` | Scorched Earth | Fire + Earth | AOE (all enemies) |
-| `35` | Storm Fang | Earth + Wind | AOE (all enemies) |
-| `36` | Blazing Camp | Lightning + Fire | AOE (all enemies) |
-| `37` | **Thor** | Water + Lightning | single-target |
-| `38` | Water Dragon | Wind + Water | `0` |
+| `34` | Scorched Earth | Fire + Earth | `1` |
+| `35` | Storm Fang | Earth + Wind | `1` |
+| `36` | Blazing Camp | Lightning + Fire | `1` |
+| `37` | **Thor** | Water + Lightning | `3` |
+| `38` | Water Dragon | Wind + Water | `1` |
 
 Thor is the only one flagged single-target, and only when the faster
 caster's contribution was specifically Ball of Lightning (Lightning's own
 Lv4, itself single-target). Element adjacency forms the expected
-Fire–Earth–Wind–Water–Lightning 5-cycle.
+Fire–Earth–Wind–Water–Lightning 5-cycle. Thor's `+0x16` flag word (`3`,
+vs. `1` for the other four combos) matches its documented single-target
+behavior and cross-validates the same field's meaning in the full spell
+table below (`3` = single-target, `1` = AOE, wherever both a spell and a
+sibling of its own level differ only in that bit).
+
+### The full spell table: `DAT_8016d33c`
+
+`DAT_8016d33c` is the canonical spell definition table both
+`battle_select_special_ability` (normal Rune casts) and
+`battle_check_magic_unite` (combo casts) index into. Its first dword is a
+count (`0x26` = 38), followed by 38 consecutive 4-byte pointers (1-based:
+spell id `N` → array index `N-1`), each pointing to a 0x20-byte struct:
+
+- `+0x00`: the spell's display name, **charmap-encoded** (see
+  [lib/Charmap.lua](../../lib/Charmap.lua)), null-terminated, no fixed
+  length (padding fills the rest of the name region up to `+0x16`). The 5
+  combo-Unite structs (ids 34-38) do *not* have a valid charmap name here —
+  those bytes are non-printable, presumably unused since combo casts never
+  show a normal "cast X" name prompt.
+- `+0x16`: a flags word. Low bits appear to encode target type (`3` =
+  single-target, `1` = AOE, confirmed via Ball of Lightning, Thor, and
+  Explosion/Earthquake/Charm Arrow all matching their already-documented
+  targeting), but values `0`, `2`, `8`, `0xA` also occur and are not fully
+  decoded — recorded as-is below rather than guessed at.
+- `+0x1c`: the `cast_entry` code pointer (see "How spells call RNG" below).
+
+All 38 ids, decoded directly from the charmap names (element/level grouping
+inferred from struct adjacency and cross-checked against the already-traced
+spells below — marked ✓ where an independent RNG trace confirms the row):
+
+| id | Element | Lv | Name | flags | base_power | struct | cast_entry |
+|---|---|---|---|---|---|---|---|
+| 1 | Fire | 1 | Flaming Arrows ✓ | `3` | 100 | `8016D61C` | `800FEAEC` |
+| 2 | Fire | 2 | Firestorm ✓ | `1` | 150 | `8016D63C` | `800FF428` |
+| 3 | Fire | 3 | Dancing Flames ✓ | `1` | 400 | `8016D65C` | `80100140` |
+| 4 | Fire | 4 | Explosion ✓ | `1` | 700 | `8016D67C` | `80101130` |
+| 29 | Fire | 5 | Final Flame ✓ | `1` | 900 | `8016D69C` | `80101E88` |
+| 5 | Resurrection | 1 | Scolding ✓ | `3` | 70 (×2 vs undead) | `8016D8FC` | `80102DC0` |
+| 6 | Resurrection | 2 | Yell ✓ | `A` | revive + heal: HP_Max/3 (single target; clears KO/`bValidFlag` first) | `8016D91C` | `80103824` |
+| 7 | Resurrection | 3 | Scream ✓ | `8` | heal: fixed 300 (party-wide, living members) | `8016D93C` | `80104468` |
+| 8 | Resurrection | 4 | Charm Arrow ✓ | `1` | 500 | `8016D95C` | `80105080` |
+| 9 | Water | 1 | Drops of Kindness ✓ | `A` | heal-to-full: `-(HP_Max - HP_Current)` (single target, must already be alive) | `8016DBBC` | `801058AC` |
+| 10 | Water | 2 | Fog of Deception ✓ | `1` | debuff, all enemies: record field `+0x36` (undocumented, likely accuracy/evasion) ×0.8 | `8016DBDC` | `80106178` |
+| 11 | Water | 3 | Water of Kindness ✓ | `8` | heal: fixed 300 (party-wide, living members) | `8016DBFC` | `801068CC` |
+| 12 | Water | 4 | Rain of Kindness ✓ | `8` | heal: fixed 300 (party-wide, living members — same magnitude as Lv3, not further resolved) | `8016DC1C` | `8010726C` |
+| 30 | Water | 5 | Mother Ocean ✓ | `8` | heal-to-full: `-(HP_Max - HP_Current)` for every party member (party-wide full heal) | `8016DC3C` | `80107FB4` |
+| 13 | Wind | 1 | Wind of Sleep | `1` | n/a — pure particle VFX, exhaustively confirmed (full manual decompile + whole-chain `jalr` scan) to contain zero calls, direct or indirect, to any HP/status function; drives Sleep (id5) via the `anim_op_roll_status_effect_chance` (opcode 40) animation-script mechanism instead — see notes below | `8016DEE0` | `80108B58` |
+| 14 | Wind | 2 | The Shredding ✓ | `3` | 400 | `8016DF00` | `801093EC` |
+| 15 | Wind | 3 | Healing Wind ✓ | `A` | heal-to-full: `-(HP_Max - HP_Current)` (single target) | `8016DF20` | `80109D98` |
+| 16 | Wind | 4 | Storm ✓ | `1` | 500 | `8016DF40` | `8010A67C` |
+| 31 | Wind | 5 | Shining Wind ✓ | `1` | 500 | `8016DF60` | `8010B044` |
+| 17 | Lightning | 1 | Angry Blow ✓ | `3` | 150 | `8016E1C0` | `8010C118` |
+| 18 | Lightning | 2 | Rainstorm ✓ | `1` | 100 | `8016E1E0` | `8010CBD8` |
+| 19 | Lightning | 3 | Raging Blow ✓ | `3` | 600 | `8016E200` | `8010D848` |
+| 20 | Lightning | 4 | Ball of Lightning ✓ | `3` | 1000 (single-target) | `8016E220` | `8010E4CC` |
+| 32 | Lightning | 5 | Thunder God ✓ | `1` | 900 | `8016E240` | `8010F418` |
+| 21 | Earth | 1 | Clay Guardian ✓ | `2` | buff, single target: record field `+0x42` (undocumented, DEF-family) ×1.5 | `8016E4A0` | `80110438` |
+| 22 | Earth | 2 | Voice of Earth ✓ | `1` | 300 (excludes flying targets) | `8016E5B0` | `80112A8C` |
+| 23 | Earth | 3 | Copper Flesh ✓ | `2` | applies status id8 "Copper Flesh" (HP-lock) via `FUN_80111220`, found by raw `jal`-opcode scan, not static xref | `8016E4C0` | `80110CC8` |
+| 24 | Earth | 4 | Earthquake ✓ | `1` | 700 | `8016E4E0` | `801116D0` |
+| 33 | Earth | 5 | Guardian of Earth ✓ | `0` | buff, party-wide: same record field `+0x42` ×1.5 for every party member (Clay Guardian's AOE upgrade) | `8016E500` | `80112048` |
+| 25 | Dark | 1 | Deadly Fingertips ✓ | `3` | 2 (instant-death) | `8016E8A0` | `80113A68` |
+| 26 | Dark | 2 | Black Shadow ✓ | `1` | 300 | `8016E8C0` | `801148AC` |
+| 27 | Dark | 3 | Hell ✓ | `1` | 2 (instant-death, AOE) | `8016E8E0` | `80115654` |
+| 28 | Dark | 4 | Judgment ✓ | `3` | 1500 | `8016E900` | `80116638` |
+| 34 | Fire+Earth | combo | Scorched Earth ✓ | `1` | 1300 (via `FUN_80125c94`, not `apply_elemental_multiplier`) | `8016EB60` | `801179BC` |
+| 35 | Earth+Wind | combo | Storm Fang ✓ | `1` | 1000 (via `FUN_80125c94`) | `8016EB80` | `80118938` |
+| 36 | Lightning+Fire | combo | Blazing Camp ✓ | `1` | 1500 (via `FUN_80125c94`) | `8016EBA0` | `80119584` |
+| 37 | Water+Lightning | combo | Thor ✓ | `3` | 2000 (via `FUN_80125c94`, single-target) | `8016EBC0` | `8011A7F4` |
+| 38 | Wind+Water | combo | Water Dragon ✓ | `1` | 800 (via `FUN_80125c94`) | `8016EBE0` | `8011BDE4` |
+
+Notes:
+
+- **Id 22 resolves the earlier structural anomaly**: its struct address
+  (`8016E5B0`) sits outside the otherwise-contiguous Earth block
+  (`8016E4A0`/`E4C0`/`E4E0`/`E500`), which previously looked like it might
+  mark id22 as a special/unique-rune slot. Its charmap name decodes to
+  "Voice of Earth", confirming it's simply Earth Lv2 — allocated
+  out-of-line for unknown reasons (build/patch ordering, most likely), not
+  structurally special. Its `apply_elemental_multiplier` call site
+  (`0x8011349c`) independently confirms `Lvl=2, Element=2 (Earth)`,
+  matching the struct-derived row exactly.
+- **Hell's level, now independently confirmed (not just struct-position
+  inferred)**: its `apply_elemental_multiplier` call site (`0x80116078`)
+  passes `a0=3` literally — Dark Lv3, matching the struct-order inference
+  exactly. See also the "How spells call RNG" table below, updated to drop
+  the earlier "Lv4\*" uncertainty marker.
+- The Resurrection and Dark elements only have 4 levels each (no Lv5 entry
+  in this table), unlike the 5 elements with Unite Magic.
+- **`base_power`/effect coverage**: 21/38 ids have a confirmed
+  `apply_elemental_multiplier`-based `base_power`, cross-checked 1:1 against
+  ["The 21 callers"](#the-21-callers) below (element and level both match
+  with zero discrepancies — see that section for full derivation, including
+  the compatibility-scaling formula the power feeds into). Coverage of "21
+  callers" was verified exhaustively, not just via xref lookup: a whole-
+  `main.exe` raw-instruction scan for the `jal 0x80125b28` opcode returns
+  exactly those 21 call sites and no others (per
+  [[feedback-ghidra-xref-completeness]]). A second pass traced the remaining
+  17 non-elemental ids by decompiling their `cast_entry` → `vfx_setup` →
+  `tick_state_machine` chains and searching for the two other HP-mutation
+  entry points, `apply_hp_damage_display` (`0x800e1654`, confirmed via the
+  same exhaustive `jal`-opcode-scan technique: sign convention is
+  **negative = heal, positive = damage**) and `apply_status_effect`
+  (`0x800e04dc`). All 38 ids now have a confirmed element/level/name and a
+  confirmed mechanism, with 26/38 having a confirmed numeric power/magnitude
+  (21 elemental + 5 combo) and the rest having a confirmed non-numeric
+  effect (heal formula, stat multiplier, or status id) — only Wind of Sleep
+  (id13) has an *unconfirmed* mechanism, and even that has a strong
+  circumstantial match to the Sleep status.
+  - **Water (ids 9, 10, 11, 12, 30)**: four are heals — Drops of Kindness
+    (id9) and Healing Wind (id15, Wind not Water — see its own row) heal a
+    single target to full (`-(HP_Max - HP_Current)`); Water of Kindness
+    (id11) and Rain of Kindness (id12) both apply a fixed party-wide +300
+    (same magnitude at two different levels — not further resolved *why*
+    they'd differ in power if at all); Mother Ocean (id30) is the party-wide
+    heal-to-full upgrade. **Fog of Deception (id10) is the one exception**:
+    not a heal at all — an all-enemies debuff multiplying an undocumented
+    record field (`+0x36`, likely accuracy or evasion) by 0.8. This
+    corrects the prior pass's blanket "all 5 are heal/buff" note.
+  - **Yell and Scream (ids 6, 7) are healing/revival spells, not debuffs**:
+    this corrects the prior pass's naming-based guess. Yell revives a
+    downed single ally (clears the KO/`bValidFlag` immediately before
+    healing) for `HP_Max/3`; Scream is a fixed party-wide +300 heal, no
+    revive check. Both fit the "Resurrection" element name far better than
+    the original "debuff" guess did.
+  - **Clay Guardian and Guardian of Earth (ids 21, 33) are stat buffs, not
+    status-effect casts**: both multiply an undocumented record field
+    (`+0x42`, DEF-family — same offset in both) by 1.5; Clay Guardian
+    targets one ally, Guardian of Earth applies it party-wide. Neither
+    calls `apply_status_effect` — the earlier hypothesis that they shared
+    Copper Flesh's status mechanism was wrong.
+  - **Copper Flesh (id23)** is the one id in this group that genuinely does
+    call `apply_status_effect(ctx, 8)`, via helper `FUN_80111220` — found
+    only through the raw `jal`-opcode scan (dispatched indirectly through a
+    phase-switch jump table, so it has no static xref and doesn't appear in
+    `get_function_callees` either — see [[feedback-ghidra-xref-completeness]]).
+    Status id8 is independently named "Copper Flesh" in the status-effects
+    section above, an exact match to this spell's own name.
+  - **Wind of Sleep (id13)** remains the one genuinely open id, now checked
+    exhaustively rather than by scan alone: `cast_entry` (`80108B58`),
+    `vfx_setup` (`FUN_80108b80`), and the full `tick_state_machine`
+    (`FUN_80108d54`, all 6 phase cases plus its cleanup tail ending at
+    `801093E8`, immediately before The Shredding's `cast_entry` begins at
+    `801093EC`) were all manually decompiled line-by-line — the whole chain
+    is pure wind-gust particle VFX (50 particles, position/velocity jitter,
+    heap alloc/free), with `rand()` used only for particle-position noise in
+    `vfx_setup`, never for a status roll. A whole-chain `jalr` (indirect
+    call) mnemonic scan additionally confirms zero indirect calls anywhere
+    in `80108D54`–`80109358`, so this isn't just "no *named* call found" —
+    there is no call of any kind, direct or indirect, to
+    `apply_status_effect`/`apply_hp_damage_display`/`apply_elemental_multiplier`
+    in this spell's own C code, full stop.
+    The actual status-roll mechanism, `anim_op_roll_status_effect_chance`
+    (`0x800e6cec`, already independently documented via its own plate
+    comment from an earlier session — script encoding
+    `[opcode][status_id:i16][chance_arg:i16]`, opcode 40, calls
+    `apply_status_effect(combatant_idx, status_id)`), lives entirely in
+    per-combatant animation-script bytecode (`pScriptCursor`), not in any
+    spell's C-level cast chain — so a spell that inflicts Sleep purely
+    through its own VFX resource's script data structurally *cannot* show up
+    via decompile or opcode-scan of `main.exe`'s code, confirming this is
+    the right kind of dead end rather than a missed call. Pinning down
+    whether Wind of Sleep's specific script blob contains this opcode (and
+    with `status_id`=5, the independently-confirmed "Sleep" id) would
+    require locating and decoding that spell's VFX resource bytes directly
+    (the same live-capture technique already used to confirm the ordinary
+    Attack script's busy-flag values) — not attempted here. Circumstantial
+    fit (element/name) remains strong; not independently proven.
+  - **Combo Unite spells (ids 34-38)**: confirmed to never call
+    `apply_elemental_multiplier`, but all 5 DO call `apply_hp_damage_display`
+    directly, via a shared, not-`apply_elemental_multiplier` dual-element
+    helper `FUN_80125c94(element_a, element_b, target, attacker, base_power)`
+    — base_power confirmed for all 5 (see table above). This helper's own
+    element-compatibility math (presumably how Unite spells hit multiple
+    resistances/weaknesses at once) wasn't traced this pass.
+- `+0x16` flags beyond the `3`-vs-`1` single-target/AOE split (values `0`,
+  `2`, `8`, `0xA` above) are recorded but not decoded.
+- Two previously-undocumented `CombatantRec` fields surfaced while tracing
+  this table: `+0x36` (likely accuracy/evasion — target of Fog of
+  Deception's debuff) and `+0x42` (DEF-family — target of Clay
+  Guardian/Guardian of Earth's buff). Neither is in the central battle-state
+  struct's offset table above yet pending a clearer standalone read.
 
 ### The unique-rune ability table (`DAT_8016a630`)
 
@@ -406,13 +651,13 @@ routing through a generic passive-effect system:
 |---|---|---|---|
 | `14` (`0x0e`) | Double-Beat | `battle_execute_enemy_attack` | enables the multi-target attack-repeat path (e.g. Zombie Dragon's Fire Breath) |
 | `15` (`0x0f`) | Killer | `check_critical_hit` | doubles crit chance (up to 50%) |
-| `16` (`0x10`) | Counter | `check_dodge_counter` | guarantees a successful dodge/counter roll |
+| `16` (`0x10`) | Counter | `check_dodge_counter` | guarantees a successful counter-attack roll on an eligible monster's missed attack (see "On a miss or a hit: dodge and counter" above) |
 | `18` (`0x12`) | Hazy | `calc_hit_chance` | halves an attacking enemy's hit chance against whichever combatant has Hazy equipped (boosts the wearer's own evasion) |
 | `19` (`0x13`) | Gale | `battle_compute_ally_derived_stats` | doubles the SPD stat slot in the per-round derived-stats computation |
 | `20` (`0x14`) | Sunbeam | `battle_refresh_combatant_derived_stats` (battle) and `FUN_80126408` (a separate, non-battle subsystem) | in battle, contributes `+5` to a per-round REGEN total; via a shared helper `FUN_801261b0(20)` in the `DAT_8017db24` subsystem (very likely the overworld step-counter), heals every party-roster member by 1 HP (capped at max) per step |
 | `21` (`0x15`) | Holy | `FUN_801328b0` (the `DAT_8017db24` subsystem) | gates a boolean check, OR'd with a separate roster-id-based check |
-| `22` (`0x16`) | Fortune | `battle_calc_enemy_aggro` | doubles a per-party-member XP-related counter field (offset `+0x10` in the `DAT_80179fd0`-based array, distinct from the aggro score at `+0x14`) |
-| `23` (`0x17`) | Prosperity | `battle_process_enemy_turns` | doubles a battle-wide accumulated total (`DAT_80179fd0+0x224c`) built by summing `MonsterRecord.wGoldDrop` (`+0x34`) across every living enemy. The encoding has a bit-0 "compressed large value" branch (`(raw/10)*100` when the low bit is set). |
+| `22` (`0x16`) | Fortune | `battle_calc_party_exp_award` (renamed from a wrong earlier identification, `battle_calc_enemy_aggro` — see "EXP award formula" below) | doubles the wearer's own EXP award for the battle |
+| `23` (`0x17`) | Prosperity | `battle_process_enemy_turns` | doubles a battle-wide accumulated total (`DAT_80179fd0+0x224c`) built by summing `MonsterRecord.wGoldDrop` (`+0x34`) across every enemy actually defeated this battle (gated on a per-enemy "was defeated" flag, not just presence in the encounter). The encoding has a bit-0 "compressed large value" branch (`(raw/10)*100` when the low bit is set). |
 | `24` (`0x18`) | Champion's | `FUN_80126228`/`FUN_801261b0` (the `DAT_8017db24` subsystem) | in a `rand()`-based weighted lottery/selection event, bypasses a luck-threshold check and forces success |
 | `25` (`0x19`) | Turtle | `anim_op_roll_status_effect_chance` | unconditional immunity to status-effect infliction |
 | `26` (`0x1a`) | Phero | `find_cover_target` | gates a fallback "cover for any opposite-gender ally" condition |
@@ -579,7 +824,12 @@ No random variance anywhere — magic damage is fully deterministic given
 base_power, caster MGC, and target compatibility. The attacker stat term
 reads the same combatant-record offset documented as MGC above. The target
 lookup uses `attack_data_table`, indexed by `enemy_data[target]+0x0` (the
-`Id` field).
+`Id` field) — i.e. the target's own `MonsterRecord+0x20+element_id`, the
+6-byte elemental affinity table documented in "Monster record layout"
+above. The decompiled function itself contains a leftover debug
+`printf("ZOKUSEI %d AISYO %d\n", ...)` (Japanese for "Element %d Affinity
+%d") that dumps all 6 bytes of that table on every call — this is what
+confirmed the table's existence, size, and exact byte offset.
 
 Called from 21 sites spanning `0x800ff174`–`0x80117350`. Each site loops
 over a target index, skips it if `combatant_rec(target)+0x45` is set (an
@@ -606,13 +856,13 @@ undisputed spell mapping below with one exception).
 | `0x8010e064` | 3 | 3 (Lightning) | 600 | Raging Blow |
 | `0x8010ef44` | 4 | 3 (Lightning) | 1000 | Ball of Lightning |
 | `0x8010fea0` | 5 | 3 (Lightning) | 900 | Thunder God |
-| `0x8011349c` | 2 | 2 (Earth) | 300 | Voice of Earth |
+| `0x8011349c` | 2 | 2 (Earth) | 300 | Voice of Earth (excludes flying targets, `+0x26` bit `0x20`, from its scan entirely — see above) |
 | `0x80111ce8` | 4 | 2 (Earth) | 700 | Earthquake |
 | `0x801033e8` | 1 | 5 (Resurrection) | 70 | Scolding (double dmg vs undead) |
 | `0x80105748` | 4 | 5 (Resurrection) | 500 | Charm Arrow (ROM value 500, not the reference's 400) |
-| `0x80114300` | 1 | 7 (Dark) | 2 | Deadly Fingertips (instant-death; power is a non-HP-effect sentinel) |
+| `0x80114300` | 1 | 7 (Dark) | 2 | Deadly Fingertips (instant-death, except instant-death-immune targets — see `+0x26` bit `0x4000` above; power is a non-HP-effect sentinel) |
 | `0x8011519c` | 2 | 7 (Dark) | 300 | Black Shadow |
-| `0x80116078` | 4 | 7 (Dark) | 2 | Hell (instant-death to all enemies) |
+| `0x80116078` | 3 | 7 (Dark) | 2 | Hell (instant-death to all enemies, except instant-death-immune ones — see `+0x26` bit `0x4000` above) |
 | `0x80117350` | 4 | 7 (Dark) | 1500 | Judgement |
 
 Spell ids are cross-referenced against
@@ -692,10 +942,21 @@ player's favor — a free damage reduction, never a hidden weakness.
 For every `Rune.Id` *not* in the explicit table above (`0`, `8`-`0x1a`,
 anything `>0x1f`), the switch statement jumps straight to the halving
 comparison **without ever writing the "category" variable**, which lives
-in register `$s1` (or `$s0`, depending on the caller). Since this register
-is callee-saved, the comparison reads whatever the *caller* left there —
-and in each monster's own damage-dispatch loop, that register is being
-reused as **the loop's own target-party-slot counter**.
+specifically in register **`$s1`** — confirmed directly from the function's
+own decompilation (Ghidra names it `unaff_s1`, its own auto-detection of a
+register read without being written in this function — not a guess about
+"some callee-saved register"). Since `$s1` is callee-saved, the comparison
+reads whatever the *caller* left there. **This is the one register that
+matters — a caller whose own loop/target counter lives in a different
+physical register (`$s0`, `$s3`, `$s4`, `$s5`, ...) cannot trigger this
+bug at all, no matter what value that other register holds**, because
+`calc_rune_element_attack_damage` never reads it. (Earlier passes through
+this doc conflated "some callee-saved register happens to be a loop
+counter" with "the specific register the function reads," which produced
+several wrong "Live" verdicts below — corrected after the user live-tested
+the Sonya Shulen row and it failed; see the note after the table.) In the
+monsters where the loop counter genuinely is allocated to `$s1`, that
+register is being reused as **the loop's own target-party-slot counter**.
 
 So for any character whose Rune doesn't explicitly override the category,
 the "resistance" check accidentally becomes **`target's own party slot
@@ -707,25 +968,146 @@ an explicit case. A character whose equipped rune *does* have an explicit
 category masks the bug for that character.
 
 This bug is a general property of the shared formula function combined
-with how each monster's own calling loop happens to reuse registers — it
-is present in at least 11 call sites across 7 different bosses/monsters:
+with how each monster's own calling loop happens to reuse registers — but
+**only for callers whose loop counter is physically `$s1`**. A first pass
+found it at 11 call sites across 7 bosses/monsters (all `$s1`); a
+follow-up byte-pattern sweep found more call sites, but per-site tracing
+showed several of them use a different register entirely and cannot be
+vulnerable no matter what value that register holds:
 
-| Monster | Overlay | `element` | Target register | Bug status |
-|---|---|---|---|---|
-| Zombie Dragon (Fire Breath) | `enemy_ai_overlay.bin` | 6 | `$s1` (loop) | Live — slot 6 |
-| "Dragon" (mid-boss) | `dragon_overlay.bin` | 8 | `$s1` (loop) | Dormant (`>6`, no real slot can match) |
-| " | " | 1 | `$s1` (loop) | Live — slot 1 |
-| " | " | 4 | `$s0` | loop bounds not fully traced |
-| Golden Hydra (final boss) | `vzv.bin` | 8 | `$s0` (loop) | Dormant |
-| " | " | 4 | `$s1` (loop) | Live — slot 4 |
-| " | " | 1 | `$s1` (loop) | Live — slot 1 |
-| Golem | `va4.bin` | 3 | `$s1` (loop) | Live — slot 3 |
-| Queen Ant's AoE Earth attack | `va7.bin` | 3 | `$s0` (loop) | Not bugged in practice — see Queen Ant below |
-| Gigantes | `vc3.bin` | 1 | `$s0` (loop) | Live — slot 1 |
-| Colossus | `vad.bin` | 5 | `$s4` (fixed single target, not a loop) | Likely dormant |
+| Monster                      | Overlay                | `element` | Register                                | Bug status                                   |
+| ---------------------------- | ---------------------- | --------- | --------------------------------------- | -------------------------------------------- |
+| Zombie Dragon (Fire Breath)  | `enemy_ai_overlay.bin` | 6         | `$s1` (loop)                            | **Live — slot 6** (extensively live-confirmed by the user, including a controlled slot-swap test — see the plate comment on `calc_rune_element_attack_damage`) |
+| Zombie Dragon (duplicate copy of the same script) | `vb5g.bin @0x80012568` | 6 | `$s1` (loop)                    | Live — slot 6 (identical script to the confirmed instance above) |
+| "Dragon" (mid-boss)          | `dragon_overlay.bin`   | 8         | `$s1` (loop)                            | Dormant (`>7`)                               |
+| "                            | "                      | 1         | `$s1` (loop)                            | Structurally plausible, untested — slot 1    |
+| "                            | "                      | 4         | `$s0`                                   | **Not vulnerable — wrong register**          |
+| Golden Hydra (final boss)    | `vzv.bin`              | 8         | `$s0` (loop)                            | Dormant (`>7`) — also wrong register, moot   |
+| "                            | "                      | 4         | `$s1` (loop)                            | Structurally plausible, untested — slot 4    |
+| "                            | "                      | 1         | `$s1` (loop)                            | Structurally plausible, untested — slot 1    |
+| Golem                        | `va4.bin`              | 3         | `$s1` (loop)                            | Structurally plausible, untested — slot 3    |
+| Earth Golem                  | `h_data.bin @0x800837a0` | 3      | `$s1` (loop)                            | Structurally plausible, untested — slot 3    |
+| Queen Ant's AoE Earth attack | `va7.bin`              | 3         | `$s0` (loop)                            | **Not vulnerable — wrong register**, live-confirmed not bugged (see Queen Ant below) |
+| Gigantes                     | `vc3.bin`              | 1         | `$s0` (loop)                            | **Not vulnerable — wrong register**          |
+| Colossus                     | `vad.bin`              | 5         | `$s4` (fixed single target, not a loop) | **Not vulnerable — wrong register**          |
+| Magic Shield                 | `vf1.bin @0x80013ac0`  | 8         | `$s1` (loop)                            | Dormant (`>7`)                               |
+| Ain Gide                     | `vac.bin @0x800143b4`  | 1         | `$s1` (loop)                            | Structurally plausible, untested — slot 1    |
+| Clay Doll                    | `ve2.bin @0x80014e20`  | 3         | `$s1` (loop)                            | Structurally plausible, untested — slot 3    |
+| Banshee                      | `ve2.bin @0x800158dc`  | 8         | `$s3` (loop)                            | Dormant (`>7`) — also wrong register, moot   |
+| Unnamed†, `vf2.bin` cluster  | `vf2.bin @0x800154e8`  | 3         | `$s1` (loop)                            | Structurally plausible, untested — slot 3    |
+| Unnamed†, `vf2.bin` cluster  | `vf2.bin @0x800169e8`  | 3         | `$s0` (loop)                            | **Not vulnerable — wrong register**          |
+| Unnamed†, `vf2.bin` cluster  | `vf2.bin @0x80017110`  | 5         | `$s1` (loop, inferred from template)    | Structurally plausible, untested — slot 5    |
+| Unnamed†, `vf2.bin` cluster  | `vf2.bin @0x80017bd8`  | 1         | `$s1` (loop)                            | Structurally plausible, untested — slot 1    |
+| Unnamed†, `vf2.bin` cluster  | `vf2.bin @0x8001a630`  | 8         | `$s0` (loop, inferred from template)    | Dormant (`>7`) — also wrong register, moot   |
+| "Slot man"                   | `vb3.bin @0x80012584`  | 1         | `$s3` (fixed, no loop nearby)           | **Not vulnerable — wrong register**          |
+| "Slot man"                   | `vb3.bin @0x80012f28`  | 4         | `$s4` (fixed)                           | **Not vulnerable — wrong register**          |
+| "Slot man"                   | `vb3.bin @0x800140a8`  | 3         | not re-checked                          | Unresolved                                   |
+| Ninja†                       | `vh1.bin @0x8001122c`  | 6         | `$s3` (fixed)                           | **Not vulnerable — wrong register**          |
+| Whip Wolf†                   | `e_data.bin @0x80080e34` | 6      | `$s3` (fixed) — byte-identical template to Ninja's site, possibly a shared "wait then strike locked target" script rather than shared identity | **Not vulnerable — wrong register** |
+| Nightmare                    | `vd5.bin @0x80015d1c`  | 1         | `$s1` (fixed) — matches Nightmare's documented front-row-only, no-move-choice AI | Structurally plausible, untested — slot 1 (only if the locked target's own slot is what feeds `$s1` at this call; not confirmed) |
+| Elite Kobold†                | `c_data.bin @0x80080cd0` | 1      | `$s5` (fixed)                           | **Not vulnerable — wrong register**          |
 
-Max real party size is 6, so any `element` value `>6` makes that specific
-instance permanently unreachable ("dormant" rows).
+`†` = tentative monster-name attribution (inferred from overlay/address
+proximity to other documented AI, not a confirmed function/name match —
+treat as a lead, not a settled fact). The `vf2.bin` cluster monster(s)
+remain entirely unidentified. **Still unresolved:** Siren (`g_data.bin
+@0x80080f44`, `element=8`, register not re-verified) — dormant regardless
+of register since `element=8` already kills it, so low priority to chase
+further.
+
+**Important caveat on every "Structurally plausible, untested" row**:
+outside of Zombie Dragon (both copies), *none* of these have been
+live-verified — they're inferred from static disassembly matching the
+right register (`$s1`) and an in-range `element`. That inference has
+already produced one confirmed-wrong "Live" verdict below (Sonya Shulen),
+so treat every "structurally plausible" row as a lead for live testing,
+not a settled fact, until someone actually checks it in-game the way
+Zombie Dragon's was checked (moving characters into/out of the matching
+slot and confirming damage changes only there).
+
+Max real party size is 6, so any `element` value `>6` makes a *slot-index*
+match permanently unreachable; max rune category is 7, so any `element`
+value `>7` (i.e. just `8` in every case observed) kills *both* mechanisms
+at once ("dormant" rows) regardless of register. `element=7` (Soul
+Eater — already a universal resist on its own, so redundant as an
+`element` argument) never appeared as an `element` argument anywhere in
+this sweep.
+
+**Correction, live-tested 2026-09-17 — the Sonya Shulen row was wrong.**
+A previous fork traced Sonya Shulen's boss AoE spell (confirmed
+**Water**-elemental, `element=2`, via a native sub-actor function reached
+through animation-script opcode `32` — the same
+`anim_op_spawn_sub_actor_from_table_slot` mechanism documented for Zombie
+Dragon's `fire_func` and Gigantes' `aoe_cast_state_machine`,
+`MonsterRecord+0x28`'s custom slots — see "Monster record layout" above)
+and reported a live register-reuse bug at party slot 2. **The user tested
+this against a live savestate (`Sonya.State`) and the reduction was not
+present.** Root cause, confirmed directly from `calc_rune_element_attack_
+damage`'s own decompilation: the register that fork identified as the
+loop counter, `$s0`, is **not** a caller-leftover value at all — the
+function immediately recomputes it locally (`attacker.MGC - target.MGC`,
+the damage base) before the switch even runs. The only register genuinely
+left unwritten on the fallthrough path is `$s1` (see above). In Sonya's
+own caller, `$s1` is a fixed sub-actor struct pointer, constant across the
+whole loop — unrelated to party position — so the bug cannot fire there
+regardless of which slot is being hit. (An actual Water-Rune wearer would
+still take halved damage from this spell, but that's the *real*,
+intentional elemental-resistance check — category 2 == element 2 by
+deliberate design, exactly analogous to Resurrection Rune legitimately
+resisting Zombie Dragon's Fire Breath — not the register-reuse bug.)
+Sonya's AoE has accordingly been removed from the bug table above; it's
+a confirmed real elemental attack, just not a buggy one.
+
+This also means the byte-pattern sweep's method has two independent gaps,
+not one: (1) it only searches ordinary compiled functions, so any attack
+routed through a sub-actor slot indirection (like Sonya's) is invisible to
+it — Sonya's Water spell was found by chasing that pattern manually, not
+by the sweep; (2) even when a call site *is* found, assuming its loop
+register is automatically "the" vulnerable one (rather than checking it's
+specifically `$s1`) produces false positives, as it just did. Neither gap
+has been closed for the rest of the table — the "Unnamed, `vf2.bin`
+cluster" rows and anything the sweep reported zero hits for have not been
+re-checked for hidden sub-actor-slot attacks, and every remaining `$s1`
+row above is still just "structurally plausible" pending its own live
+test.
+
+This was found via: `calc_rune_element_attack_damage` is only ever reached
+indirectly through `RngCallbackTable` slot `86` (never a direct `jal`), so
+a plain xref search on the function's own address misses every call site —
+the original 11 rows were found one boss at a time. A byte-pattern sweep
+(searching for the slot-86 dereference `lw v0,0x158(v0)`, encoded
+`58 01 42 8c`) across all 38 currently-loaded overlay/monster programs
+found the rest. Several overlays (`va2.bin`, `va3.bin`) are effectively
+undisassembled by Ghidra (no recovered function boundaries), so apparent
+hits there were confirmed false positives (garbage alignment) and are
+excluded above.
+
+**What is `element=8`?** Confirmed live in the disassembly as a hardcoded
+immediate at both originally-documented sites: `dragon_overlay.bin @
+0x800113c8` (`ori a2,zero,0x8`) and `vzv.bin @ 0x800157b8` (`ori a2,zero,
+0x8`) — not a misread or a computed value. The wider sweep found it
+recurring at 3 more confirmed genuine-loop sites (Magic Shield, Banshee,
+one `vf2.bin` site) plus Siren (register unresolved) — `8` is by far the
+most frequently reused out-of-range `element` value, more than any
+in-range one.
+It is still **not a recognized in-game element ID**: the rune-category
+switch in `calc_rune_element_attack_damage` only ever assigns categories
+`1`-`7` (all seven real categories — Fire/Water/Earth/Lightning/Wind/
+Resurrection/Soul-Eater — are already used), and the codebase's actual
+"no element" sentinel elsewhere (`g_abWeaponTypeToElement`) is `0xff`, not
+`8`. Because `8` exceeds both the max rune category (`7`) and the max party
+slot (`6`), it can never trigger either resistance mechanism — the halving
+never fires and the attack always lands at full formula value. Functionally
+this makes it behave like an "unresistable" attack, and its recurrence
+across ≥6 independent call sites now makes that look more like a
+deliberate, reused "always full damage" constant than a one-off accident —
+but there's still no evidence the game formally defines `8` as a named
+element; it's more likely a convention shared across these scripts' shared
+template code — the in-range `element` values otherwise look hand-picked
+per-move with no consistent pattern (`6, 1, 4, 3, 5, 1...`), while `8`
+alone shows up repeatedly, consistent with it being copy-pasted as an
+"always full damage" default rather than assigned per-monster like the
+others.
 
 ### Multi-target attacks: `battle_enemy_attack_advance_multitarget`
 
@@ -750,28 +1132,156 @@ compute a predicted damage value from the formula above.
 
 ## Monster record layout (`attack_data_table[Id]`, `MonsterRecord`)
 
-| Offset | Field | Notes |
-|---|---|---|
-| `+0x00` | Name | Charmap-encoded, null/space-padded (same convention as the Rune/Unite tables). |
-| `+0x10` | Level (u8) | |
-| `+0x11` | Formation-slot occupancy footprint (u8) | See "Formation management" above. |
-| `+0x12` | HP (u16) | |
-| `+0x14` | PWR (u16) | |
-| `+0x16` | SKL (u16) | |
-| `+0x18` | DEF (u16) | |
-| `+0x1a` | SPD (u16) | |
-| `+0x1c` | MGC (u16) | |
-| `+0x1e` | LUK (u16) | |
-| `+0x20` | Unknown (u32) | Small integers observed (0-4 range). Not an AI-archetype tag. |
-| `+0x24` | Unknown (u32) | Same. |
-| `+0x28` | Pointer to a 9-entry pointer table | A catalog of this monster's own attack/animation scripts (bytecode for the `play_attack_animation` opcode interpreter). Every monster's own 9 entries are unique — a monster needs several scripts (normal attack, one or more special moves, hit-reactions, death, etc.). |
-| `+0x2c` | Pointer | Same kind of data as `+0x28` (script bytecode neighborhood), likely a second, related catalog — possibly hit-reaction/damage-taken scripts. |
-| `+0x30` | AI function pointer | The enemy AI action-selection function. |
-| `+0x34` | `wGoldDrop` (u16) | Money ("bits") dropped, summed across living enemies at the end of an enemy turn; doubled by Prosperity Rune (see above). Has a bit-0 "compressed large value" branch (`(raw/10)*100` when the low bit is set). |
+| Offset          | Field                                                                                                                                                                                                                                           | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `+0x00`         | Name                                                                                                                                                                                                                                            | Charmap-encoded, null/space-padded (same convention as the Rune/Unite tables).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `+0x10`         | Level (u8)                                                                                                                                                                                                                                      |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `+0x11`         | Formation-slot occupancy footprint (u8)                                                                                                                                                                                                         | See "Formation management" above.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `+0x12`         | HP (u16)                                                                                                                                                                                                                                        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `+0x14`         | PWR (u16)                                                                                                                                                                                                                                       |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `+0x16`         | SKL (u16)                                                                                                                                                                                                                                       |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `+0x18`         | DEF (u16)                                                                                                                                                                                                                                       |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `+0x1a`         | SPD (u16)                                                                                                                                                                                                                                       |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `+0x1c`         | MGC (u16)                                                                                                                                                                                                                                       |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `+0x1e`         | LUK (u16)                                                                                                                                                                                                                                       |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `+0x20`–`+0x25` | **Elemental affinity table (6 bytes, one per element)** (Ghidra: `MonsterRecord.aElementalAffinity[6]`; `outputs/Bestiary.json`: `elementalAffinity`)                                                                                           | Confirmed via a literal debug `printf("ZOKUSEI %d AISYO %d\n", i, byte)` (Japanese: "Element %d Affinity %d") found inside `apply_elemental_multiplier` itself, looping `i` from 0 to 5 over exactly this range. Byte values: `0`=normal, `1`=weak (`apply_elemental_multiplier` doubles damage), `2`=resist (halves damage), `3`=immune (zeroes damage) — same 0–3 legend `apply_elemental_multiplier`'s own doc section already used for the "target's compatibility byte." Element-index-to-slot mapping, read off that function's own 21-caller table below: `0`=Fire, `2`=Earth, `3`=Lightning, `4`=Wind, `5`=Resurrection; index `1` (Water) is inferred by elimination — every Water-rune spell in the reference data is ally-targeted and never reaches this lookup, so no caller has been observed to confirm it directly. Element `7` (Dark/Soul-Eater) bypasses this table entirely (see `apply_elemental_multiplier` below) and isn't stored here. Every one of the 124 scanned `outputs/Bestiary.json` records has all 6 bytes in the 0–3 range, confirming this is one packed array rather than two independent scalar fields (this straddles the boundary between the `outputs/Bestiary.json` scanner's separately-named `unknown20`/`unknown24` fields — `unknown20` is bytes 0–3 of this table, `unknown24` is bytes 4–5 — an artifact of the scanner reading a u32 then a u16 rather than 6 raw bytes; both names should be treated as this one table going forward).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `+0x26`         | Species capability flags (u16) (Ghidra: `MonsterRecord.wSpeciesFlags`; `outputs/Bestiary.json`: `speciesFlags`)                                                                                                                                 | A multi-bit flags word. Bit `0`: this monster can be countered on a missed attack (`check_dodge_counter`'s eligibility gate). Bit `1`: as a target, counters back on a missed attack against it — confirmed live for Sonya Shulen and Ain Gide, set on 38 of 122 scanned monsters (mostly humanoid soldier types), see "On a miss or a hit: dodge and counter" above. Bit `2`: a missed attack against this monster is an ordinary miss with no counter. Bit `15`: as a target, forces the miss-handling branch even on what would otherwise be a hit — set on exactly 2 of 122 scanned records, both Neclord's fights, no other monster. Bit `3`, read on the *attacker's own* species, makes a miss still fall through to normal damage resolution instead of a miss animation. `0x4000` (bit 14): **instant-death immune** — a 94-of-94 exact match against Suikoden-RNG-lib's `instantDeathImmune` field, and directly in the disassembly, both Soul Eater instant-death spells (`Deadly Fingertips`, rune level 1, `0x80114300`, immunity check at `0x80114328`; `Hell`, rune level 3, `0x80116078`, immunity check at `0x801160b0`) contain the byte-identical sequence `lhu MonsterRecord+0x26; andi 0x4000; bne (skip effect if set)`. Set on Zombie Dragon, Gigantes, Dragon, Leonardo, Kanak, Crystal Core, Shell Venus, Sonya Shulen, Ain Gide, Assassin, Anji, both Neclord fights, and all 3 Golden Hydra heads. `0x20` (bit 5): **flying** — `Voice of Earth` (Earth rune level 2, `0x8011349c`) reads this bit and, if set, skips the candidate entirely (bypassing both the busy-flag check and the `apply_elemental_multiplier`/damage call — never even considered valid, not merely resisted). Set on 15 of 124 scanned monsters: Black Elemental, Demon Sorcerer, Devil Armor, Eagle man, Ghost Armor, Gigantes, Hawk Man, Holly Fairy, Holly Spirit, Larvae, Mosquito, Roc, Simurgh, Sorcerer, Sunshine King — casters, fairies, and levitating constructs, not just winged animals (Flying Squirrel, Crow, and Wyvern do *not* have this bit). `Earthquake` (the other Earth-element spell, rune level 4, `0x80111ce8`) has no such exclusion and hits flying monsters normally.                                                         |
+| `+0x28`         | Pointer to a 9-entry pointer table (Ghidra: `MonsterRecord.pAttackScriptTable`; `outputs/Bestiary.json`: `actionScriptTableAddress`)                                                                                                            | Catalog of this monster's own attack/animation scripts (bytecode for the `play_attack_animation` opcode interpreter); every monster's 9 entries are unique. 6 slots have a fixed, universal role, found by tracing every caller of `play_attack_animation` (`battle_execute_player_attack`, `battle_execute_enemy_attack`, `battle_check_counter_attack`, `counter_attack_reprisal`/`_continue`/`_apply_damage`, `battle_check_crit_and_branch`, `critical_hit_apply_damage`, `ordinary_miss_continue`, `apply_covered_attack_damage`, `apply_uncovered_attack_damage`, `battle_enemy_attack_multitarget_continue`): `+0x04` primary action script; `+0x08` hit script; `+0xc` evade/miss-reaction script (shared by the counter-attack windup and an ordinary no-consequence miss, not counter-specific); `+0x10` return-to-idle/end-of-multi-target-sequence script; `+0x14` counter-attack hit-reaction script; `+0x20` critical-hit hit-reaction script, played instead of `+0x08` when `check_critical_hit` succeeds (found via `critical_hit_apply_damage`, which also confirms critical hits deal exactly **3× normal physical damage**, no other scaling). The remaining 3 slots (`+0x00`, `+0x18`, `+0x1c`) are a **monster-custom pool of auxiliary sub-effect scripts**: animation-script opcode 32 (`anim_op_spawn_sub_actor_from_table_slot`, `0x800e5328`) reads a script-embedded, arbitrary slot index out of the invoking monster's own bytecode, looks up `pActionScriptTable[thatIndex]`, allocates a free "sub-actor" VFX slot (`find_free_sub_actor_slot`, 19 slots independent of the normal combatant roster), and installs the resolved pointer as that sub-actor's own script cursor. A resolved slot can hold real bytecode or a native compiled function pointer — e.g. Zombie Dragon's slot 6 (`+0x18`) is `zombie_dragon_fire_func_state_machine` (`enemy_ai_overlay.bin 0x80011cdc`) and Gigantes' own slot 6 is `gigantes_aoe_cast_state_machine` (`vc3.bin 0x800116f0`) — both native functions, not bytecode. There's no universal "slot 0 always means X" — each monster's own table contents (`outputs/Bestiary.json`'s `actionScriptTableAddress`) is the only way to know what a specific monster keeps in these 3 slots. |
+| `+0x2c`         | Pointer to the monster's **battle sprite resource table** (`spriteResourceTableAddress` in `outputs/Bestiary.json`, renamed from `secondaryTableAddress`; Ghidra field `MonsterRecord.pSpriteResourceTable`, renamed from `pSecondScriptTable`) | Consumer: `battle_load_enemy_combatants` (`0x800dee44`), called once from `battle_init_sequence` (`0x800de7a0`) at battle setup only, never during round resolution. For each enemy slot, passes `+0x2c` directly into `build_sprite_poly_resource` (`0x800e1e3c`) — allocates `POLY_FT4` (PSX GPU flat-textured-quad, the standard 2D-sprite rendering primitive; Suikoden 1's enemies are pre-rendered sprites, not 3D models) primitive arrays sized from a per-entry frame count read via the table's 4th pointer (a 16-entry pointer array) — then into `apply_sprite_texture_coords` (`0x800e7468`), which fills in each primitive's real `tpage`/`clut`/UV coordinates from that same pointer array. Both results cache into `EnemyData+0x84`/`+0x88` (`pAnimResource`/`pAnimResource2`) and are never referenced by address again. Layout: 32-byte header (2 counts, packed flags `u32`, 4 pointers, a scale-like `u32`, a per-monster `u16`, constant sentinel `u16` `0x7fbc`) — a per-monster sprite-sheet/frame descriptor, not VFX/particle data. `queue_texture_clut_upload` (`0x800c3500`) uploads each distinct monster ID's CLUT/texture pages once per encounter (a dedup guard skips repeats) ahead of the per-instance polygon setup above.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `+0x30`         | AI function pointer                                                                                                                                                                                                                             | The enemy AI action-selection function.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `+0x34`         | `wGoldDrop` (u16)                                                                                                                                                                                                                               | Money ("bits") dropped, summed across living enemies at the end of an enemy turn; doubled by Prosperity Rune (see above). Has a bit-0 "compressed large value" branch (`(raw/10)*100` when the low bit is set).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `+0x36`–`+0x3b` | **3 item-drop slots** (Ghidra: `bDropItemId1`/`bDropChance1`/`bDropItemId2`/`bDropChance2`/`bDropItemId3`/`bDropChance3`; `outputs/Bestiary.json`: `itemDrops[]`)                                                                               | Each pair is one byte item ID + one byte drop chance — 3 independent drop slots per monster, matching this project's own `lib/Battle.lua:readEnemyTable`'s existing `Drops` loop (`enemyRawData[53 + j*2]`/`[53 + j*2 + 1]` for `j=1..3`). Confirmed via `lib/Battle.lua:getItemName`: all 104 distinct item IDs used across all 124 records' drop slots resolve cleanly to real items — Zombie Dragon → Lightning crystal, Simurgh → Thunder crystal, Death Machine → Steel shield, Crow → Bandanna, Holly Fairy's 3 slots → Nameless urn / Magic robe / Needle, and IDs `94`/`98` → Sound setting 3 / Window setting 3 (genuine menu-config items, not noise). `itemId=0` means no drop configured there — only 95/124 records have at least one populated slot, the same "not every monster has one" pattern `wGoldDrop` also shows. `spriteOffsetX`/`spriteOffsetY` (`+0x3c`/`+0x3e`) are the per-monster 2D battle-sprite pixel-offset nudge — see the live `EnemyData` section below. **Consumer**: `battle_process_enemy_turns` (`0x800e9940`). For each enemy actually killed (not fled): sums `MonsterRecord+0x34` gold (with the bit-0 compression convention) into a running total; separately, picks a **uniformly random slot** (`rand()%3`) from that enemy's `+0x36`/`+0x38`/`+0x3a` triplet, and if that slot's item ID is nonzero, rolls `rand()%100 < chance` — the chance byte is a direct percentage (0–100). **At most one item drops per entire battle**, not one per monster — the moment any enemy's roll succeeds, every subsequent enemy is skipped. The same function implements Prosperity Rune: for each party member whose class data has a specific flag byte set, total gold is left-shifted by 1 (doubled), stacking multiplicatively across multiple holders.                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 
-Neither `+0x28` nor `+0x2c` (nor `+0x20`/`+0x24`) encode which "shape" of
+Neither `+0x28` nor `+0x2c` (nor `+0x20`–`+0x25`'s elemental affinity table,
+nor `+0x26`'s species capability flags) encode which "shape" of
 target-scan/move-gate logic a monster's AI uses — that information only
 exists in the AI function's own compiled instructions.
+
+## EXP award formula: `battle_calc_party_exp_award` (`0x800e9744`)
+
+Renamed from a wrong earlier identification (`battle_calc_enemy_aggro`, believed to compute an
+enemy-targeting threat score). It's actually the EXP formula: `DAT_80179fd0`, its own output buffer,
+is allocated only once, at battle end inside `battle_results_init_and_process_enemy_turns` — it
+doesn't exist during normal rounds, and `battle_select_enemy_target` (the function this was claimed
+to feed) never references it anywhere. Verified byte-for-byte against a known community-derived
+formula/table.
+
+**Formula**, computed once per living party member at battle end:
+1. For every enemy present in the encounter, look up `g_anExpByLevelDiffTable[clamp(enemyLevel −
+   partyMemberLevel, −14, +15)]` (`0x8016bdc8`, 30 `int` entries) and sum the results.
+2. Divide the sum by the (living) party member count.
+3. Clamp the result to a minimum of 5.
+4. Double it if the party member has Fortune Rune equipped (`Rune.Id == 0x16`).
+
+**The table, confirmed byte-for-byte via a raw memory read** (index 0 = level-diff −14 ... index 29 =
+level-diff +15, i.e. reversed from how it's usually presented in strategy guides, high-diff-first):
+
+| Enemy Lv. vs character | EXP | Enemy Lv. vs character | EXP | Enemy Lv. vs character | EXP |
+|---|---|---|---|---|---|
+| `>+14` | 10000 | `+5` | 3900 | `−5` | 50 |
+| `+14` | 9700 | `+4` | 2600 | `−6` | 30 |
+| `+13` | 9300 | `+3` | 1600 | `−7` | 20 |
+| `+12` | 9000 | `+2` | 900 | `−8` | 15 |
+| `+11` | 8500 | `+1` | 400 | `−9` | 10 |
+| `+10` | 8000 | `±0` | 200 | `−10` | 7 |
+| `+9` | 7500 | `−1` | 160 | `−11` | 5 |
+| `+8` | 6900 | `−2` | 120 | `−12` | 3 |
+| `+7` | 6000 | `−3` | 90 | `−13` | 2 |
+| `+6` | 5100 | `−4` | 70 | `<−13` | 1 |
+
+The result is staged per party member into `DAT_80179fd0+0x10+idx*4`, later consumed by
+`battle_results_award_exp_and_levelup` (`0x800e8914`), which applies it in a visually-animated
+"counting up" fashion (16 EXP per tick) against each character's own EXP total (`classData+0x1c+0xe`),
+carrying over past 1000 into a level-up (`level_up_stat_growth`) exactly once per 1000 crossed.
+
+## Live `EnemyData` fields: idle sway animation and special-move cast phase (`+0x10`–`+0x5b`)
+
+None of the three battle-init functions (`battle_load_enemy_combatants`,
+`battle_load_party_combatants`, `FUN_800df144`) write into this range — it's
+populated by per-frame logic instead.
+
+- `+0x10` (`bIdleSwayTimer`, u8): decrements every frame, resets alternating
+  `59`/`60` (a ~1s idle loop at 60fps), flipping the sign of every field
+  below on each reset.
+- `+0x1d` (`bIdleSwayDirFlag`, s8): flips between `+96`/`-96` in lockstep.
+- `+0x1e` (`nSIdleSwayFlagA`, s16): flips between `0`/`-1`, same timing.
+- `+0x34` (`nSIdleSwayZStep`, s16): flips between `+1365`/`-1365`; confirmed
+  added into `nRefPosZ` (`+0x70`) every frame, producing a smooth ping-pong
+  Z-axis sway between `±40960` (`±10.0` in this game's fixed-point scale) —
+  Gigantes' idle forward/backward rocking motion.
+- `+0x36` (`nSIdleSwayFlagB`, s16): flips `0`/`-1` in the same lockstep as
+  `+0x1e`; no direct consumer confirmed.
+- `+0x13`, `+0x16`–`+0x17` (s16, `-8` for Gigantes): static across the
+  traced window — likely per-monster sway config (amplitude/axis/baseline).
+- `+0x11`–`+0x12`, `+0x14`–`+0x15`, `+0x18`–`+0x1c`, `+0x1f`–`+0x33`,
+  `+0x37`–`+0x3f`: stayed `0` throughout an idle trace — likely only used
+  in other animation states (attacking, hit-reaction, death).
+
+`+0x42`–`+0x5b` is a **special/AOE-attack cast-progress block**, confirmed
+live against Gigantes' own AOE attack across 6 independent occurrences:
+
+- **`bSpecialMoveCastPhase`** (`+0x42`, u8): `0` at rest; ticks `1→2→3`
+  across the windup (~20 frames apart), jumps straight to `0x64` (100, an
+  impact/resolved sentinel) the exact frame AOE damage lands on multiple
+  party members simultaneously, resets to `0` for the next cycle.
+- **`pVfxEffectHandler`** (`+0x54`, a genuine function pointer, not raw
+  data): populates when the cast phase leaves `0`, clears back to `0` on
+  the frame the phase jumps to `100`. The same struct offset is confirmed
+  elsewhere to hold a function pointer: `anim_op_spawn_sub_actor_from_
+  table_slot` (animation-script opcode 32, `0x800e5328`) sets a
+  freshly-spawned sub-actor's own `pVfxEffectHandler` from a 14-entry
+  function-pointer table (`DAT_8016bb70`, every entry in `0x800f0000`–
+  `0x800f4000`) indexed by a script-embedded argument.
+
+**Gigantes' own AOE cast chain, fully decoded.** Her own `MonsterRecord+0x28`
+table (`0x80048958` in `vc3.bin`) has 9 slots; slot 6 (`+0x18`, one of the 3
+"monster-custom" slots) is a **native compiled function**, `0x800116f0` —
+not bytecode, the same pattern as Zombie Dragon's own fire state machine:
+
+- `gigantes_aoe_cast_state_machine` (`0x800116f0`) drives
+  `bSpecialMoveCastPhase` directly: phase 0 allocates a 20-byte scratch
+  context (stashed at `EnemyData+0x58`), phase 1 counts a fixed 20-frame
+  windup down to 0, phase 2 arms a self-rearming per-frame callback
+  pointer at `ctx+0x10` and advances to phase 3, phase 3 calls whatever's
+  at `ctx+0x10` every frame until it goes NULL (→ phase 99 cleanup → phase
+  100, which clears `pVfxEffectHandler`).
+- The `ctx+0x10` chain, each tick rearming itself to the next:
+  `gigantes_aoe_init_and_arm_impact` (`0x80011a58`, allocates the real
+  144-byte effect struct at `ctx+0xc`, fires 4 unidentified sound/VFX-cue
+  subsystem calls) → `gigantes_aoe_wait_for_cue` (`0x80011b34`, polls
+  until the cue finishes playing) → `gigantes_aoe_spawn_particle_ring`
+  (`0x80011bbc`, one-shot: seeds a 24-particle explosion ring's
+  angle/position from Gigantes' own `nRefPosX/Y/Z`) →
+  `gigantes_aoe_particle_tick_and_apply_damage` (`0x80011d70`, the
+  repeating per-frame driver: expands the ring for 64 frames, then **at
+  tick 20 calls `BattleState+0x1258` vtable slot `+4` once per living
+  party member — the actual AOE damage-application call**, passing
+  `(targetSlot, attackerEnemyIndex, &DAT_80041d98)` where the last
+  argument is presumably the move's own damage/element data block (not
+  yet decoded); an unidentified per-target follow-up fires at tick 63;
+  then it tears the ring down and clears `ctx+0x10`, letting the state
+  machine detect completion and advance to phase 99/100).
+
+**`bUnk_0x43` and `aUnk_0x44` (16 bytes): very likely genuinely unused
+padding.** Traced every function in Gigantes' entire AOE cast chain (5
+functions) and Zombie Dragon's independent Fire Breath chain
+(`zombie_dragon_fire_func_state_machine` and its own 4-function tick chain,
+`enemy_ai_overlay.bin`) end-to-end: neither writes `EnemyData+0x43` or
+`+0x44`..`+0x53` at all — both chains keep 100% of their own scratch state
+in heap-allocated buffers off `EnemyData+0x58` (a 20-byte context and, for
+Gigantes, a further 144-byte effect struct hanging off it; 90 particle
+records + a head-model buffer for Zombie Dragon). Two structurally
+independent monsters' own elaborate special-move chains both avoiding these
+bytes is strong (though not exhaustive — the other 122 monsters' own custom
+slots weren't checked) evidence they're simply unused padding in this
+build, not a live per-monster special-move field. `aUnk_0x58` itself
+remains otherwise unconfirmed. Confirmed via the same trace that ordinary
+physical attacks, ordinary hits, and (with party SKL rigged to a real,
+in-spec low value of 5 to maximize miss chance against the documented
+`calc_hit_chance` 60% floor) misses/evades **do not** touch this block at
+all — it's specific to whatever "special move" mechanism the
+`MonsterRecord+0x28` script table's opcode-driven sub-effects trigger, not
+ordinary combat.
 
 ## AI/enemy move selection
 
@@ -846,22 +1356,22 @@ target.
 
 ### Story boss AI roster
 
-| Boss | File | Address | Target scan | Move |
-|---|---|---|---|---|
-| Zombie Dragon | `vb5g.bin` | `0x80012968` | front-row only | round 1: Fire Breath guaranteed; else ~71% Attack / ~29% Fire Breath |
-| Golem | `va4.bin` | `0x80010ea4` | front-row only | ~71% Attack / ~29% special |
-| Gigantes | `vc3.bin` | `0x8001186c` | front-row only | ~51% Attack / ~49% special |
-| Shell Venus | `vs1.bin` | `0x800178e4` | front-row only | ~51% / ~49% |
-| Sonya Shulen | `vs1.bin` | `0x80018788` | front-row only | ~51% / ~49% |
-| Ain Gide | `vac.bin` | `0x80013b1c` | front-row only | ~51% / ~49% |
-| Varkas | `va7.bin` | `0x800103b0` | front-row only | always plain Attack (no special move) |
-| Pirates (Anji/Kanak/Leonardo — all 3 share this address) | `vb8.bin` | `0x80010004` | front-row only | always plain Attack |
-| Neclord (2 appearances, same logic, different compiled addresses) | `ve1.bin`/`ve3.bin` | `0x80013d18`/`0x8001675c` | front-row only | 3 moves: AoE Wind (~49.00%), single-target physical Bats (~26.01%, guaranteed Poison), AoE Lightning (~24.99%) — see below |
-| Assassin | `vb5a2.bin` | `0x8001789c` | front-row only | round > 2: always special; else ~51% Attack / ~49% special |
-| Sydonia | `va7.bin` | `0x8001234c` | **all 6**, not just front row | fully determined by the *chosen target's* row: front row → always special, back row → always plain Attack |
-| Queen Ant (Mt. Seifu's scripted fight, lvl15 HP7000 — distinct from Seek Valley's random-encounter Queen Ant) | `va7.bin` | `0x80010ae0` | none (self/AOE) | resets own HP to full every turn, then ~51.0% her own AoE Earth attack (hits every living party member) / ~49.0% attempts to command every other living enemy to attack — see below |
-| Crystal Core | `vf2.bin` | `0x800199c8` | front-row only (unless a global flag is set, in which case no scan at all) | always plain Attack on the scanned branch; unidentified special state on the flagged branch |
-| "Dragon" (HP 6000, distinct from Zombie Dragon and from Golden Hydra, the true final boss) | `vc61.bin` (data section; code read from the live overlay dump `dragon_overlay.bin`) | `0x80012594` | front-row only | 2 moves: Lightning (single-target) normally; a per-frame callback rolls ~51%/~49% once a target locks, overriding to Fire Breath (AOE) — see below |
+| Boss                                                                                                          | File                                                                                 | Address                   | Target scan                                                                | Move                                                                                                                                                                                |
+| ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Zombie Dragon                                                                                                 | `vb5g.bin`                                                                           | `0x80012968`              | front-row only                                                             | round 1: Fire Breath guaranteed; else ~71% Attack / ~29% Fire Breath                                                                                                                |
+| Golem                                                                                                         | `va4.bin`                                                                            | `0x80010ea4`              | front-row only                                                             | ~71% Attack / ~29% special                                                                                                                                                          |
+| Gigantes                                                                                                      | `vc3.bin`                                                                            | `0x8001186c`              | front-row only                                                             | ~51% Attack / ~49% special                                                                                                                                                          |
+| Shell Venus                                                                                                   | `vs1.bin`                                                                            | `0x800178e4`              | front-row only                                                             | ~51% / ~49%                                                                                                                                                                         |
+| Sonya Shulen                                                                                                  | `vs1.bin`                                                                            | `0x80018788`              | front-row only                                                             | ~51% Attack (her plain physical) / ~49% special (her Water AoE spell, `element=2`, see the bug table above) — **live-validated 2026-09-17**, see below                              |
+| Ain Gide                                                                                                      | `vac.bin`                                                                            | `0x80013b1c`              | front-row only                                                             | ~51% / ~49%                                                                                                                                                                         |
+| Varkas                                                                                                        | `va7.bin`                                                                            | `0x800103b0`              | front-row only                                                             | always plain Attack (no special move)                                                                                                                                               |
+| Pirates (Anji/Kanak/Leonardo — all 3 share this address)                                                      | `vb8.bin`                                                                            | `0x80010004`              | front-row only                                                             | always plain Attack                                                                                                                                                                 |
+| Neclord (2 appearances, same logic, different compiled addresses)                                             | `ve1.bin`/`ve3.bin`                                                                  | `0x80013d18`/`0x8001675c` | front-row only                                                             | 3 moves: AoE Wind (~49.00%), single-target physical Bats (~26.01%, guaranteed Poison), AoE Lightning (~24.99%) — see below                                                          |
+| Assassin                                                                                                      | `vb5a2.bin`                                                                          | `0x8001789c`              | front-row only                                                             | round > 2: always special; else ~51% Attack / ~49% special                                                                                                                          |
+| Sydonia                                                                                                       | `va7.bin`                                                                            | `0x8001234c`              | **all 6**, not just front row                                              | fully determined by the *chosen target's* row: front row → always special, back row → always plain Attack                                                                           |
+| Queen Ant (Mt. Seifu's scripted fight, lvl15 HP7000 — distinct from Seek Valley's random-encounter Queen Ant) | `va7.bin`                                                                            | `0x80010ae0`              | none (self/AOE)                                                            | resets own HP to full every turn, then ~51.0% her own AoE Earth attack (hits every living party member) / ~49.0% attempts to command every other living enemy to attack — see below |
+| Crystal Core                                                                                                  | `vf2.bin`                                                                            | `0x800199c8`              | front-row only (unless a global flag is set, in which case no scan at all) | always plain Attack on the scanned branch; unidentified special state on the flagged branch                                                                                         |
+| "Dragon" (HP 6000, distinct from Zombie Dragon and from Golden Hydra, the true final boss)                    | `vc61.bin` (data section; code read from the live overlay dump `dragon_overlay.bin`) | `0x80012594`              | front-row only                                                             | 2 moves: Lightning (single-target) normally; a per-frame callback rolls ~51%/~49% once a target locks, overriding to Fire Breath (AOE) — see below                                  |
 
 **Golden Hydra** — Level 75, HP 10000, PWR 570, SKL 105, DEF 55, SPD 75,
 MGC 420, LUK 80, gold 3392 — is the true final boss (file `vzv.bin`,
@@ -1129,6 +1639,310 @@ offset `0x1e420`): front-row scan plus a second independent roll gate for
 a special move, matching DevilShield's `0x33`-threshold move-gate
 template.
 
+### Full regular-enemy AI sweep
+
+A systematic pass decompiling every remaining untraced monster's AI
+function (statically — no live capture; see each row's own confidence
+note), tracking whether the shared target-scan template's `formationPos<4`
+front-row restriction is present, and what move logic follows target
+selection. Exceptions to the front-row-only norm get their own prose
+writeup above/below this table; everything else is one row.
+
+| Monster | File | AI address | Target scan | Move |
+|---|---|---|---|---|
+| FurFur, BonBon, Mosquito (identical shared function) | `a_data.bin` | `0x80080004` | front-row only | always plain Attack (AI declines to act specially once target is locked) |
+| Crow | `a_data.bin` | `0x80080604` | front-row only | always plain Attack |
+| Wild Boar | `a_data.bin` | `0x80080760` | front-row only | always plain Attack |
+| Red Solider Ant [sic — the ROM's own name field has this typo] | `a_data.bin` | `0x80080adc` | front-row only | ~77% Attack / ~23% DoubleStrike — shares Soldier Ant's exact move-choice formula and threshold (`((roll*100)/32767)%100 < 0x4d`, see below) |
+| Empire Captain, Empire Soldier (×4, all sharing this function) | `va2.bin` | `0x80010004` | front-row only | always plain Attack |
+| Empire Soldier (×5, separate area file, byte-identical AI shape/behavior to va2.bin's copy but a distinct function instance) | `va3.bin` | `0x80010004` | front-row only | always plain Attack |
+| Soldier Ant | `va7.bin` | `0x800106b0` | front-row only | ~77% Attack / ~23% DoubleStrike — already fully documented and **live-validated** (see the Soldier Ant/Queen Ant sections above this table); listed here only for sweep completeness |
+| Bandit | `va7.bin` | `0x800103b0` | front-row only (unrestricted-row, no formationPos gate — same as Varkas) | always plain Attack — Bandit's AI record literally shares Varkas's already-documented function (`varkas_ai_select_target_and_move`), not just an identical-looking one |
+| Holly Boy | `va4.bin` | `0x80010a7c` | front-row only | Not a flat threshold: once a target locks, first reads a byte at the *target's* `PersistentStats+0xd` (an unidentified field, not one of this doc's already-catalogued PersistentStats offsets); if `<4`, declines (plain Attack). Otherwise rolls again — `>0x19(25)` (~74%) commits to a special move (script `0x800766e8`, 30-tick counter), `<=0x19` (~26%) declines instead. First monster found this sweep whose move choice depends on a property of the *target*, not just a self-roll. |
+| Black Wild Boar | `va7.bin` | `0x800108f0` | front-row only | always plain Attack |
+| Killer Slime | `va8.bin` | `0x80010028` | front-row only | always plain Attack |
+| Flying Squirrel, Roc (identical shared function) | `b_data.bin` | `0x8008006c` | front-row only | always plain Attack |
+| Beast Commander | `b_data.bin` | `0x80080f00` | n/a — see note | **"Commander" mechanic — now decompiled and live-confirmed, see the dedicated write-up below the table.** First checks whether *any other enemy* is alive, not busy, and in the front row — this only gates whether Beast Commander activates its command move this tick. If Beast Commander is itself in the front row, or no such ally exists, it falls back to the ordinary front-row-only party-target scan + always-plain-Attack template (with some extra debug-print calls, e.g. a `"KOGEKI_MOKUHYO"` — Japanese romaji for "attack target" — string argument, not gameplay-relevant). If Beast Commander is in the **back row** with an eligible front-row ally, it plays a self-targeted command animation (script `0x800a2268`) and hands off to a continuation function (`LAB_800811b0`, decompiled as `beast_commander_command_continuation`) that is byte-for-byte identical to Viperman's, Whip Wolf's, and Whip Master's own continuations — see below. |
+| Empire Soldier (×2, separate area file, same generic-template shape/behavior, distinct function) | `vb1.bin` | `0x80010004` | front-row only | always plain Attack |
+| Robot Soldier (×2 records, each with its OWN separate function — same shape/behavior, just two distinct compiled instances) | `vb3.bin` | `0x8001037c` and `0x80010d28` | front-row only | always plain Attack |
+| Empire Soldier (separate area file, same generic-template shape/behavior, distinct function) | `vb3.bin` | `0x80010050` | front-row only | always plain Attack |
+| Slot man | `vb3.bin` | `0x8001151c` | front-row only | **No move-choice roll at all** — once a target locks, unconditionally commits to its special move every single time (arms `LAB_8001169c`, returns `1`). Unlike every other monster traced so far (either "always plain Attack" or "roll for Attack vs. special"), Slot man never uses a plain Attack once it has a target. |
+| Ghost Armor | `vb5.bin` | `0x80010178` | **no row restriction, no RNG accept-roll at all** — see note | **Structural exception**, and a new kind: this function doesn't scan-and-roll per candidate the way every other monster in this sweep does. It just counts how many party members are alive and not busy (no `formationPos<4` front-row gate — same unrestricted scope as Sydonia, but even simpler: no per-candidate ~49% accept roll either). If at least one qualifies, it unconditionally arms `LAB_80010224` and commits (returns `1`) — actual target selection must happen inside that continuation, not here. If nobody qualifies, it marks itself busy and returns `0`. A 4th confirmed back-row-reaching exception (alongside Killer Rabbit, Slasher Rabbit, Sydonia). |
+| Oannes | `vb5.bin` | `0x800110a8` | front-row only | ~76% Attack / ~24% special move (script `0x8005fde0`) — same "roll again after target locks" shape as the ant-family DoubleStrike monsters, just its own threshold (`roll%100 < 0x4c(76)` → Attack). |
+| Giant Slug | `vb5.bin` | `0x8001131c` | front-row only | always plain Attack |
+| Kobold (×2 records here, each its own identical-shape function) | `vb6.bin` | `0x80010048` and `0x800101bc` | front-row only | always plain Attack |
+| Veteran Soldier (this record shares Kobold's own `0x80010048` function above — literally the same compiled AI, not just an identical shape) | `vb6.bin` | `0x80010048` | front-row only | always plain Attack |
+| Holly Spirit | `vb6.bin` | `0x80010330` | front-row only, but only in the front-row branch — see note | **Structural exception: checks its OWN row FIRST**, before doing anything else. Front row → ordinary scan-and-lock, always plain Attack. Back row → plays a self-targeted animation (script `0x8006f554`) and hands off to a continuation (`LAB_800104dc`, decompiled as `holly_spirit_continuation`) that scans other enemies for one alive/not-busy, then **literally invokes that ally's own AI decision function** (reading the ally's own species AI-function pointer from its MonsterRecord and calling it with "self" temporarily swapped to be that ally), reacting to whatever the ally's own function decides. Because the ally runs its *own* AI unmodified, this does NOT bypass whatever row restriction that ally's AI already has — unlike the commander pattern below, which does. See the dedicated write-up below the table. |
+| Holly Boy (2nd record, separate area file) | `vb6.bin` | `0x80010f54` | front-row only | Same target-property-gated special move as the `va4.bin` Holly Boy (Batch 4): checks locked target's `PersistentStats+0xd`, `<4` declines, otherwise ~74% special move (script `0x80071840` here — different script address, same shape) / ~26% decline. Two independent compiled instances agreeing on this exact mechanic strengthens the case that `PersistentStats+0xd` is a real, meaningful field worth identifying. |
+| Kobold (3rd record, level 20 "elite" stat block — HP 50/PWR 100/MGC 130, a story/mini-boss-tier Kobold, not the regular random-encounter one) | `c_data.bin` | `0x80080490` | front-row only | ~51% Attack / ~49% special move (`(roll*100)/0x7fff < 0x33(51)` → Attack). **Notable cross-reference**: this is the exact same function already documented (and named) as `dragon_move_confirm_or_override_to_fire_breath` in this doc's Dragon section — there, it was proven to be dead code (Dragon's real move-confirm happens elsewhere, in `dragon_special_move_real_frame_callback`) and that section's own plate comment speculated the code was "possibly for a different monster sharing this same c_data.bin." This Kobold record confirms that speculation: the function is genuinely live, active AI for this Kobold, just dead for Dragon specifically. The `dragon_fire_breath_windup` continuation name is a leftover from that original context, not a claim that this Kobold's special move animates as literal fire breath. |
+| Veteran Soldier (separate area file, same generic-template shape/behavior, distinct function) | `vc6.bin` | `0x800107ac` | front-row only | always plain Attack |
+| Strong Arm | `c_data.bin` | `0x80080018` | front-row only | always plain Attack |
+| Eagle man, Dwarf (identical shared function) | `vc1.bin` | `0x80010004` | front-row only | always plain Attack |
+| Death boar | `vc1.bin` | `0x80010178` | front-row only | always plain Attack |
+| Death Machine (×2 records, each its own identical-shape function) | `vc3.bin` | `0x80010360` and `0x80010d0c` | front-row only | always plain Attack |
+| Holly Fairy | `d_data.bin` | `0x800801ac` | front-row only, but only in the front-row branch — see note | **Same structural pattern as Holly Spirit** (checks its OWN row first): front row → ordinary scan-and-lock, always plain Attack; back row → self-targeted animation (script `0x800a0938`) then hands off to a continuation (`LAB_80080358`, decompiled as `holly_fairy_continuation`) that is byte-for-byte identical to Holly Spirit's own — the "delegate to the ally's own AI function" pattern, not the commander direct-assignment mechanic. See the dedicated write-up below the table. |
+| Mad Ivy | `d_data.bin` | `0x80080038` | front-row only | always plain Attack |
+| Creeper | `d_data.bin` | `0x80081fa8` | front-row only | ~51% Attack / ~49% special move (`(roll*100)/0x7fff < 0x33(51)` → Attack; script `0x800a447c`, 20-tick counter, next micro-state `LAB_80081d50`) — same formula shape as the Dragon/elite-Kobold shared function, but its own distinct, genuinely-live compiled function. |
+| Ivy | `k_data.bin` | `0x80080038` | front-row only | always plain Attack (same address as Mad Ivy's function in `d_data.bin`, but a separate file/compiled instance — coincidence, not a cross-file share) |
+| Red Slime, Delf (identical shared function) | `vd5.bin` | `0x80012ebc` | front-row only | always plain Attack |
+| Viperman | `vd5.bin` | `0x800132d0` | n/a — see note | **2nd instance of the "commander" pattern** — see the dedicated write-up below the table. Scans other enemy slots for an eligible (alive, not busy, front-row) ally first, purely to decide whether to activate the command branch this tick. If Viperman is in the **back row** with an eligible front-row ally, it plays a self-targeted command animation (script `0x800716d0`) and hands off to `viperman_command_continuation` (`LAB_8001352c`) — byte-for-byte identical to Beast Commander's/Whip Wolf's/Whip Master's own continuations. |
+| Nightmare | `vd5.bin` | `0x80014338` | front-row only | **No move-choice roll at all** — same pattern as Slot man: once a target locks, unconditionally commits to its special move every time (arms `LAB_800144b8`, returns `1`). A 2nd confirmed instance of "never uses a plain Attack once it has a target." |
+| Whip Wolf | `e_data.bin` | `0x80080194` | front-row only, but only in the front-row branch — see note | **3rd instance of the "commander" pattern** (Beast Commander, Viperman). Front row → ordinary scan-and-lock (using a slightly different RNG-scaling variant of the same ~50% accept check), always plain Attack. Back row → plays a self-targeted command animation (script `0x8009ed74`) and hands off to `whip_wolf_command_continuation` (`LAB_80080338`) — byte-for-byte identical to Beast Commander's/Viperman's/Whip Master's own continuations. See the dedicated write-up below the table. |
+| Hell Hound, Grave Master (identical shared function) | `e_data.bin` | `0x80080020` | front-row only | always plain Attack |
+| Sorcerer | `e_data.bin` | `0x800812b4` | front-row only | ~51% Attack / ~49% special move (`(roll*100)/0x7fff < 0x33(51)` → Attack; next micro-state `LAB_800814a0`) — same formula shape as Creeper/the elite Kobold. |
+| Clay Doll | `ve2.bin` | `0x80014298` | front-row only | ~71% Attack / ~29% special move (`(roll*100)/0x7fff < 0x47(71)` → Attack; next micro-state `LAB_800150ac`) — same formula shape as the ant-family/Creeper/Sorcerer split, its own threshold. |
+| Banshee | `ve2.bin` | `0x80015328` | front-row only | **No move-choice roll at all** — 3rd confirmed instance of "always commits to its special move once a target locks" (alongside Slot man, Nightmare); next micro-state `LAB_800154a8`. |
+| Red Elemental | `ve2.bin` | `0x80015cfc` | **no row restriction — no `formationPos<4` gate at all** | always plain Attack. A 7th confirmed back-row-reaching exception — but unlike the others (Sydonia/Ghost Armor/rabbits/support-types), Red Elemental's unrestricted scope doesn't unlock a special move; it's just an unrestricted target-scan that always ends in a plain Attack. |
+| Hell Unicorn | `ve3.bin` | `0x8001320c` | front-row only | ~51% Attack / ~49% special move (`(roll*100)/0x7fff < 0x33(51)` → Attack; next micro-state `LAB_800133f8`) — same formula shape as Creeper/Sorcerer/the elite Kobold. |
+| Demon Sorcerer | `ve3.bin` | `0x80014ce8` | front-row only | ~51% Attack / ~49% special move (`(roll*100)/0x7fff < 0x33(51)` → Attack; next micro-state `LAB_80014ed4`) — same formula shape as Hell Unicorn/Creeper/Sorcerer. |
+| Larvae | `ve3.bin` | `0x80012f10` | front-row only | always plain Attack |
+| Shadow Man | `f_data.bin` | `0x800823d8` | front-row only | **No move-choice roll at all** — a 4th confirmed instance of "always commits to its special move once a target locks" (script `0x800a2b40`, next micro-state `LAB_80082280`). Also does extra bookkeeping the other 3 don't: clears a 2-byte field on itself (`selfIdx*0x8c+0x90`) and sets a flag on the shared AI struct itself (`param_1+0x44=1`, not per-actor) — meaning not yet identified. |
+| Mirage | `f_data.bin` | `0x80084294` | **no row restriction on the scan itself** — see note | **2nd confirmed instance of the Sydonia-style pattern**: scans ALL party members with no front-row gate (like Sydonia/Ghost Armor/Red Elemental), but after a target locks, branches on the *locked target's own row* — mirrored from Sydonia's version: if the target is in the **front row**, declines (plain Attack); if the target is in the **back row**, commits to a special move against that same target (clears the same `+0x90` field as Shadow Man, script `0x800a4c40`, next micro-state `LAB_80083848`). Sydonia does the opposite (front-row target → special, back-row target → decline) — same structural template, opposite row trigger. |
+| Magic Shield | `vf1.bin` | `0x8001317c` | front-row only | ~51% Attack / ~49% special move (`(roll*100)/0x7fff < 0x33(51)` → Attack; next micro-state `LAB_80013368`) — same formula shape as the Creeper/Sorcerer family. |
+| Sunshine King | `vf1.bin` | `0x80013e80` | front-row only | **No move-choice roll at all** — a 5th confirmed instance of "always commits to its special move once a target locks" (next micro-state `LAB_80014000`). |
+| Black Elemental | `vf1.bin` | `0x800149d8` | **no row restriction — no `formationPos<4` gate at all** | always plain Attack. A 3rd confirmed "elemental family" instance of the unrestricted-scan exception (alongside Red Elemental) — an 8th confirmed back-row-reaching exception overall. |
+| Rock Buster | `vf2.bin` | `0x80014960` | front-row only | ~71% Attack / ~29% special move (`(roll*100)/0x7fff < 0x47(71)` → Attack; next micro-state `LAB_80015774`) — same threshold shape as Clay Doll. |
+| Wyvern | `vf2.bin` | `0x80017358` | front-row only | **No move-choice roll at all** — a 6th confirmed instance of "always commits to its special move once a target locks" (next micro-state `LAB_800174d8`). |
+| Siren (this record) | `g_data.bin` | `0x800807b0` | front-row only | ~51% Attack / ~49% special move (`(roll*100)/0x7fff < 0x33(51)` → Attack; next micro-state `LAB_8008099c`) — same formula shape as the Creeper/Sorcerer family. (NOTE: a separate Siren record exists in `vs1.bin` — tracked in a later batch.) |
+| Grizzly Bear | `g_data.bin` | `0x80080014` | front-row only | always plain Attack |
+| Hawk Man, Demon Hound (identical shared function) | `vg2.bin` | `0x8001301c` | front-row only | always plain Attack |
+| Shadow | `vg2.bin` | `0x80013b80` | front-row only | **No move-choice roll at all** — a 7th confirmed instance of "always commits to its special move once a target locks" (script `0x8003c018`, next micro-state `LAB_80013a28`). Shares Shadow Man's exact extra bookkeeping (clears the same `+0x90` field, sets the same shared-struct `param_1+0x44=1` flag) — good cross-validation that this bookkeeping is a real, intentional mechanic and not coincidental. |
+| Earth Golem | `h_data.bin` | `0x80082c18` | front-row only | ~71% Attack / ~29% special move (`(roll*100)/0x7fff < 0x47(71)` → Attack; next micro-state `LAB_80083a2c`) — same threshold shape as Clay Doll/Rock Buster. |
+| Whip Master | `vh1.bin` | `0x80010194` | front-row only, but only in the front-row branch — see note | **LIVE-CONFIRMED "commander" mechanic — 4th instance, and the one directly verified against a real savestate** — see the dedicated write-up below the table for the full mechanism and live capture results. Front row → ordinary scan-and-lock, always plain Attack. Back row → plays a self-targeted command animation (script `0x8006f9dc`) and hands off to `whip_master_command_continuation` (`LAB_80010338`), which directly commands every eligible ally (e.g. Hell Hounds), bypassing each ally's own AI and row restriction entirely. |
+| Hell Hound (this record), Elite Soldier (identical shared function) | `vh1.bin` | `0x80010020` | front-row only | always plain Attack |
+| Ninja | `vh1.bin` | `0x8001067c` | front-row only | ~51% Attack / ~49% special move (`(roll*100)/0x7fff < 0x33(51)` → Attack; next micro-state `LAB_80010868`) — same formula shape as the Creeper/Sorcerer family. |
+| Magus | `vh1.bin` | `0x800116ac` | front-row only | ~51% Attack / ~49% special move (`(roll*100)/0x7fff < 0x33(51)` → Attack; next micro-state `LAB_80011898`) — same formula shape as the Creeper/Sorcerer family. |
+| Elite Soldier (2nd record, separate area file) | `vs1.bin` | `0x80016498` | front-row only | always plain Attack |
+| Kerberos (shares Elite Soldier's own `0x80016498` function above — literally the same compiled AI) | `vs1.bin` | `0x80016498` | front-row only | always plain Attack |
+| Siren (2nd record, separate area file) | `vs1.bin` | `0x80016810` | front-row only | ~51% Attack / ~49% special move (`(roll*100)/0x7fff < 0x33(51)` → Attack; next micro-state `LAB_800169fc`) — same formula shape as the Creeper/Sorcerer family. |
+| Imperial Guards (×2 records, identical shared function) | `vad.bin` | `0x80010918` | front-row only | always plain Attack |
+| Phantom | `vad.bin` | `0x80012770` | **no row restriction on the scan itself** — see note | **3rd confirmed instance of the Sydonia-style pattern** (Sydonia, Mirage, now Phantom): scans ALL party members with no front-row gate, then branches on the LOCKED TARGET's own row — matching Mirage's exact logic byte-for-byte: front-row target → decline (plain Attack); back-row target → commits to a special move against that same target (clears the same `+0x90` field as Mirage/Shadow Man/Shadow, script `0x8007cf6c`, next micro-state `LAB_80011d24`). |
+| Ekidonna | `vad.bin` | `0x8001331c` | front-row only | ~51% Attack / ~49% special move (`(roll*100)/0x7fff < 0x33(51)` → Attack) — same formula shape as the Creeper/Sorcerer family. |
+| Golden Hydra (×3 records — presumably its 3 heads, all sharing this function) | `vzv.bin` | `0x800102fc` | front-row only | always plain Attack |
+| Ninja Master | `z_data.bin` | `0x80080178` | front-row only | ~51% Attack / ~49% special move (`(roll*100)/0x7fff < 0x33(51)` → Attack; next micro-state `LAB_80080364`) — same formula shape as the Creeper/Sorcerer family. |
+| Simurgh, Orc (identical shared function) | `z_data.bin` | `0x80080004` | front-row only | always plain Attack |
+
+### The "commander" AI pattern, decompiled and live-confirmed (Beast Commander, Viperman, Whip Wolf, Whip Master)
+
+Beast Commander/Viperman's back-row branch plays a self-targeted command script; Whip
+Wolf/Whip Master's structurally-identical back-row branch does the same. Live-confirmed
+against a savestate with Hell Hounds accompanied by a Whip Master
+(`WhipMasterHellhounds.State`: 5 Hell Hounds + 1 Whip Master).
+
+**The mechanism.** Each of these four monsters' own `select_target_and_move` function has an
+initial gate: it scans other enemy slots for one that is alive, not busy, and in the front
+row. If the monster itself is in the front row, or no such ally exists, it falls back to the
+ordinary scan-and-lock template and always attacks normally. If the monster is in the **back
+row** *and* an eligible front-row ally exists, it plays a self-targeted command animation and
+writes a continuation function pointer into `param_1+0xc` — the *shared* AI-struct's own
+"next tick" slot, not the per-actor micro-state slot at `combatant_rec+0x50` that an ordinary
+self-move continuation would use. That distinction (shared-struct slot vs. per-actor slot) is
+what should have been the tell during the original sweep.
+
+All four continuation functions — `beast_commander_command_continuation` (`b_data.bin`
+`0x800811b0`), `viperman_command_continuation` (`vd5.bin` `0x8001352c`),
+`whip_wolf_command_continuation` (`e_data.bin` `0x80080338`), and
+`whip_master_command_continuation` (`vh1.bin` `0x80010338`) — are **byte-for-byte identical**
+(452 bytes, decompiling to the same logic; only the final per-file continuation label
+differs). Decompiled, the shape is:
+
+1. Check a per-actor bitmask on the commander's own extended record
+   (`enemyDataAddr+0x40` — this is `EnemyData.wEffectFlags`, a general-purpose 16-bit flags
+   field already documented elsewhere in this file for two other, unrelated purposes: bit
+   `0x1` arms `counter_attack_reprisal`, and Cleo's own basic-Attack script separately sets bit
+   `0x4` on her target — see the "On a miss or a hit" section above), specifically bit `0x2` —
+   if unset, decline (`-1`).
+
+   This bit is set by the command animation's own script — a C-level animation call isn't
+   the whole story, the script's own opcodes matter. Whip Master's command-trigger script
+   (`DAT_8006f9dc`, `vh1.bin`), walked through the animation-opcode interpreter
+   (`play_attack_animation`, `0x800e3820`, `PTR_FUN_8016babc`'s 45-entry table in `main.exe`):
+
+   | # | Opcode | Args | Effect |
+   |---|---|---|---|
+   | 1 | 15 `set_busy_flags` | target=self, mask=1 | marks itself busy |
+   | 2–3 | 4, 5 | arg=7 | animation-resource step + wait |
+   | 4 | 34 `pad_command_dispatch` | arg=0x050c | rumble/sound cue |
+   | 5–6 | 4, 5 | arg=8 | animation-resource step + wait |
+   | 7 | **26 `anim_op_set_effect_flags`** | **target=self, mask=`0x2`** | **← the exact bit `whip_master_command_continuation` checks** |
+   | 8–9 | 4, 5 | arg=9 | animation-resource step + wait |
+   | 10 | 3 (delay) | 120 frames | ~2s pose hold |
+   | 11–12 | 4, 5 | arg=0 | return to idle |
+   | 13 | 16 `clear_busy_flags` | target=self, mask=1 | clears its own busy bit |
+   | 14 | 9 `set_sync_signal` | slot=0 | signals completion |
+   | 15 | 0 | — | script terminator |
+
+   This lines up exactly with the live trace below: Whip Master's busy flag goes up at frame
+   48 (opcode 15), the gate bit flips at frame 68 (opcode 26, two animation/wait steps later),
+   and the commander continuation visibly fires on the very next frame (69).
+2. Loop over every OTHER enemy slot (`party_count+1 .. party_count+enemy_count`) — **with no
+   row restriction on the ally this time** (the front-row-ally check only gated whether the
+   commander activates the branch at all, not who ends up commanded). For each ally that is
+   alive and not already busy:
+   - Find the PARTY member whose `formationPos` **exactly equals this ally's own 1-based
+     position in the enemy loop** (1st eligible-loop-index checked against `formationPos==1`,
+     2nd against `formationPos==2`, etc.) — **with no `formationPos<4` front-row gate at all.**
+   - If a match exists, mark the ally busy, clear a bookkeeping field on it, and directly call
+     `play_attack_animation(attacker=ally, target=thatPartyMember, script=ally's own attack
+     script)` — **bypassing the ally's own AI decision function entirely.** The ally's own
+     `combatant_rec+0x49` (targetIdx) field is never written; the target is passed as a raw
+     parameter to the animation call instead, so this activity is invisible to anything reading
+     that field.
+3. After the loop, arm a cooldown counter and return `0`.
+
+Because the party-formation-slot match is a **direct index equality against the enemy's own
+loop position**, not a target *scan* at all, there is no front-row/back-row distinction
+anywhere in this logic — any ally, commanded via this mechanism, can end up attacking any
+party member, front row or back row, purely as a function of where that ally happens to sit
+in the enemy turn order. This is a **structurally different, and stronger, way of reaching
+the back row than any of the 8 "back-row-targeting exceptions" listed below** — those all
+still involve a target *scan* (just an unrestricted one); this is direct assignment with no
+scan and no roll at all.
+
+**Live confirmation** (`WhipMasterHellhounds.State`, run via
+`scripts/TraceWhipMasterHellHoundCommand.lua`): the savestate's enemy side is 3 Hell Hounds in
+formation slots 1–3, Whip Master in slot 4, and 2 more Hell Hounds in slots 5–6 (so Whip
+Master itself sits at back-row-adjacent position 4, and the party occupies formation slots
+1–6, one per party member). Confirming the round with Free Will (letting the AI decide every
+action):
+
+- Frame 48: Whip Master's own action commits (`busy=1`).
+- Frame 68: the per-actor bit-2 gate flips on for Whip Master.
+- Frame 69 (the very next frame): **all 5 Hell Hounds become busy simultaneously** — strong
+  evidence they were all processed by one call to `whip_master_command_continuation` in a
+  single tick, not by five independent per-actor AI ticks (which would be staggered by
+  turn-order/speed).
+- Frame 126: five party members take damage **in the same frame**:
+
+  | Party slot | formationPos | HP before → after | Back row? |
+  |---|---|---|---|
+  | 1 | 1 | 508 → 310 | no |
+  | 2 | 2 | 59 → 0 (killed) | no |
+  | 3 | 3 | 397 → 176 | no |
+  | 4 | 4 | 129 → 129 (untouched) | yes |
+  | 5 | 5 | 535 → 432 | **yes** |
+  | 6 | 6 | 355 → 135 | **yes** |
+
+  Party slot 4 is the one gap — exactly as the mechanism predicts: Whip Master is the enemy
+  occupying loop-position 4 (3 Hell Hounds ahead of it in the enemy ordering, itself 4th), and
+  its own slot fails the continuation's "not already busy" ally-eligibility check (it's busy
+  with its own command action), so loop-index 4 is skipped entirely and no ally ever gets
+  assigned to attack party formation slot 4 this round. This is not a "back row is protected"
+  rule — it's a coincidental side effect of Whip Master's own position in the enemy turn
+  order for this specific formation. A different enemy ordering would leave a different party
+  slot untouched.
+
+This live-validates the user's original report exactly: Hell Hounds' own AI
+(`hell_hound_elite_soldier_ai_select_target_and_move`) is front-row-restricted and cannot
+select a back-row party member on its own — but when a Whip Master (or, by the identical
+mechanism, a Beast Commander or Viperman with their respective allies, or a Whip Wolf) is
+present and commands them, the commanding monster's continuation picks the target directly,
+skipping the ally's own AI and its restriction altogether.
+
+**The other, genuinely different pattern (Holly Spirit, Holly Fairy)**: these two monsters'
+back-row branches also hand off to a continuation via the same `param_1+0xc` shared-struct
+slot, but their continuations (`holly_spirit_continuation` and `holly_fairy_continuation`,
+byte-for-byte identical to each other, 552 bytes — a different size and shape from the
+452-byte commander template) do something different again: they scan for an eligible ally,
+read that ally's own species id, resolve its own MonsterRecord and AI-function pointer, and
+then **literally call that ally's own `select_target_and_move` function**, with the shared
+struct's `param_1+8` ("current actor") temporarily overwritten to the ally's own index. In
+other words, Holly Spirit/Fairy vicariously trigger the ally's *own* decision-making, rather
+than assigning a target directly. Since the ally's own AI runs unmodified, whatever row
+restriction that ally's own AI has is preserved — this does NOT bypass the front-row
+restriction the way the commander pattern does, so Holly Spirit/Fairy do not enable back-row
+attacks by their allies (unless the specific ally they trigger happens to have its own
+unrestricted-scan AI, which hasn't been checked for whatever monsters accompany a Holly
+Spirit/Fairy in practice).
+
+### Full sweep results: back-row-targeting exceptions and other findings
+
+The sweep above covers all 97 previously-untraced monster records (72 distinct AI
+functions) not already documented elsewhere in this file, completing full AI coverage
+of all 124 records in `outputs/Bestiary.json`. This answers the original question
+("which enemies can attack the back row?") definitively, and also corrects an
+over-claim made partway through the sweep (see the note below the list).
+
+**Confirmed back-row-*targeting* exceptions** — monsters whose AI can actually select
+a back-row party member as the target of an attack (special move or plain Attack),
+bypassing the generic template's `formationPos<4` front-row restriction on the scan
+itself:
+
+1. **Killer Rabbit** — leap-special branch does an unrestricted `RNG2 % partyCount + 1`
+   pick (any row); already documented pre-sweep.
+2. **Slasher Rabbit** — same leap-special mechanic as Killer Rabbit; already documented
+   pre-sweep.
+3. **Sydonia** — unrestricted 6-slot scan; if the locked target is in the *front* row,
+   commits her special move against it; if *back* row, falls back to a plain Attack
+   against that same back-row target. Already documented pre-sweep.
+4. **Ghost Armor** (`vb5.bin`) — no `formationPos<4` gate and no per-candidate accept
+   roll at all; commits to its special move whenever any party member is alive/not
+   busy, including if only back-row members qualify.
+5. **Red Elemental** (`ve2.bin`) — unrestricted scan, always plain Attack against
+   whichever target (front or back row) gets accepted.
+6. **Black Elemental** (`vf1.bin`) — same as Red Elemental; a 2nd "elemental family"
+   instance.
+7. **Mirage** (`f_data.bin`) — unrestricted scan; if the locked target is in the
+   *back* row, commits a special move against it; if *front* row, plain Attack instead.
+   The mirror image of Sydonia's row-trigger direction.
+8. **Phantom** (`vad.bin`) — byte-for-byte the same logic as Mirage; a 2nd instance of
+   that mirrored pattern.
+
+That's **8 confirmed back-row-targeting monsters** total (where the monster itself
+directly selects a back-row party member via an unrestricted scan), up from the 3
+known before this sweep (Killer Rabbit, Slasher Rabbit, Sydonia). This does not count
+the "commander" pattern below, which is a *stronger, indirect* way of reaching the
+back row — via commanded allies rather than the commanding monster's own attack.
+
+**Beast Commander, Viperman, Whip Wolf, and Whip Master** all share one mechanism (see
+"The 'commander' AI pattern" write-up above): all four back-row-branch continuation
+functions are byte-for-byte identical, and — live-confirmed against a savestate for
+Whip Master/Hell Hound — implement a genuine **direct-target-assignment command
+mechanic** that lets each commanded ally attack any party member (front or back row)
+with no row restriction at all, entirely bypassing that ally's own AI. Holly Spirit and
+Holly Fairy use a third, different pattern (invoking the ally's own AI function
+vicariously) that does *not* bypass the ally's row restriction — see the same write-up
+above for the distinction.
+
+**Other notable AI exception patterns found this sweep**:
+
+- **"Commander" direct-assignment pattern** (Beast Commander, Viperman, Whip Wolf,
+  Whip Master — 4 confirmed instances, one live-validated): see the dedicated
+  write-up above the table. Lets commanded allies bypass their own AI's row
+  restriction entirely — a stronger mechanism than any of the 8 back-row-targeting
+  exceptions above, since it isn't even a scan.
+- **"Delegate to the ally's own AI" pattern** (Holly Spirit, Holly Fairy — 2 confirmed
+  instances): a related but genuinely different command variant — see the same
+  write-up above. Does not bypass the commanded ally's own row restriction.
+- **"Always special move, no roll"** (Slot man, Nightmare, Banshee, Shadow Man,
+  Sunshine King, Wyvern, Shadow — 7 confirmed instances): once a target locks, these
+  monsters never fall back to a plain Attack; they unconditionally commit to their
+  special move every time. Shadow Man and Shadow additionally share an unidentified
+  bookkeeping step (clearing a 2-byte per-actor field, setting a flag on the shared AI
+  struct itself) not seen anywhere else.
+- **Attack-vs-special-move roll, generalized**: beyond the already-documented ant
+  DoubleStrike split (~77/23), the sweep found the same "roll again after target
+  locks" shape recurring with several different thresholds: ~71/29 (Clay Doll, Rock
+  Buster, Earth Golem) and ~51/49 (Oannes' own ~76/24 aside, most others — Creeper,
+  Sorcerer, Magic Shield, Hell Unicorn, Demon Sorcerer, Ninja, Magus, Siren ×2,
+  Ekidonna, Ninja Master). One of the ~51/49 functions (an "elite" level-20 Kobold in
+  `c_data.bin`) turned out to be the exact same compiled function already documented
+  as dead code for Dragon (`dragon_move_confirm_or_override_to_fire_breath`) — a
+  useful confirmation that the code is a shared template reused across that area
+  file, genuinely live for one monster and dead for another sharing the same file.
+- **Target-property-gated special move** (Holly Boy, both compiled instances in
+  `va4.bin` and `vb6.bin`): move choice depends on a still-unidentified byte at the
+  *locked target's* `PersistentStats+0xd`, not just a self-roll — worth a live capture
+  to identify that field.
+- The overwhelming majority of monsters (around two-thirds of the 72 distinct
+  functions traced) are the plain generic template: front-row-only scan, always a
+  plain physical Attack, no special move at all.
+
+All of the above is static-only (Ghidra decompilation, no live capture) per this
+project's established convention for monsters without an available savestate — see
+each monster's own `scripts/Check<Name>AI.lua` for the ready-to-run live-validation
+script.
+
 ## Queen Ant (Mt. Seifu, `va7.bin`)
 
 Queen Ant (`va7.bin`) is the boss of a scripted fight accompanied by 3
@@ -1279,17 +2093,22 @@ run part of their state machine at non-1:1 tick:frame ratios (a
 rendering-load quirk); their listed duration is the real measured span, not
 the naive tick-sum.
 
-| Spell | Element | Base power | Phase ticks | Total ticks (≈s @60fps) | RNG-call total |
-|---|---|---|---|---|---|
-| Explosion | Fire (Lv4) | 700 | not fully broken down | — | ~70 setup + more in impact phase |
-| Earthquake | Earth (Lv4) | 700 | 64+64+128+64 | 320 (~5.3s) | seed-dependent, 1519–1786 range (mean ~1649) |
-| Charm Arrow | Resurrection (Lv4) | 500 | 64+32+64+64 | 224 (~3.7s) | 24436 for the validated seed (core 64-tick phase) |
-| Flaming Arrow | Fire (Lv1) | 100 | 64+96+74+60 | 294 (~4.9s) | 512 for the validated seed |
-| Dancing Flames | Fire (Lv3) | 400 | 64+32+64+77+192+64 | 493 (~8.2s) | fixed 150, always |
-| Shining Wind | Wind (Lv5) | 500 | 64+32+64+160+64 | 384 raw (~9s real, case3 runs at half framerate) | 1302 for the validated seed |
-| Storm Fang | Earth+Wind combo | — | not decompiled past setup (provably zero RNG) | ~360 real frames | fixed 38, always |
-| Hell | Dark (Lv4*) | 2 (instant-death) | 64+32+128+? | ≥224 ticks, real-frame span varies 260–318 by battle context | seed-dependent, ~10320–12220 across 20 seeds |
-| Black Shadow | Dark (Lv2) | 300 | 64+32+80+? | ≥176 ticks | seed- and per-savestate-residual-dependent — see below |
+| Spell | id | Element | Base power | Phase ticks | Total ticks (≈s @60fps) | RNG-call total |
+|---|---|---|---|---|---|---|
+| Explosion | `4` | Fire (Lv4) | 700 | not fully broken down | — | ~70 setup + more in impact phase |
+| Earthquake | `24` | Earth (Lv4) | 700 | 64+64+128+64 | 320 (~5.3s) | seed-dependent, 1519–1786 range (mean ~1649) |
+| Charm Arrow | `8` | Resurrection (Lv4) | 500 | 64+32+64+64 | 224 (~3.7s) | 24436 for the validated seed (core 64-tick phase) |
+| Flaming Arrow | `1` | Fire (Lv1) | 100 | 64+96+74+60 | 294 (~4.9s) | 512 for the validated seed |
+| Dancing Flames | `3` | Fire (Lv3) | 400 | 64+32+64+77+192+64 | 493 (~8.2s) | fixed 150, always |
+| Shining Wind | `31` | Wind (Lv5) | 500 | 64+32+64+160+64 | 384 raw (~9s real, case3 runs at half framerate) | 1302 for the validated seed |
+| Storm Fang | `35` | Earth+Wind combo | — | not decompiled past setup (provably zero RNG) | ~360 real frames | fixed 38, always |
+| Hell | `27` | Dark (Lv3, corrected — see [the full spell table](#the-full-spell-table-dat_8016d33c)) | 2 (instant-death) | 64+32+128+? | ≥224 ticks, real-frame span varies 260–318 by battle context | seed-dependent, ~10320–12220 across 20 seeds |
+| Black Shadow | `26` | Dark (Lv2) | 300 | 64+32+80+? | ≥176 ticks | seed- and per-savestate-residual-dependent — see below |
+
+`DAT_8016d33c`'s charmap name for id `1` decodes to "**Flaming Arrows**"
+(plural) — this table's "Flaming Arrow" predates that decode and is kept
+here for continuity with earlier trace notes; the plural is the
+authoritative in-game name.
 
 ### Earthquake
 
