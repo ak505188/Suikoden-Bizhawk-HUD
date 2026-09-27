@@ -3,12 +3,14 @@ local ListMenuBuilder = require "menus.Builders.List"
 local StatsMenu = require "modules.Toolbox.Tools.CharacterEditor.StatsMenu"
 local ItemSelectionMenu = require "modules.Toolbox.Tools.CharacterEditor.ItemSelectionMenu"
 local WeaponRuneMenu = require "modules.Toolbox.Tools.CharacterEditor.WeaponRuneMenu"
+local StatusMenu = require "modules.Toolbox.Tools.CharacterEditor.StatusMenu"
 
 local function SelectionMenu(character)
   local list = {
     'Stats',
     'Inventory',
     'Weapon & Rune',
+    'Status',
     -- 'Unknowns',
   }
   local options = {
@@ -30,7 +32,10 @@ local function SelectionMenu(character)
       elseif selection == self.list[3] then
         local weapon_rune_menu = WeaponRuneMenu(self.character)
         self:openMenu(weapon_rune_menu)
-      -- elseif selection == self.list[4] then
+      elseif selection == self.list[4] then
+        local status_menu = StatusMenu(self.character)
+        self:openMenu(status_menu)
+      -- elseif selection == self.list[5] then
       end
     elseif Buttons.Circle:pressed() then
       return true

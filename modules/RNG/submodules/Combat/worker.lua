@@ -10,6 +10,8 @@ local EnemyAIPredictor = require "lib.EnemyAIPredictor"
 --   docs/game_mechanics/Battle_Damage_Formula.md
 -- for how each of these was reverse-engineered and how confident we are in it.
 local BattleOffsets = {
+  ROUND_NUMBER = 0x4,        -- CONFIRMED (incremented at round start by
+                             -- battle_refresh_combatant_derived_stats, 0x800f6ea0)
   PARTY_COUNT = 0x1c,        -- CONFIRMED
   ENEMY_COUNT = 0x20,        -- CONFIRMED
   TOTAL_COMBATANTS = 0x24,   -- CONFIRMED (party+enemy, turn-order loop bound)
@@ -74,6 +76,10 @@ local CombatantFields = {
                        -- battle_execute_player_attack (Attack) and all three ability
                        -- resolvers above (Rune/Item/Unite) - one shared target slot
                        -- regardless of ACTION_TYPE.
+  POSITION = 0x44,     -- CONFIRMED live 2026-09-25: formation slot, 1-3 front row, 4-6 back row.
+                       -- Only changes at battle load, in the round-end front-row backfill
+                       -- (battle_process_round_end_status_and_formation) and after a few
+                       -- revive spells (FUN_8012055c) - never mid-round when someone dies.
   HP_MAX = 0x10,       -- CONFIRMED live 2026-09 (user cross-check): was guessed reversed at first
   HP_CURRENT = 0x12,   -- CONFIRMED live 2026-09 (user cross-check): was guessed reversed at first
 }
@@ -151,6 +157,22 @@ local Worker = {
   ShowHPExperimental = true,
   InBattle = false,
   State = nil,
+  -- Tick counter (TickBasedAlgorithm.md's sim tick): game frames (Address.SESSION_FRAMECOUNT,
+  -- the counter the IGT display is built from) since the round driver's first tick. The round
+  -- number increments in the round-start refresh; the per-tick round driver (LAB_800f72f0,
+  -- tick 0) runs from the next frame. Only known while this worker has seen every emulator
+  -- frame since that increment, or has visited the current game frame before (rewind) - see
+  -- updateTick.
+  RoundStartIGT = nil,
+  LastRound = nil,
+  LastFrame = nil,
+  VisitedTicks = {},   -- SESSION_FRAMECOUNT -> { round, start, rng } for frames seen with a
+                       -- known tick; lets a rewind or savestate jump back to a visited frame
+                       -- restore the tick, including from after the battle back into it. Game
+                       -- frames don't repeat within one timeline, but they do across savestate
+                       -- branches: normal play overwrites each frame's entry, and a restore must
+                       -- match both round and RNG (see updateTick). Capped at VISITED_TICKS_MAX.
+  VisitedCount = 0,
   ActionTypeNames = ActionTypeNames,
   ActionTypeMax = ACTION_TYPE_MAX,
   UnsetValue = UNSET_VALUE,
@@ -170,6 +192,7 @@ function Worker:readBattleState()
     PartyCount = memory.read_u32_le(base + BattleOffsets.PARTY_COUNT),
     EnemyCount = memory.read_u32_le(base + BattleOffsets.ENEMY_COUNT),
     TotalCombatants = memory.read_u32_le(base + BattleOffsets.TOTAL_COMBATANTS),
+    RoundNumber = memory.read_u32_le(base + BattleOffsets.ROUND_NUMBER),
     CurrentActor = memory.read_u32_le(base + BattleOffsets.CURRENT_ACTOR),
     PendingIndex = memory.read_u32_le(base + BattleOffsets.PENDING_INDEX),
     RollGateCountdown = memory.read_u32_le(base + BattleOffsets.ROLL_GATE_COUNTDOWN),
@@ -178,6 +201,14 @@ function Worker:readBattleState()
 
   local total = state.TotalCombatants
   if total < 0 or total > 16 then total = 0 end -- sanity guard against a garbage read
+  state.TotalCombatants = total -- keep the field callers see in sync with the guarded value
+
+  -- PartyCount had no sanity guard at all (unlike TotalCombatants above) despite being used
+  -- as a loop bound elsewhere (ActionEditMenu.lua's rowCount()) - a garbage read here (e.g. at
+  -- the exact moment of transitioning into a battle, before the struct is fully populated)
+  -- could produce a huge, ungapped loop bound there with no matching Combatants entries to
+  -- stop it, hard-freezing the script. PartyCount can never legitimately exceed TotalCombatants.
+  if state.PartyCount < 0 or state.PartyCount > total then state.PartyCount = 0 end
 
   for idx = 1, total do
     local rec = base + BattleOffsets.COMBATANT_ARRAY + idx * BattleOffsets.COMBATANT_STRIDE
@@ -187,6 +218,7 @@ function Worker:readBattleState()
       ActionType = memory.read_u8(rec + CombatantFields.ACTION_TYPE),
       AbilitySlot = memory.read_u8(rec + CombatantFields.ABILITY_SLOT),
       Target = memory.read_u8(rec + CombatantFields.TARGET),
+      Position = memory.read_u8(rec + CombatantFields.POSITION),
       HPCurrent = memory.read_u16_le(rec + CombatantFields.HP_CURRENT),
       HPMax = memory.read_u16_le(rec + CombatantFields.HP_MAX),
       Id = memory.read_u8(ed + EnemyDataFields.ID),
@@ -228,6 +260,73 @@ function Worker:writeCombatantField(idx, key, value)
   end
 end
 
+local VISITED_TICKS_MAX = 216000 -- one hour of frames; the table is reset past this
+
+local function sessionFrames()
+  return memory.read_u32_le(Address.SESSION_FRAMECOUNT)
+end
+
+-- Marks the round start when the round number goes up by exactly one between two consecutive
+-- emulator frames. emu.framecount() is only used to tell what kind of step this is:
+--   same frame  (paused: the menu loop runs this many times per frame) -> nothing changes
+--   next frame  (normal play or frame advance) -> detect a round start, else keep counting
+--   anything else (rewind, savestate load, frames missed while another view was active)
+--               -> restore the tick if this exact game frame was seen before in the same
+--                  round AND with the same RNG value (VisitedTicks), otherwise unknown until
+--                  the next round start
+-- The tick itself is counted in game frames (SESSION_FRAMECOUNT).
+--
+-- VisitedTicks is keyed by game frame, which repeats across savestate branches: after loading an
+-- earlier savestate and playing on, the same frames come back with a different round start. So
+-- every normally-advanced frame overwrites its entry (the timeline being played wins), and a
+-- restore also has to match the RNG value recorded for that frame - a stale entry from another
+-- branch the current one hasn't overwritten yet (e.g. rewinding to before a savestate load) would
+-- otherwise match on round number alone and restore that branch's much earlier round start.
+function Worker:updateTick(state)
+  local frame = emu.framecount()
+  if frame == self.LastFrame then return end
+  local igt = sessionFrames()
+  local round = state and state.RoundNumber or nil
+  local rng = memory.read_u32_le(Address.RNG)
+  local continuous = self.LastFrame ~= nil and frame == self.LastFrame + 1
+
+  if not state then
+    self.RoundStartIGT = nil
+  elseif continuous then
+    if self.LastRound ~= nil and round ~= self.LastRound then
+      self.RoundStartIGT = (round == self.LastRound + 1) and igt or nil
+    end
+  else
+    local seen = self.VisitedTicks[igt]
+    self.RoundStartIGT = (seen and seen.round == round and seen.rng == rng) and seen.start or nil
+  end
+
+  if continuous and state then
+    local existing = self.VisitedTicks[igt]
+    if self.RoundStartIGT then
+      if not existing then
+        if self.VisitedCount >= VISITED_TICKS_MAX then
+          self.VisitedTicks, self.VisitedCount = {}, 0
+        end
+        self.VisitedCount = self.VisitedCount + 1
+      end
+      self.VisitedTicks[igt] = { round = round, start = self.RoundStartIGT, rng = rng }
+    elseif existing then
+      -- this branch passed the frame without a known tick: drop the other branch's entry
+      self.VisitedTicks[igt] = nil
+      self.VisitedCount = self.VisitedCount - 1
+    end
+  end
+  self.LastRound = round
+  self.LastFrame = frame
+end
+
+-- Current sim tick, or nil if unknown. -1 on the frame the round-start refresh ran.
+function Worker:currentTick()
+  if not self.RoundStartIGT then return nil end
+  return sessionFrames() - self.RoundStartIGT - 1
+end
+
 function Worker:run()
   self.InBattle = isInBattle()
   if self.InBattle then
@@ -235,6 +334,7 @@ function Worker:run()
   else
     self.State = nil
   end
+  self:updateTick(self.State)
 end
 
 function Worker:draw()
@@ -256,11 +356,13 @@ function Worker:draw()
     string.format("Base:0x%08x", state.Base),
     string.format("Actor:%d  Pending:%d  RollGateCD:%d",
       state.CurrentActor, state.PendingIndex, state.RollGateCountdown),
+    string.format("Round:%d  Tick:%s", state.RoundNumber,
+      self:currentTick() and tostring(self:currentTick()) or "?"),
     string.format("RNG:0x%08x  RNG2:%d", rng, rng2),
   }
   Drawer:draw(header_lines, Drawer.anchors.TOP_LEFT, nil, true)
 
-  local table_header = " #  ID F B ACTION"
+  local table_header = " #  ID P F B ACTION"
   Drawer:draw({ table_header }, Drawer.anchors.TOP_LEFT, nil, true)
 
   local rows = {}
@@ -281,8 +383,8 @@ function Worker:draw()
       local targetStr = c.Target == UNSET_VALUE and "--" or tostring(c.Target)
       actionStr = string.format("%s%s>%s", actName, slotStr, targetStr)
     end
-    table.insert(rows, string.format("%1s%1x %3d %1d %1d %s",
-      marker, idx, c.Id, c.ActionTag, c.Busy, actionStr))
+    table.insert(rows, string.format("%1s%1x %3d %1d %1d %1d %s",
+      marker, idx, c.Id, c.Position, c.ActionTag, c.Busy, actionStr))
   end
   Drawer:draw(rows, Drawer.anchors.TOP_LEFT)
 

@@ -61,6 +61,8 @@ function Menu:draw()
   for row = 1, count do
     local partyIdx, field = rowInfo(row)
     local c = state.Combatants[partyIdx]
+    if not c then break end -- PartyCount/Combatants mismatch (e.g. mid battle-transition read) -
+                             -- every later row would be nil too, so stop rather than error/hang
     local value = c[field.key]
     local display
     if value == Worker.UnsetValue then

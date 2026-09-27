@@ -75,8 +75,8 @@ local function simulateEarthquake(startSeed)
     for i = 0, C.PARTICLE_COUNT - 1 do
       local p = particles[i]
       if (not p.active) and p.stagger == t then
-        local r1 = rand()
-        local xInt = (r1 % 198 + 1) - 100 -- -99..98
+        local xRoll = rand() -- r1
+        local xInt = (xRoll % 198 + 1) - 100 -- -99..98
         p.x = xInt * 4096
         rand() -- second axis, doesn't affect X
         p.active = true
@@ -200,12 +200,24 @@ local FlamingArrowConstants = {
 
 -- The low 12 bits of each particle's trail_x field (spell_flamingarrow_spawn_particle only
 -- ever writes `field = field & 0xfff | (new_high_bits << 12)`, preserving whatever was
--- already in the low 12 bits) are stale leftover memory from whatever last used these 20
--- VFX particle-pool slots before this cast - NOT derived from the RNG stream at all.
--- Confirmed via a raw memory dump of FlamingArrow.State before any tick runs: slots 0-16
--- share a common zeroed template (residual 0), while slots 17-19 carry distinct nonzero
--- garbage. This is a fixed property of this savestate, like Charm Arrow's baked grid -
--- every seed tested against FlamingArrow.State needs this same table.
+-- already in the low 12 bits) LOOK like stale leftover VFX-pool memory, but are NOT -
+-- confirmed fixed, spell-wide constant data (same category as Hell's HellSlotScale, not
+-- Black Shadow's genuine per-savestate residue). DAT_8017a030 (Flaming Arrow's own context
+-- pointer) IS a genuinely dynamic heap_alloc/heap_free arena, same lifecycle as the Soul
+-- Eater family - NOT a permanently-static buffer (spell_flamingarrow_cleanup explicitly
+-- heap_free's all 20 particle structs plus the context every cast) - and it's SHARED with
+-- Explosion, Dancing Flames, and a newly-found spell "Firestorm" (spell_explosion_vfx_setup
+-- and spell_dancingflames_vfx_setup both heap_alloc into this same slot). Despite that
+-- genuine reuse, ctx always resolves to the same address (0x191090; particle structs
+-- 0x18f5b0-0x18ff30) and these low-12 bits are byte-identical across 4 real savestates:
+-- FlamingArrow.State (fresh battle), FlamingArrow2ndCast.State (repeat Flaming Arrow cast -
+-- doesn't disturb its own untouched field), FlamingArrowAfterDeadlyFingertips.State (a
+-- different attack, but on a DIFFERENT arena - SOUL_EATER_CTX/DAT_8017a060 - so not actually
+-- a same-arena test), and FlamingArrowAfterFirestorm.State (the actually decisive test -
+-- Firestorm shares this exact arena, and still: identical). Consistent with a simple
+-- stack/arena allocator that returns to the same state once the prior occupant fully frees
+-- before the next cast. Keeping the "residual" name/shape for continuity even though it's
+-- not residue.
 local FlamingArrowResidualLow12 = {
   [0]=0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 78, 2868, 99,
 }
@@ -246,16 +258,16 @@ end
 local function squareRoot0(a)
   local clz = clz32(a)
   if clz == 0x20 then return 0 end
-  local uVar1 = clz & 0xFFFFFFFE
+  local clzEven = clz & 0xFFFFFFFE -- uVar1
   local shiftVal
-  if (uVar1 - 0x18) < 0 then
-    shiftVal = a >> ((0x18 - uVar1) & 0x1f)
+  if (clzEven - 0x18) < 0 then
+    shiftVal = a >> ((0x18 - clzEven) & 0x1f)
   else
-    shiftVal = (a << ((uVar1 - 0x18) & 0x1f)) & 0xFFFFFFFF
+    shiftVal = (a << ((clzEven - 0x18) & 0x1f)) & 0xFFFFFFFF
   end
   local idx = shiftVal - 0x40
   local tableVal = Sqrt0Table[idx]
-  local shiftAmt = ((0x1f - uVar1) >> 1) & 0x1f
+  local shiftAmt = ((0x1f - clzEven) >> 1) & 0x1f
   local result = (tableVal << shiftAmt) & 0xFFFFFFFF
   -- arithmetic right shift by 12, treating result as signed 32-bit
   if result >= 0x80000000 then result = result - 0x100000000 end
@@ -283,22 +295,22 @@ local function simulateFlamingArrow(startSeed)
   -- Earthquake, where velocity is a fixed constant, Flaming Arrow's is randomized), and a
   -- random lifetime - 4 rand() calls total.
   local function spawn(residualLow12)
-    local r1 = rand()
-    local iVar3 = (C.RADIUS - 1) * 2
-    local iVar5 = (r1 % iVar3 + 1) - C.RADIUS
-    local lVar2 = squareRoot0(C.RADIUS * C.RADIUS - iVar5 * iVar5)
+    local xRoll = rand() -- r1
+    local xRange = (C.RADIUS - 1) * 2 -- iVar3
+    local xOffset = (xRoll % xRange + 1) - C.RADIUS -- iVar5
+    local yzRadius = squareRoot0(C.RADIUS * C.RADIUS - xOffset * xOffset) -- lVar2
     rand() -- Z coordinate, not modeled (doesn't affect despawn timing)
-    local r3 = rand()
-    local iVar1 = (r3 % 64) + 128
-    local velX = -iVar5 * iVar1
+    local velRoll = rand() -- r3
+    local velScale = (velRoll % 64) + 128 -- iVar1
+    local velX = -xOffset * velScale
     -- C's `/` truncates toward zero for negative operands, unlike Lua's `//` which
     -- floors toward -infinity - replicate C's truncation exactly (see simulateEarthquake's
     -- analogous note on the mismatched shift/division semantics)
-    local num, den = iVar5 * 5, 6
+    local num, den = xOffset * 5, 6
     local q = (num < 0) == (den < 0) and (math.abs(num) // math.abs(den)) or -(math.abs(num) // math.abs(den))
     local trailX = (residualLow12 & 0xfff) | (q * 4096)
-    local r4 = rand()
-    local lifetime = r4 % 100
+    local lifetimeRoll = rand() -- r4
+    local lifetime = lifetimeRoll % 100
     return { active = true, lifetime = lifetime, trailX = trailX, velX = velX }
   end
 
@@ -344,6 +356,224 @@ local function simulateFlamingArrow(startSeed)
   return calls
 end
 
+local function simulateFirestorm()
+  return 0
+end
+
+-- Explosion shares DAT_8017a030 with Flaming Arrow/Dancing Flames/Firestorm (see
+-- FlamingArrowResidualLow12's comment above) and its own Pool C (case2) calls
+-- spell_flamingarrow_spawn_particle directly - the same shared spawn helper as Flaming
+-- Arrow. CONFIRMED via extensive live tracing (2026-09-21) across two independently-seeded
+-- captures on Explosion.State:
+--   setup (spell_explosion_vfx_setup): exactly 70 rand() calls, in an order that matters -
+--   Pool A/B's schedules are DERIVED from these same calls, not a captured table:
+--     - 20 iterations (Pool B), 2 calls each: first call % 0x48 (72) becomes that object's
+--       case3 firing tick; second call is a position roll, consumed but not counted.
+--     - 30 iterations (Pool C), 0 calls (FUN_80123a5c takes fixed args).
+--     - 15 iterations (Pool A), 2 calls each: first call % 0x60 (96) becomes that object's
+--       case3 firing tick; second call likewise consumed but unused for counting.
+--   phase 0: 64 ticks, no RNG. phase 1: 32 ticks, no RNG.
+--   phase 2 (case2): 128 ticks - Pool C (30 Flaming-Arrow-style particles, radius 150 not
+--     100, via spell_flamingarrow_spawn_particle directly - 4 rand() calls/spawn). CONFIRMED
+--     LIVE (exact per-tick match, not just total): the spawn gate is OFF only on tick-index 0
+--     (0 calls that tick, despite all 30 particles starting inactive) and ON for every
+--     remaining tick 1-127 INCLUDING the last one (tick 127 still shows real spawn activity
+--     live) - the decompile's own "piVar1[0x53]=0 clears the gate on the transitioning tick"
+--     reading does not match observed behavior, and the true cause of the tick-0-only gap
+--     was not chased further once the per-tick match was achieved. Decay/despawn runs
+--     unconditionally on all 128 ticks (moot on tick 0 either way, since nothing has spawned
+--     yet to decay).
+--   phase 3 (case3): 96 ticks - a flat 1 rand()/tick camera-shake roll, PLUS Pool A/Pool B
+--     each firing at their setup-assigned schedule tick, PLUS a confirmed RE-FIRE: each
+--     particle's nested sprite-animation state (*(particle+0x18), driven by the generic,
+--     non-spell-specific FUN_800e2a9c/FUN_800e2044/FUN_801238e0 subsystem) finishes its
+--     animation cycle a FIXED number of ticks after activation, clears the particle's own
+--     "flag" (+0x1c) for exactly one tick, and - since "schedule" is already 0 from the first
+--     fire - the idle-refill branch in the decompile (loop2 for Pool A, loop4 for Pool B)
+--     immediately re-fires it, if that re-fire tick still falls within the 96-tick window.
+--     CONFIRMED EXACT via live tracing (2026-09-21) across two independently-seeded captures,
+--     zero mismatches on every single tick: Pool A's cycle is exactly 55 ticks; Pool B's is
+--     exactly 60 (both fixed animation-length constants, independent of each object's own
+--     schedule value). Pool A's fresh fire costs 2 calls (vfx_activate_and_position_particle
+--     only); its re-fire costs 3 (vfx_activate's 2 plus one extra fractional-write roll, per
+--     the decompile's loop2 body). Pool B's fresh fire and re-fire both cost 3 (one
+--     sound-variant roll + vfx_activate_and_position_particle) - loop3 and loop4 are
+--     identical in cost. Neither pool can re-fire a SECOND time within the 96-tick window
+--     (max schedule + 2*cycle always exceeds 95 for both pools), so "fire, then at most one
+--     re-fire" is exhaustive here.
+--
+-- Full totals (verified via direct LCG-step count from seed to the settled post-cast RNG
+-- value, not just case3 in isolation, AND via an exact tick-by-tick match against live
+-- per-tick RNG deltas - not just matching totals): native seed 0x1b65fc6a gives 1220 live,
+-- case3 contributing exactly 234 (70 setup + 916 phase2 + 234 phase3 = 1220); fresh seed
+-- 0x11111111 gives 1271 live, case3 contributing exactly 249 (70 + 952 + 249 = 1271). Both
+-- fully reconciled - this model no longer has an unresolved residual. The earlier "residual"
+-- was purely a measurement artifact: this session's live captures sampled memory once per
+-- tick, always on the same frame parity, which structurally cannot observe a clear-then-
+-- re-fire cycle that completes within a single tick's 2-frame window (Pool B's 60-tick cycle
+-- does; Pool A's 55-tick cycle happens to straddle a tick boundary and so WAS directly
+-- observable via per-tick sampling, which is why Pool A's re-fire was found first and Pool
+-- B's was initially - wrongly - believed not to exist at all).
+local ExplosionConstants = {
+  SETUP_CALLS = 70, -- 20*2 (Pool B) + 30*0 (Pool C) + 15*2 (Pool A) = 70
+  PHASE0_TICKS = 64,
+  PHASE1_TICKS = 32,
+  PHASE2_TICKS = 128,
+  PHASE3_TICKS = 96,
+  POOL_A_COUNT = 15,
+  POOL_B_COUNT = 20,
+  POOL_C_COUNT = 30,
+  POOL_C_RADIUS = 150,
+  POOL_A_SCHEDULE_MOD = 0x60, -- 96
+  POOL_B_SCHEDULE_MOD = 0x48, -- 72
+  POOL_A_REFIRE_CYCLE = 55, -- fixed animation-length constant, confirmed exact live
+  POOL_B_REFIRE_CYCLE = 60, -- fixed animation-length constant, confirmed exact live
+}
+
+-- Pool C's (30 Flaming-Arrow-style particles) initial trail_x low-12-bit residual, captured
+-- live right after spell_explosion_vfx_setup runs (frame 0 of Explosion.State is BEFORE
+-- vfx_setup actually runs - cast_entry is a one-tick trampoline, same pattern as every other
+-- spell here - so the residual was captured 1 tick in, right after vfx_setup's 70 calls).
+-- All 30 particles start genuinely inactive (confirmed live), so lifetime/velX/trailX's high
+-- bits are irrelevant - only these low 12 bits survive into each particle's first spawn.
+local ExplosionPoolCResidualLow12 = {
+  [0]=0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  3945,3994,527,8,128,527,8,2,527,10,102,
+}
+
+-- simulateExplosion(startSeed) -> totalRandCalls
+-- startSeed is the RNG's raw 32-bit state the instant before spell_explosion_vfx_setup's
+-- first rand() call (i.e. the frame the game would make its first setup draw). See this
+-- function's header comment above for the confirmed exact model (including Pool A/B re-fire).
+local function simulateExplosion(startSeed)
+  local C = ExplosionConstants
+  local seed = startSeed
+  local calls = 0
+
+  local function rand()
+    seed = RNGLib.nextRNG(seed)
+    calls = calls + 1
+    return RNGLib.getRNG2(seed)
+  end
+
+  -- setup: Pool B (20x2), Pool C (30x0), Pool A (15x2) - exact order matters, since Pool
+  -- A/B's schedules are derived from these same calls, not a captured table.
+  local poolBSchedule = {}
+  for i = 0, C.POOL_B_COUNT - 1 do
+    local scheduleRoll = rand()
+    rand() -- position roll, unused for counting
+    poolBSchedule[i] = scheduleRoll % C.POOL_B_SCHEDULE_MOD
+  end
+  for _ = 1, C.POOL_C_COUNT do
+    -- FUN_80123a5c(0x7f,0x7f,0,0,0) - fixed args, no rand()
+  end
+  local poolASchedule = {}
+  for i = 0, C.POOL_A_COUNT - 1 do
+    local scheduleRoll = rand()
+    rand() -- position roll, unused for counting
+    poolASchedule[i] = scheduleRoll % C.POOL_A_SCHEDULE_MOD
+  end
+
+  -- phase 0/1: 64 + 32 ticks, no RNG.
+
+  -- phase 2 (case2): Pool C - exact port of spell_flamingarrow_spawn_particle, radius 150.
+  local function spawnPoolC(residualLow12)
+    local xRoll = rand()
+    local xRange = (C.POOL_C_RADIUS - 1) * 2
+    local xOffset = (xRoll % xRange + 1) - C.POOL_C_RADIUS
+    squareRoot0(C.POOL_C_RADIUS * C.POOL_C_RADIUS - xOffset * xOffset)
+    rand() -- Z coordinate, not modeled (doesn't affect despawn timing)
+    local velRoll = rand()
+    local velScale = (velRoll % 64) + 128
+    local velX = -xOffset * velScale
+    local num, den = xOffset * 5, 6
+    local q = (num < 0) == (den < 0) and (math.abs(num) // math.abs(den)) or -(math.abs(num) // math.abs(den))
+    local trailX = (residualLow12 & 0xfff) | (q * 4096)
+    local lifetimeRoll = rand()
+    local lifetime = lifetimeRoll % 100
+    return { active = true, lifetime = lifetime, trailX = trailX, velX = velX }
+  end
+
+  local poolC = {}
+  for i = 0, C.POOL_C_COUNT - 1 do
+    poolC[i] = { active = false, lifetime = 0, trailX = ExplosionPoolCResidualLow12[i], velX = 0 }
+  end
+
+  for tickIdx = 0, C.PHASE2_TICKS - 1 do
+    -- Spawn gate: OFF only on tick-index 0 (confirmed live - see this function's header
+    -- comment), ON for every tick 1..127 including the last.
+    if tickIdx >= 1 then
+      for i = 0, C.POOL_C_COUNT - 1 do
+        local p = poolC[i]
+        if not p.active then
+          poolC[i] = spawnPoolC(p.trailX & 0xfff)
+        end
+      end
+    end
+    -- Decay/despawn: unconditional every tick, all 128.
+    for i = 0, C.POOL_C_COUNT - 1 do
+      local p = poolC[i]
+      if p.active then
+        if p.lifetime < 1 then
+          p.active = false
+        else
+          local trailXInt = math.floor(p.trailX / 4096)
+          if trailXInt < 0 then trailXInt = -trailXInt end
+          if trailXInt < 5 then
+            p.active = false
+          else
+            p.lifetime = p.lifetime - 1
+            p.trailX = p.trailX + p.velX
+          end
+        end
+      end
+    end
+  end
+
+  -- phase 3 (case3): camera shake (1/tick) + Pool A/B firing at their setup-assigned
+  -- schedule tick, plus a re-fire at a fixed cycle length later (see this function's header
+  -- comment for the confirmed exact mechanism and cycle lengths).
+  local poolARefireTick = {}
+  for i = 0, C.POOL_A_COUNT - 1 do
+    local rt = poolASchedule[i] + C.POOL_A_REFIRE_CYCLE
+    poolARefireTick[i] = rt <= C.PHASE3_TICKS - 1 and rt or nil
+  end
+  local poolBRefireTick = {}
+  for i = 0, C.POOL_B_COUNT - 1 do
+    local rt = poolBSchedule[i] + C.POOL_B_REFIRE_CYCLE
+    poolBRefireTick[i] = rt <= C.PHASE3_TICKS - 1 and rt or nil
+  end
+
+  for tick = 0, C.PHASE3_TICKS - 1 do
+    for i = 0, C.POOL_A_COUNT - 1 do
+      if poolASchedule[i] == tick then
+        rand() -- vfx_activate_and_position_particle: X roll
+        rand() -- vfx_activate_and_position_particle: second-axis roll
+      end
+      if poolARefireTick[i] == tick then
+        rand() -- vfx_activate_and_position_particle: X roll
+        rand() -- vfx_activate_and_position_particle: second-axis roll
+        rand() -- extra fractional-write roll (loop2 body)
+      end
+    end
+    for i = 0, C.POOL_B_COUNT - 1 do
+      if poolBSchedule[i] == tick then
+        rand() -- sound-variant roll
+        rand() -- vfx_activate_and_position_particle: X roll
+        rand() -- vfx_activate_and_position_particle: second-axis roll
+      end
+      if poolBRefireTick[i] == tick then
+        rand() -- sound-variant roll
+        rand() -- vfx_activate_and_position_particle: X roll
+        rand() -- vfx_activate_and_position_particle: second-axis roll
+      end
+    end
+    rand() -- camera shake, unconditional every tick
+  end
+
+  return calls
+end
+
 -- Unlike Earthquake/Charm Arrow/Flaming Arrow, Dancing Flames' RNG consumption is a FIXED
 -- constant, not seed-derived: spell_dancingflames_vfx_setup positions 15 ember particles (2
 -- rand() calls each = 30, all in one setup frame), then
@@ -356,6 +586,61 @@ end
 -- simulation needed since there's nothing seed-dependent to simulate.
 local function simulateDancingFlames()
   return 150
+end
+
+-- simulateFinalFlame(startSeed) -> totalRandCalls
+-- startSeed is the RNG's raw 32-bit state (Address.RNG) the instant before
+-- spell_finalflame_vfx_setup (0x80101eb0) runs, i.e. the frame battle+0x14 holds the setup
+-- pointer. Validated tick-by-tick against 30 live captures (Cleo, Rage Rune, vs Zombie
+-- Dragon; 0 mismatches) - see docs/game_mechanics/Battle_Damage_Formula.md's "Final Flame"
+-- section. Structure (all from the decompile):
+--   setup: 30 rand() (pool B scale) + 30 (pool C scale) + 30 x 2 (pool D: start tick
+--     rand()%64 + 20, then scale) = 120, in one frame.
+--   tick machine (spell_finalflame_tick_state_machine, 0x80102280), own tick counter:
+--     case 0 (64 ticks): no rand().
+--     case 1 (128 ticks): pool A's 20 particles fire at ticks 0,3,...,57: rand()%40 plus
+--       vfx_activate_and_position_particle's 2 = 3 each (60, fixed).
+--     case 2 (296 ticks): pool B's first 29 particles fire at ticks floor(200k/30) (2 each,
+--       58), its 30th is activated by hand at tick 180 (2); pool D's 30 particles fire first
+--       at their start tick, then again every time their non-looping sprite (shared sheet
+--       DAT_800aa004, seq 13: 11 frames x 5 = 55 updates) finishes - re-activation is checked
+--       in the case body, the sprite update/deactivation in the epilogue, so one particle
+--       fires every 55 ticks until case 2 ends (2 each). This is the only seed-dependent
+--       part: the count depends only on the 30 start ticks.
+--     case 3 (96 ticks): no rand(); damage at its end (apply_elemental_multiplier(5, Fire,
+--       target, caster, 900), no RNG).
+-- Real frames: case 2's ticks 201..295 each take 2 frames (the spell machine alone; the
+-- animation pass keeps running every frame), so the cast hands the turn back at T0+697.
+local FinalFlameDLife = 55
+
+local function simulateFinalFlame(startSeed)
+  local seed = startSeed
+  local calls = 0
+  local function rand()
+    seed = RNGLib.nextRNG(seed)
+    calls = calls + 1
+    return RNGLib.getRNG2(seed)
+  end
+
+  for _ = 1, 30 do rand() end                  -- pool B scale
+  for _ = 1, 30 do rand() end                  -- pool C scale
+  local dStart = {}
+  for k = 1, 30 do
+    dStart[k] = rand() % 64 + 20               -- pool D start tick
+    rand()                                     -- pool D scale
+  end
+
+  calls = calls + 20 * 3                       -- case 1: pool A, fixed
+  calls = calls + 29 * 2 + 2                   -- case 2: pool B (29 scheduled + the 30th at 180)
+
+  -- case 2, pool D: first fire at its start tick, then every FinalFlameDLife ticks through
+  -- tick 295 (the rand() values drawn here don't change the count, so only count them)
+  for k = 1, 30 do
+    local fires = math.floor((295 - dStart[k]) / FinalFlameDLife) + 1
+    calls = calls + fires * 2
+  end
+
+  return calls
 end
 
 -- Validated bit-for-bit against a live 159-tick per-tick capture on the original savestate
@@ -406,10 +691,10 @@ local function simulateShiningWind(startSeed)
   -- axis matters for Pool C/D's despawn check; Pool A/B never read position at all, so the
   -- exact X/Y/Z values are otherwise unused here - only the call count matters.
   local function activatePos(radius, height, residualLow12)
-    local r1 = rand()
-    local iVar3 = (radius - 1) * 2
-    local iVar5 = (r1 % iVar3 + 1) - radius
-    squareRoot0(radius * radius - iVar5 * iVar5)
+    local xRoll = rand() -- r1
+    local xRange = (radius - 1) * 2 -- iVar3
+    local xOffset = (xRoll % xRange + 1) - radius -- iVar5
+    squareRoot0(radius * radius - xOffset * xOffset)
     rand() -- second internal axis, unused
     return (residualLow12 & 0xfff) | (-height * 4096)
   end
@@ -574,10 +859,12 @@ local HellConstants = {
 -- Fixed per-slot "scale" constants (offset 0x30 in each particle slot), 1-indexed to match
 -- slot numbering. Confirmed byte-identical across TedHell.State, McDohlHell.State, and
 -- McDohlHellGregminster.State - this is baked into the spell's own static data, not derived
--- from prior gameplay (unlike Flaming
--- Arrow's residual-low-12-bits, which IS per-savestate garbage). Interpreted as raw signed
--- 32-bit values >>12 in the spawn formula - most are far from a "1.0-ish" 4096, several look
--- like large/negative bit patterns, which is expected and intentional (not corruption).
+-- from prior gameplay (same category as Flaming Arrow's FlamingArrowResidualLow12, despite
+-- that one's name - both turned out to be fixed constants, not genuine per-savestate
+-- garbage; Black Shadow's own scale/residual tables below ARE the real per-savestate case).
+-- Interpreted as raw signed 32-bit values >>12 in the spawn formula - most are far from a
+-- "1.0-ish" 4096, several look like large/negative bit patterns, which is expected and
+-- intentional (not corruption).
 local HellSlotScale = {
   4096, 2147483648, 4096, 2147516416, 5648, 2147516416, 69632,
   2147516416, 4276092913, 2147483648, 0, 2147516416, 0,
@@ -589,8 +876,14 @@ local HellSlotScale = {
 }
 
 -- Stale low-12-bit residue in each slot's initial posX field (captured at frame0, before any
--- tick has run) - same "leftover memory from whatever last used these VFX pool slots" pattern
--- as Flaming Arrow's residual table, fixed per savestate. All 40 slots start inactive.
+-- tick has run) - originally assumed to be genuine leftover VFX-pool memory by analogy with
+-- Flaming Arrow's residual table below, on the same "partial-word write preserves untouched
+-- bits" reasoning. That analogy is now suspect: Flaming Arrow's own residual table turned out
+-- (via a cross-savestate raw-memory check) to be a fixed constant, not real residue, despite
+-- looking identical in kind. This table has NOT been independently re-checked across multiple
+-- savestates the way HellSlotScale was (see its comment above) - do that before trusting
+-- either "fixed constant" or "genuine per-savestate garbage" for this specific field. All 40
+-- slots start inactive.
 local HellInitialResidualLow12 = {
   0, 0, 544, 0, 0, 0, 0, 0, 510, 0, 272, 0,
   0, 0, 29, 0, 0, 0, 2458, 1536, 2457, 0,
@@ -629,20 +922,20 @@ local function simulateHell(startSeed)
   -- Exact port of spell_hell_spawn_particle. r2 (Z-axis roll) is consumed but never read by
   -- anything the despawn check needs, same as Flaming Arrow/Shining Wind's unused axis rolls.
   local function spawn(scale, residualLow12)
-    local r1 = rand()
+    local xRoll = rand() -- r1
     local rangeN = (C.RADIUS - 1) * 2
-    local xInt = (r1 % rangeN + 1) - C.RADIUS
+    local xInt = (xRoll % rangeN + 1) - C.RADIUS
     rand() -- Z-axis roll, unused
-    local r3 = rand()
-    local velScale = (r3 % 64) + 128
+    local velRoll = rand() -- r3
+    local velScale = (velRoll % 64) + 128
     local velX = -xInt * velScale
     -- arithmetic (floor) shift, not Lua's native logical ">>" - scale is frequently negative
     -- once reinterpreted as signed32 (see HellSlotScale's large entries)
     local scaleShifted = math.floor(signed32(scale) / 4096)
     local finalOff = cDiv(xInt * scaleShifted, 4096)
     local posX = (residualLow12 & 0xfff) | (signed32((finalOff + C.REF_X) * 4096) & 0xFFFFFFFF)
-    local r4 = rand()
-    local life = r4 % 120
+    local lifeRoll = rand() -- r4
+    local life = lifeRoll % 120
     return { active = true, posX = signed32(posX), velX = velX, life = life, scale = scale }
   end
 
@@ -698,8 +991,9 @@ end
 --
 -- CRITICAL DIFFERENCE FROM HELL: the 40-slot "scale" table and each slot's initial posX
 -- low-12-bit residue are NOT a fixed spell-wide constant here - they're genuine
--- PER-SAVESTATE stale VFX-pool memory (same category as Flaming Arrow's residual bits, not
--- Hell's baked table). Confirmed by comparing BlackShadowWind.State and BlackShadowBats.State
+-- PER-SAVESTATE stale VFX-pool memory (unlike Hell's baked table, and unlike Flaming Arrow's
+-- residual bits, which turned out to also be a fixed constant despite the name - see its
+-- comment above). Confirmed by comparing BlackShadowWind.State and BlackShadowBats.State
 -- (two savestates on the same turn-2 cast, following two different Neclord turn-1 attacks):
 -- their 40-slot scale tables are completely different patterns. This - not camera position,
 -- which the user suspected going in - is what produces the user-observed "consistent ~5800
@@ -790,18 +1084,18 @@ local function simulateBlackShadow(startSeed, slotScale, slotResidual, scaleInit
   -- Exact port of spell_hell_spawn_particle, identical to simulateHell's copy - see its
   -- comment there for the per-roll breakdown.
   local function spawn(scale, residualLow12)
-    local r1 = rand()
+    local xRoll = rand() -- r1
     local rangeN = (C.RADIUS - 1) * 2
-    local xInt = (r1 % rangeN + 1) - C.RADIUS
+    local xInt = (xRoll % rangeN + 1) - C.RADIUS
     rand() -- Z-axis roll, unused
-    local r3 = rand()
-    local velScale = (r3 % 64) + 128
+    local velRoll = rand() -- r3
+    local velScale = (velRoll % 64) + 128
     local velX = -xInt * velScale
     local scaleShifted = math.floor(signed32(scale) / 4096)
     local finalOff = cDiv(xInt * scaleShifted, 4096)
     local posX = (residualLow12 & 0xfff) | (signed32((finalOff + C.REF_X) * 4096) & 0xFFFFFFFF)
-    local r4 = rand()
-    local life = r4 % 120
+    local lifeRoll = rand() -- r4
+    local life = lifeRoll % 120
     return { active = true, posX = signed32(posX), velX = velX, life = life, scale = scale }
   end
 
@@ -856,7 +1150,10 @@ return {
   simulateEarthquake = simulateEarthquake,
   simulateCharmArrow = simulateCharmArrow,
   simulateFlamingArrow = simulateFlamingArrow,
+  simulateFirestorm = simulateFirestorm,
+  simulateExplosion = simulateExplosion,
   simulateDancingFlames = simulateDancingFlames,
+  simulateFinalFlame = simulateFinalFlame,
   simulateStormFang = simulateStormFang,
   simulateShiningWind = simulateShiningWind,
   simulateHell = simulateHell,

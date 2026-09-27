@@ -140,6 +140,48 @@ function TestDancingFlames:testFixedTotal()
   luaunit.assertEquals(Magic.simulateDancingFlames(), 150)
 end
 
+TestFinalFlame = {}
+
+-- Cleo (Rage Rune) casting Final Flame on Zombie Dragon (ZombieDragonStart.State), seed read
+-- the frame before spell_finalflame_vfx_setup runs - validated tick-by-tick against the live
+-- per-frame capture (every tick of setup and cases 1-2 matched, not just the total).
+function TestFinalFlame:testKnownCapturedSeed()
+  luaunit.assertEquals(Magic.simulateFinalFlame(0x799c61f8), 538)
+end
+
+-- 20 more seeds, each injected into the same savestate (scripts/CaptureFinalFlameSeeds.lua) and
+-- measured live per tick - all matched the simulator exactly (0 discrepancies), as did the 9
+-- other seeds of the first capture.
+function TestFinalFlame:testValidatedSeeds()
+  local cases = {
+    { 0xadad7f18, 536 },
+    { 0xe8ffa639, 534 },
+    { 0x2451cd5a, 536 },
+    { 0x5fa3f47b, 538 },
+    { 0x9af61b9c, 540 },
+    { 0xd64842bd, 530 },
+    { 0x119a69de, 530 },
+    { 0x4cec90ff, 528 },
+    { 0x883eb820, 532 },
+    { 0xc390df41, 526 },
+    { 0xfee30662, 530 },
+    { 0x3a352d83, 534 },
+    { 0x758754a4, 538 },
+    { 0xb0d97bc5, 530 },
+    { 0xec2ba2e6, 530 },
+    { 0x277dca07, 534 },
+    { 0x62cff128, 540 },
+    { 0x9e221849, 532 },
+    { 0xd9743f6a, 532 },
+    { 0x14c6668b, 530 },
+  }
+  for _, case in ipairs(cases) do
+    local seed, expected = case[1], case[2]
+    luaunit.assertEquals(Magic.simulateFinalFlame(seed), expected,
+      string.format("seed 0x%08x", seed))
+  end
+end
+
 TestShiningWind = {}
 
 -- The original savestate's seed, validated tick-by-tick against a live frame-by-frame
@@ -317,6 +359,59 @@ function TestBlackShadow:testValidatedSeedsBats()
   for _, case in ipairs(cases) do
     local seed, expected = case[1], case[2]
     luaunit.assertEquals(Magic.simulateBlackShadowBats(seed), expected,
+      string.format("seed 0x%08x", seed))
+  end
+end
+
+TestExplosion = {}
+
+-- These assert the REAL, live-captured total the game actually produces - NOT whatever
+-- simulateExplosion happens to output. Both values verified via direct LCG-step count from
+-- seed to the settled post-cast RNG value, AND via an exact tick-by-tick match of every
+-- single case2/case3 tick's own RNG delta (not just matching totals) - case2's Pool C and
+-- case3's Pool A/B fire+re-fire model are both validated EXACT PER-TICK against both seeds
+-- below, a stronger bar than this file's usual total-only broad-seed checks. Per project
+-- convention, tests assert game-verified truth, not the simulator's output - if a future
+-- change to simulateExplosion breaks either of these, the simulator is wrong, not the test.
+function TestExplosion:testKnownCapturedSeed()
+  luaunit.assertEquals(Magic.simulateExplosion(0x1b65fc6a), 1220)
+end
+
+function TestExplosion:testFreshSeed()
+  luaunit.assertEquals(Magic.simulateExplosion(0x11111111), 1271)
+end
+
+-- 20 more seeds (the same list used for every other multi-seed spell in this file), each
+-- injected directly into Explosion.State and measured live via the same frame-640
+-- handoff-to-case4 method (case4/case5 are confirmed zero-RNG, so the RNG value there is the
+-- final settled total) - all matched the simulator exactly (0 discrepancies), confirming the
+-- Pool A/B re-fire model generalizes beyond the two seeds it was derived from.
+function TestExplosion:testValidatedSeeds()
+  local cases = {
+    { 0x11111111, 1271 },
+    { 0xcafebabe, 1280 },
+    { 0xdeadbeef, 1259 },
+    { 0x00000001, 1284 },
+    { 0x7fffffff, 1233 },
+    { 0x9e3779b9, 1220 },
+    { 0x12345678, 1223 },
+    { 0xa5a5a5a5, 1238 },
+    { 0x00c0ffee, 1216 },
+    { 0x1badb002, 1220 },
+    { 0x5eadbeef, 1259 },
+    { 0x8badf00d, 1202 },
+    { 0xfeedface, 1260 },
+    { 0x0defaced, 1257 },
+    { 0xabad1dea, 1179 },
+    { 0x31337000, 1200 },
+    { 0x42424242, 1239 },
+    { 0x55555555, 1226 },
+    { 0xaaaaaaaa, 1258 },
+    { 0xfffffffe, 1252 },
+  }
+  for _, case in ipairs(cases) do
+    local seed, expected = case[1], case[2]
+    luaunit.assertEquals(Magic.simulateExplosion(seed), expected,
       string.format("seed 0x%08x", seed))
   end
 end

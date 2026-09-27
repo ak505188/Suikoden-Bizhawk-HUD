@@ -126,10 +126,14 @@ function BattleRoundInput:setAction(idx, actionType, abilitySlot, target)
   return true
 end
 
--- Convenience wrapper: actions is a 1-indexed array of {actionType, abilitySlot, target}
--- (nil entries are skipped, so a sparse array only overrides the slots given).
+-- Convenience wrapper: actions is a 1-indexed map of {actionType, abilitySlot, target}
+-- (missing keys are skipped, so a sparse table only overrides the actors given - including
+-- ones that don't start at index 1, e.g. {[3]=..., [4]=...}). Uses pairs(), not ipairs():
+-- ipairs stops at the first missing integer key starting from 1, so it silently did nothing
+-- at all for a table like {[3]=..., [4]=...} - confirmed live 2026-09-22, an override table
+-- for two actors neither of which was index 1 produced zero writes, no error either.
 function BattleRoundInput:setActions(actions)
-  for idx, action in ipairs(actions) do
+  for idx, action in pairs(actions) do
     if action then
       self:setAction(idx, action[1], action[2], action[3])
     end
@@ -218,6 +222,11 @@ function BattleRoundInput:runTurn(actions)
   if not Address.isValidPointer(baseRaw) then return nil, "not in battle" end
   local base = Address.sanitize(baseRaw)
   local total = memory.read_u32_le(base + 0x24)
+  if total < 0 or total > 16 then total = 0 end -- guard against a garbage read - see
+                                                  -- lib/EnemyAIPredictor.lua's own comment on
+                                                  -- this exact bug class (an unguarded count
+                                                  -- used as a raw-memory-read loop bound hangs
+                                                  -- silently on bad data instead of erroring)
   local roundBefore = memory.read_u32_le(base + 0x4)
   local rngBefore = memory.read_u32_le(Address.RNG)
   local hpBefore = captureHP(base, total)

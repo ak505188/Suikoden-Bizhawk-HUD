@@ -74,10 +74,11 @@ local function zombieDragonProbabilities(ctx)
   return targetProbs, moveProbs
 end
 
--- Factory for the "standard" shape shared by several bosses (structurally confirmed, not
--- live-validated): front-row-only target scan, then a single move-probability split with no
--- round-counter override. `specialName` is just a label (the actual special move isn't
--- individually identified/named for these).
+-- Factory for the "standard" shape shared by several bosses (structurally confirmed; live-
+-- validated only for the Sonya Shulen entry below, see its own comment - Golem/Gigantes/Shell
+-- Venus/Ain Gide still aren't): front-row-only target scan, then a single move-probability
+-- split with no round-counter override. `specialName` is just a label (the actual special move
+-- isn't individually identified/named for most of these).
 local function makeFrontRowSplitTemplate(attackThresholdN, specialName)
   local attackProb = moveThresholdProb(attackThresholdN)
   return function(ctx)
@@ -153,7 +154,13 @@ local KNOWN_AI = {
   [0x80010ea4] = makeFrontRowSplitTemplate(0x47, "Special"),    -- Golem
   [0x8001186c] = makeFrontRowSplitTemplate(0x33, "Special"),    -- Gigantes
   [0x800178e4] = makeFrontRowSplitTemplate(0x33, "Special"),    -- Shell Venus
-  [0x80018788] = makeFrontRowSplitTemplate(0x33, "Special"),    -- Sonya Shulen
+  [0x80018788] = makeFrontRowSplitTemplate(0x33, "Special"),    -- Sonya Shulen - LIVE-VALIDATED
+                                                                 -- 2026-09-17 (120-seed empirical
+                                                                 -- test, 52.5%/47.5% observed vs.
+                                                                 -- 51%/49% predicted, matches
+                                                                 -- once Attack misses are counted
+                                                                 -- as Attack attempts - see
+                                                                 -- Battle_Damage_Formula.md)
   [0x80013b1c] = makeFrontRowSplitTemplate(0x33, "Special"),    -- Ain Gide
   [0x80012594] = neclordProbabilities,                          -- Dragon (final boss dragon,
                                                                  -- same "always special" shape
@@ -176,6 +183,15 @@ function EnemyAIPredictor:predictAll()
   local partyCount = memory.read_u32_le(base + 0x1c)
   local total = memory.read_u32_le(base + 0x24)
   local roundCounter = memory.read_u32_le(base + 0x4)
+
+  -- Sanity guard against a garbage read (e.g. at the exact moment of transitioning into a
+  -- battle, before the struct is fully populated) - this file used to trust partyCount/total
+  -- completely unguarded, unlike modules/RNG/submodules/Combat/worker.lua's own copy of these
+  -- same fields. Since the loops below never error on bad data (they're just memory reads,
+  -- not table indexing), a garbage partyCount here silently becomes an enormous, uncrashing
+  -- loop instead of a visible error - a hard freeze with no console message.
+  if total < 0 or total > 16 then total = 0 end
+  if partyCount < 0 or partyCount > total then partyCount = 0 end
 
   -- Target eligibility doesn't depend on which enemy is asking - compute both candidate lists
   -- (front-row-only, and all 6) once, in formation order, matching the real AI's own scan
