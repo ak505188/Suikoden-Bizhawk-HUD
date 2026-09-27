@@ -69,9 +69,9 @@ entry.
 | 0x15 | LUK |
 | 0x16 | Status |
 | 0x17 | Unknown |
-| 0x18–0x1E | Growths: PWR, SKL, DEF, SPD, MGC, LUK, HP (u8 each — static per-character growth-rate tier indices, see below) |
+| 0x18–0x1E | Growths: PWR, SKL, DEF, SPD, MGC, LUK, HP¹ |
 | 0x1F | Items.Count |
-| 0x20–0x43 | 9 inventory item slots × 4 bytes: `{Id, Unknown, Equipped, Quantity}` |
+| 0x20–0x43 | 9 inventory item slots × 4 bytes² |
 | 0x44 | Weapon.Type |
 | 0x45 | Weapon.Level |
 | 0x46 | Weapon.Rune_Piece_Type |
@@ -79,6 +79,9 @@ entry.
 | 0x4C | Rune.Id |
 | 0x4D | Rune.Locked |
 | 0x4E–0x4F | Unknown |
+
+¹ u8 each — static per-character growth-rate tier indices, see below.
+² `{Id, Unknown, Equipped, Quantity}` per slot.
 
 Fields marked "Unknown" are explicitly unresolved in the source, not
 speculation added here.

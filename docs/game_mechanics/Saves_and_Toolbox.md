@@ -32,12 +32,16 @@ Four candidate frame-counter addresses appear in `lib/Address.lua` with
 explicit uncertainty comments — none is confirmed to exactly match what the
 game itself would compute as true IGT:
 
-| Address | Status | Comment |
-|---|---|---|
-| `0x1783f8` (`SESSION_FRAMECOUNT`) | **Active** — drives the HUD clock and autosave timing | "Kinda loadless, not completely accurate to save IGT" |
-| `0x18B0A8` | Abandoned, commented out | "Not sure how to calculate real IGT, missing some value" |
-| `0x17DBE8` | Never wired up, noted only in a comment | "(stops on loads?)" |
-| `0x1B9B8C` (`SAVE_FRAMECOUNT`) | **Active**, but repurposed | "(Updated on save)" — used for [Chinchironin](./Chinchironin.md) RNG, not for timing |
+- `0x1783f8` (`SESSION_FRAMECOUNT`) — **Active**, drives the HUD clock
+  and autosave timing: "Kinda loadless, not completely accurate to save
+  IGT"
+- `0x18B0A8` — Abandoned, commented out: "Not sure how to calculate real
+  IGT, missing some value"
+- `0x17DBE8` — Never wired up, noted only in a comment: "(stops on
+  loads?)"
+- `0x1B9B8C` (`SAVE_FRAMECOUNT`) — **Active**, but repurposed: "(Updated
+  on save)" — used for [Chinchironin](./Chinchironin.md) RNG, not for
+  timing
 
 `SAVE_FRAMECOUNT`'s IGT-sounding name is a documentation trap: despite the
 name, it is not used for time display at all — its only current consumer

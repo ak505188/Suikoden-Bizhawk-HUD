@@ -6,13 +6,15 @@ struct this builds on, and [RNG.md](./RNG.md) for the RNG primitives.
 
 ## Addresses
 
-| Address | Name | Meaning |
-|---|---|---|
-| `0x9010` | `RNG` | Live 32-bit RNG seed |
-| `0x197F10` | `ENEMY_GROUP_PTR` | Pointer to the current battle's enemy-group struct |
-| `0x197F14` | `ENCOUNTER_TABLE_PTR` | Pointer to the current encounter/enemy table |
-| `0x16765C` | `ITEM_NAME_PTR_1` | Base of the item-name pointer array: `item_name_addr = u32[ITEM_NAME_PTR_1 + (id-1)*4] & 0x7fffffff` |
-| `0x18FAF0` | `BATTLE_ITEM_DROP` | Declared in `Address.lua` but **never read anywhere in the codebase** — dead/unused. |
+- `0x9010` `RNG`: Live 32-bit RNG seed
+- `0x197F10` `ENEMY_GROUP_PTR`: Pointer to the current battle's
+  enemy-group struct
+- `0x197F14` `ENCOUNTER_TABLE_PTR`: Pointer to the current
+  encounter/enemy table
+- `0x16765C` `ITEM_NAME_PTR_1`: Base of the item-name pointer array:
+  `item_name_addr = u32[ITEM_NAME_PTR_1 + (id-1)*4] & 0x7fffffff`
+- `0x18FAF0` `BATTLE_ITEM_DROP`: Declared in `Address.lua` but **never
+  read anywhere in the codebase** — dead/unused.
 
 The enemy struct's drop fields (bytes 54–59, three `{id, chance}` pairs) are
 documented in [Battles_and_Encounters.md](./Battles_and_Encounters.md#enemy-struct-60-bytes-per-enemy-libbattleluareadenemytable).

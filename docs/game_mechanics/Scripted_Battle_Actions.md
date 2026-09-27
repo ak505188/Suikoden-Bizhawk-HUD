@@ -77,6 +77,12 @@ reachability via the attacker's weapon-type byte (`PersistentStats.bWeaponType`)
 with a melee-vs-formation check), writes `TargetIdx`, and hands off to the shared convergence
 point `LAB_800ea510`.
 
+This reach check lives only in the menu (and Free Will's `FUN_800eec20`). The attack executor
+never re-checks it, so writing `ActionType`/`TargetIdx` directly (`lib/BattleRoundInput.lua`'s
+`setAction`) can queue an attack the game would never allow. Confirmed live 2026-09-25: a
+back-row Flik (Short range, where Free Will picks Defend) forced to Attack walked up and hit
+normally. Keep scripted actions to what the menu would offer, or the test isn't in-spec.
+
 The other three commands each have their own continuation after `battle_menu_select_command`:
 **Defend** (`LAB_800eba48`) is a trivial 2-phase wait with no targeting (`ActionType` was
 already set earlier); **Item** (`LAB_800ebb0c`) and **Unite** (`LAB_800ed560`) are 2-phase setup

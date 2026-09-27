@@ -23,10 +23,10 @@ that name (see "Naming note" below). It loops `idx = 1 .. DAT_8017be3c+0x24`
 anyone whose action-tag (`combatant_rec+0x46`) is nonzero or whose
 species-record `+5` byte is set, computes each remaining candidate's weight
 from their own `+0x2a` stat, and keeps the running maximum (re-validating
-each non-first candidate via `check_combatant_valid_target`). A "forced
-target" flag (`+0xdc`-array `+5` byte) can make it return `-1` instead if no
-valid candidate was found yet — likely a signal to the caller to route to a
-different, forced-target-specific path.
+each non-first candidate via `check_combatant_valid_target`). A busy
+combatant (`+0xdc`-array `+5` byte) scanned before any leader makes it
+return `-1` if nobody eligible follows: "wait and roll again", not a
+forced-target path (see "Tie-breaking and edge cases" below).
 
 Each eligible candidate consumes exactly one `rand()` call for its own
 jitter roll (both the first-candidate and every subsequent-candidate branch
@@ -38,6 +38,47 @@ AGL/speed stat used for turn order — a different stat from
 `combatant_rec+0x26` (SKL), which `calc_hit_chance`/`check_critical_hit`
 use instead. The two are easy to confuse since they're both plausible
 "speed-ish" fields at nearby offsets.
+
+### Tie-breaking and edge cases (decompile + raw `slt`, 2026-09-24)
+
+```
+best = 0                                  -- 0 = none yet, -1 = none yet but someone busy
+for idx in 1..total:
+    if ActionTag(+0x46) != 0: skip
+    if busy(enemy_data+5): if best == 0: best = -1; skip
+    r = rand(); w = stat(+0x2a)*10 - 5 + r % 10
+    if best < 1: best = idx, bestW = w                   -- first candidate: no validity check
+    elif bestW < w and check_combatant_valid_target(idx) == 0: best = idx, bestW = w
+return best
+```
+
+- **Ties keep the earlier combatant.** The compare is `slt $2, $22, $16`
+  (`bestW < w`), strictly less-than. Party members come first (1..P), so a
+  party member wins a tie against an enemy, and a lower slot beats a higher
+  one.
+- **Validity only for later candidates.** `check_combatant_valid_target`
+  (`0x800f8680`) requires `+0x45 == 0` and `HP − nHpDeltaAccumulator ≥ 0`
+  (HP after pending damage). The first candidate is taken without it, and
+  every candidate's `rand()` is spent either way. In practice this never
+  lets a dead combatant through: the round-start loop at `0x800f6df4` sets
+  `ActionTag = 1` for anyone who fails that same check (or is asleep, status
+  bit `0x20`), and the death routines (`FUN_800e2c90` party, `FUN_800e2dac`
+  enemy) set `bValidFlag = 1` and `ActionTag = 1` once HP < 1 and the
+  combatant isn't busy. While a lethally-hit combatant is still in its hit
+  reaction it's busy, so the roll skips it anyway.
+- **Sacrificial Buddha revives keep the turn.** When a party member carrying
+  a Sacrificial Buddha dies during the round, `FUN_800e2c90` plays the
+  revive script instead and leaves `+0x45` and ActionTag untouched. The
+  member is busy for 123 frames (skipped by the roll, HP 0 until +113), then
+  becomes a normal candidate again. If they hadn't acted yet, they still act
+  that round (live-confirmed 2026-09-25: McDohl at AGL 1, 5 of 5 seeds). See
+  [Continuation chains and death](./Battle_Damage_Formula.md#continuation-chains-and-death).
+- **`-1` means "wait", not "blocked".** A busy combatant scanned before any
+  leader sets the result to `-1`. If nobody eligible follows, it returns
+  `-1`: `battle_advance_turn` then returns without ending the round or
+  touching the gate, so the roll repeats next tick. The round only ends
+  (return `0`) when nobody is left and nobody busy was scanned first.
+  "Forced target" in older notes was a misreading of this.
 
 ## Naming note
 
@@ -134,7 +175,9 @@ Each tick:
    with no valid candidate, it clears its own gate flag (`+0x48`) back to
    `0` so it isn't retried until something re-arms it.
 5. Re-reads `g_nPendingIndex`:
-   - `-1`: no valid target (a "forced target" block) — nothing more happens.
+   - `-1`: nobody eligible yet, but a busy combatant was scanned before any
+     leader. Nothing more happens this tick; the gate is still ≤ 0, so the
+     roll repeats next tick (see "Tie-breaking and edge cases").
    - `0`: **no eligible combatant existed for the roll** (e.g. every
      combatant's `action_tag` was already nonzero — round complete, nobody
      left to act). Resets the countdown to `0x1e` (**30**) and moves to a
@@ -292,10 +335,12 @@ Validated against `QueenAnt.State`
 in that fight purely through this chain, with zero Ghidra involvement, and
 every result matched the already-known static values exactly:
 
-| slot | bId | resolved AI function | resolved threshold |
-|---|---|---|---|
-| 6/7/8 (Soldier Ants) | 2 | `0x800106b0` (matches `soldier_ant_ai_select_target_and_move`) | `0x4d` (~77%) |
-| 9 (Queen Ant) | 1 | `0x80010ae0` (matches `queen_ant_ai_self_heal_and_select_move`) | `0x33` (~51%) |
+- **slot 6/7/8 (Soldier Ants)** — bId `2`, resolved AI function
+  `0x800106b0` (matches `soldier_ant_ai_select_target_and_move`),
+  resolved threshold `0x4d` (~77%)
+- **slot 9 (Queen Ant)** — bId `1`, resolved AI function `0x80010ae0`
+  (matches `queen_ant_ai_self_heal_and_select_move`), resolved threshold
+  `0x33` (~51%)
 
 **`speciesRow` IS the static `MonsterRecord` `Monster_AI_Static_Catalog.md`
 already catalogs — the same struct, not a separate live copy.** Confirmed
@@ -337,13 +382,16 @@ single-target attack resolver) all independently read as
 Contents (per-monster, read live for Queen Ant/Soldier Ant; `+0x00`/`+0x0c`
 not yet independently attributed to a confirmed call site):
 
-| offset | role | confirmed via |
-|---|---|---|
-| `+0x00` | unidentified | - |
-| `+0x04` | "primary action" script | Queen Ant's own value here (`0x8006c108`) exactly matches her already-documented self-heal script address |
-| `+0x08` | "hit" script | `ant_commanded_attack_damage` (`*(EnemyData+8)+8`) and `apply_uncovered_attack_damage` (`*(iVar4+8)+8`) both read this exact slot |
-| `+0x0c` | unidentified | - |
-| `+0x10` | "return to idle" script | `ant_commanded_attack_cleanup` (`*(EnemyData+8)+0x10`) |
+- **`+0x00`** — unidentified
+- **`+0x04`** — "primary action" script: Queen Ant's own value here
+  (`0x8006c108`) exactly matches her already-documented self-heal script
+  address
+- **`+0x08`** — "hit" script: `ant_commanded_attack_damage`
+  (`*(EnemyData+8)+8`) and `apply_uncovered_attack_damage`
+  (`*(iVar4+8)+8`) both read this exact slot
+- **`+0x0c`** — unidentified
+- **`+0x10`** — "return to idle" script: `ant_commanded_attack_cleanup`
+  (`*(EnemyData+8)+0x10`)
 
 `p2` (`MonsterRecord+0x2c`) does NOT match the live resource-table pointer
 — a separate, still unidentified field.

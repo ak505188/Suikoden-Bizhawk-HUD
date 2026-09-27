@@ -8,13 +8,15 @@ this tool builds on (encounters, drops, stat growth, Chinchironin).
 
 ## Addresses
 
-| Constant | Address | Meaning |
-|---|---|---|
-| `Address.RNG` | `0x9010` | Live 32-bit RNG seed/state (`memory.read_u32_le`/`write_u32_le`) |
-| `Address.EVENT_ID` | `0x1B9BC0` | Byte identifying which scripted story event/battle is occurring; used to index the reset-value tables below |
-| `Address.GAMESTATE` | `0x1B9BBC` | Current gamestate byte (see `lib/Enums/Gamestate.lua`) |
-| `Address.PREV_GAMESTATE` | `0x1B9BB8` | Previous gamestate byte |
-| `Address.SAVE_FRAMECOUNT` | `0x1B9B8C` | Used as the RNG modifier for Chinchironin — see [Chinchironin.md](./Chinchironin.md) |
+- `Address.RNG` `0x9010`: Live 32-bit RNG seed/state
+  (`memory.read_u32_le`/`write_u32_le`)
+- `Address.EVENT_ID` `0x1B9BC0`: Byte identifying which scripted story
+  event/battle is occurring; used to index the reset-value tables below
+- `Address.GAMESTATE` `0x1B9BBC`: Current gamestate byte (see
+  `lib/Enums/Gamestate.lua`)
+- `Address.PREV_GAMESTATE` `0x1B9BB8`: Previous gamestate byte
+- `Address.SAVE_FRAMECOUNT` `0x1B9B8C`: Used as the RNG modifier for
+  Chinchironin — see [Chinchironin.md](./Chinchironin.md)
 
 `0x1b9af6` (the Dragon Ride selector byte, read directly in `lib/RNG.lua`) is
 **not** defined in `lib/Address.lua`, breaking the project's own convention of
@@ -72,7 +74,7 @@ candidate set for that event (1-indexed: `eventRNGValues[eventID + 1]`):
 | 4 | Battle with Teo #1 | `0x42` |
 | 5 | Battle with Teo #2 | `0x42` |
 | 6 | Battle at Northern Checkpoint | `0x43` |
-| 7 | Battle at Floating Fortress Shazarazade | 35 values: `0x43,0x43,0x43,0x44,0x45,0x46,0x46,0x47,0x47,0x47,0x48,0x49,0x4A,0x4B,0x4C,0x4D,0x4E,0x4F,0x50,0x51,0x52,0x53,0x54,0x55,0x56,0x57,0x58,0x59,0x5A,0x5B,0x5C,0x5D,0x5E,0x5F` (one per stage of that multi-battle sequence) |
+| 7 | Battle at Floating Fortress Shazarazade | 35 values¹ |
 | 8 | The Last Battle | `0x42` |
 | 9 | Dragon Flight | special-cased, see below |
 | 10 | "0x0A Unknown" | *(empty — unresolved)* |
@@ -81,6 +83,11 @@ candidate set for that event (1-indexed: `eventRNGValues[eventID + 1]`):
 | 13 | Melodye | `0x168,0x169,0x16A,0x16B,0x16C,0x16D,0x16E,0x16F,0x170` |
 | 14 | Kasios | `0x1E6,0x1E7,0x1E8,0x1ED` |
 | 15 | Georges | `0x4E` |
+
+¹ One per stage of that multi-battle sequence:
+`0x43,0x43,0x43,0x44,0x45,0x46,0x46,0x47,0x47,0x47,0x48,0x49,0x4A,0x4B,
+0x4C,0x4D,0x4E,0x4F,0x50,0x51,0x52,0x53,0x54,0x55,0x56,0x57,0x58,0x59,
+0x5A,0x5B,0x5C,0x5D,0x5E,0x5F`
 
 Events 11–15 are named after NPCs rather than battles.
 

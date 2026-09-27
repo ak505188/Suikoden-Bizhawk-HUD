@@ -11,11 +11,12 @@ into encounter-table lookups.
 Three single bytes live contiguously at `GAMESTATE_BASE = 0x1B8000`, read as
 one 16-byte buffer each frame by `monitors/State_Monitor.lua`:
 
-| Address | Name | Meaning |
-|---|---|---|
-| `0x1B8000` | `AREA_ZONE` | Sub-area index inside whatever world-map region the party is in |
-| `0x1B8001` | `SCREEN_ZONE` | Finer screen/room-transition tracking within an area |
-| `0x1B8002` | `WM_ZONE` | World-map region index (0–11), top-level key into `ZoneInfo` |
+- `0x1B8000` `AREA_ZONE`: Sub-area index inside whatever world-map region
+  the party is in
+- `0x1B8001` `SCREEN_ZONE`: Finer screen/room-transition tracking within
+  an area
+- `0x1B8002` `WM_ZONE`: World-map region index (0–11), top-level key
+  into `ZoneInfo`
 
 `SCREEN_ZONE` is **not** consumed by the main zone-name resolution logic
 (only `AREA_ZONE`/`WM_ZONE` feed `ZoneInfo`/`EncounterTable` lookups) — it's
@@ -120,20 +121,26 @@ and indexes it directly (`buffer[1]`, `buffer[6]`, `Utils.readFromByteTable(buff
 etc.) without correcting for Lua's 1-based indexing. The **true memory
 offsets** (buffer index − 1) are:
 
-| Byte offset | Field | Notes |
-|---|---|---|
-| 0 | X | u8 position |
-| 1 | Y | u8 position |
-| 2 | SubpixelX | u8, sub-tile interpolation |
-| 3 | SubpixelY | u8 |
-| 4 | *(unlabeled)* | Comment: "This isn't actually direction, has some correlation though" — a prior assumption it was facing-direction was disproven |
-| 5 | Moves | Comment: "This seems constant, might actually be flag for movement" — uncertain |
-| 6–7 | Unknown1 | u16 LE |
-| 8–11 | MemAddress1 | u32 LE pointer, purpose undocumented |
-| 12–15 | MemAddress2 | u32 LE pointer; dereferencing it (sanitized, then read u8) gives the slot's `Direction` (0–3, matching `lib/Enums/Directions.lua`) — mirrors exactly how the hero's own direction is resolved, implying a shared "character struct" format where the true facing byte lives in a separate, non-contiguous per-character state block |
-| 16–19 | MemAddress3 | u32 LE pointer, purpose undocumented |
-| 20–21 | Unknown2 | u16 LE |
-| 22–23 | Unknown3 | u16 LE |
+- **0** — X: u8 position
+- **1** — Y: u8 position
+- **2** — SubpixelX: u8, sub-tile interpolation
+- **3** — SubpixelY: u8
+- **4** — *(unlabeled)*: Comment: "This isn't actually direction, has
+  some correlation though" — a prior assumption it was facing-direction
+  was disproven
+- **5** — Moves: Comment: "This seems constant, might actually be flag
+  for movement" — uncertain
+- **6–7** — Unknown1: u16 LE
+- **8–11** — MemAddress1: u32 LE pointer, purpose undocumented
+- **12–15** — MemAddress2: u32 LE pointer; dereferencing it (sanitized,
+  then read u8) gives the slot's `Direction` (0–3, matching
+  `lib/Enums/Directions.lua`) — mirrors exactly how the hero's own
+  direction is resolved, implying a shared "character struct" format
+  where the true facing byte lives in a separate, non-contiguous
+  per-character state block
+- **16–19** — MemAddress3: u32 LE pointer, purpose undocumented
+- **20–21** — Unknown2: u16 LE
+- **22–23** — Unknown3: u16 LE
 
 `MemAddress1`/`MemAddress3` have no documented purpose at all; a
 commented-out `MemoryViewer.memoryToStrTbl` call on `MemAddress1` in
@@ -163,11 +170,12 @@ heuristic, not confirmed memory layout.**
 
 ## Hero position/direction
 
-| Address | Name | Meaning |
-|---|---|---|
-| `0x17BD74` | `HERO_X` | u8, local X coordinate in the current room/screen |
-| `0x17BD75` | `HERO_Y` | u8, local Y coordinate |
-| `0x17BD7C` | `HERO_DIRECTION_PTR` | u32 pointer (not the direction value itself) — sanitize, then read a single byte at the resolved address for `Direction` (0=DOWN, 1=UP, 2=LEFT, 3=RIGHT, `lib/Enums/Directions.lua`) |
+- `0x17BD74` `HERO_X`: u8, local X coordinate in the current room/screen
+- `0x17BD75` `HERO_Y`: u8, local Y coordinate
+- `0x17BD7C` `HERO_DIRECTION_PTR`: u32 pointer (not the direction value
+  itself) — sanitize, then read a single byte at the resolved address
+  for `Direction` (0=DOWN, 1=UP, 2=LEFT, 3=RIGHT,
+  `lib/Enums/Directions.lua`)
 
 `HERO_X`/`HERO_Y` sit 8 bytes before `HERO_DIRECTION_PTR`, consistent with
 all being fields of one hero-state struct starting at `0x17BD74`. The same

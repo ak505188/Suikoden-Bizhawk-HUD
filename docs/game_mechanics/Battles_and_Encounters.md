@@ -8,19 +8,22 @@ encounter tables.
 
 ## Addresses
 
-| Address | Name | Meaning |
-|---|---|---|
-| `0x1B9BBC` | `GAMESTATE` | Current gamestate byte |
-| `0x1B9BB8` | `PREV_GAMESTATE` | Previous gamestate byte (disambiguates entering a Battle/Event from World Map vs. Overworld) |
-| `0x1B8000` | `AREA_ZONE` | Sub-area/room zone index |
-| `0x1B8001` | `SCREEN_ZONE` | Screen/room sub-index |
-| `0x1B8002` | `WM_ZONE` | World-map region index |
-| `0x17159D` | `ENCOUNTER_RATE` | Raw overworld encounter-rate byte (capped by the area's own max — see below) |
-| `0x9010` | `RNG` | Live 32-bit RNG seed |
-| `0x1B9BC0` | `EVENT_ID` | Determines the expected RNG-reset value after cutscenes/loads |
-| `0x197F10` | `ENEMY_GROUP_PTR` | Pointer to the current enemy-group struct in an active battle |
-| `0x197F14` | `ENCOUNTER_TABLE_PTR` | Pointer to the current area's runtime encounter table (array of pointers to enemy structs) |
-| `0x16765C` | `ITEM_NAME_PTR_1` | Base of the item-name pointer table |
+- `0x1B9BBC` `GAMESTATE`: Current gamestate byte
+- `0x1B9BB8` `PREV_GAMESTATE`: Previous gamestate byte (disambiguates
+  entering a Battle/Event from World Map vs. Overworld)
+- `0x1B8000` `AREA_ZONE`: Sub-area/room zone index
+- `0x1B8001` `SCREEN_ZONE`: Screen/room sub-index
+- `0x1B8002` `WM_ZONE`: World-map region index
+- `0x17159D` `ENCOUNTER_RATE`: Raw overworld encounter-rate byte (capped by
+  the area's own max — see below)
+- `0x9010` `RNG`: Live 32-bit RNG seed
+- `0x1B9BC0` `EVENT_ID`: Determines the expected RNG-reset value after
+  cutscenes/loads
+- `0x197F10` `ENEMY_GROUP_PTR`: Pointer to the current enemy-group struct
+  in an active battle
+- `0x197F14` `ENCOUNTER_TABLE_PTR`: Pointer to the current area's runtime
+  encounter table (array of pointers to enemy structs)
+- `0x16765C` `ITEM_NAME_PTR_1`: Base of the item-name pointer table
 
 Gamestate enum (`lib/Enums/Gamestate.lua`):
 
@@ -113,20 +116,22 @@ unlike `lib/Characters/Characters.lua`, which has an explicit comment ("All
 addresses are offset by 1 because of lua tables starting at 1") and adjusts
 for it. The **true memory offsets** (buffer index − 1) are:
 
-| Offset | Field | Notes |
-|---|---|---|
-| 0–14 | Name | Custom charmap, via `Charmap.readStringFromList` (up to 15 bytes, null-terminated) |
-| 15–16 | LVL | big-endian pair |
-| 17–18 | HP | |
-| 19–20 | PWR | |
-| 21–22 | SKL | |
-| 23–24 | DEF | |
-| 25–26 | SPD | |
-| 27–28 | MGC | |
-| 29–30 | LUK | |
-| 31–51 | *(unaccounted for)* | ~21-byte gap, likely other stats/flags not yet reverse-engineered |
-| 52–53 | Bits | EXP/reward value, computed but never consumed elsewhere in the codebase |
-| 54–59 | Drops[1..3] | `{id, chance}` pairs, up to 3 drop slots; `id == 0` = no drop. See [Drops.md](./Drops.md) |
+- **0–14** — Name: Custom charmap, via `Charmap.readStringFromList` (up
+  to 15 bytes, null-terminated)
+- **15–16** — LVL: big-endian pair
+- **17–18** — HP
+- **19–20** — PWR
+- **21–22** — SKL
+- **23–24** — DEF
+- **25–26** — SPD
+- **27–28** — MGC
+- **29–30** — LUK
+- **31–51** — *(unaccounted for)*: ~21-byte gap, likely other stats/flags
+  not yet reverse-engineered
+- **52–53** — Bits: EXP/reward value, computed but never consumed
+  elsewhere in the codebase
+- **54–59** — Drops[1..3]: `{id, chance}` pairs, up to 3 drop slots;
+  `id == 0` = no drop. See [Drops.md](./Drops.md)
 
 Item name lookup: `item_name_addr = mem_u32(ITEM_NAME_PTR_1 + (id-1)*4) & 0x7fffffff`,
 then read (24 bytes in the live `lib/Battle.lua:getItemName`; the dead legacy

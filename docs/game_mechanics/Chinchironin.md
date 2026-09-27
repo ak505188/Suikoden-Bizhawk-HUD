@@ -7,10 +7,11 @@ roll. See [RNG.md](./RNG.md) for the underlying RNG algorithm.
 
 ## Addresses
 
-| Address | Name | Meaning |
-|---|---|---|
-| `0x9010` | `RNG` | Live 32-bit RNG seed, feeds `rng_short = (rng >> 16) & 0x7fff` used throughout |
-| `0x1B9B8C` | `SAVE_FRAMECOUNT` | Read every frame and used as an additive **RNG modifier** in every roll calculation; also directly writable via the menu |
+- `0x9010` `RNG`: Live 32-bit RNG seed, feeds
+  `rng_short = (rng >> 16) & 0x7fff` used throughout
+- `0x1B9B8C` `SAVE_FRAMECOUNT`: Read every frame and used as an additive
+  **RNG modifier** in every roll calculation; also directly writable via
+  the menu
 
 `SAVE_FRAMECOUNT`'s history is worth calling out: `lib/Address.lua`'s
 comments show it was originally evaluated purely as an in-game-time (IGT)
@@ -166,11 +167,18 @@ Loaded at base `0x80010000` in Ghidra (`PSX:LE:32:default`), the three
 functions below were identified and annotated (exact formula match against
 this doc, confirmed byte-for-byte):
 
-| Function | Address | Role |
-|---|---|---|
-| `ChinRollDie` | `0x80017394` | Die-face accumulator: `counter = (counter + (rand() + SAVE_FRAMECOUNT) % 100) & 0xff`, retries while `counter >= 6`, returns the die face (0-5). Matches the "Die generation primitive" above exactly. |
-| `ChinDetermineRollType` | `0x80016c58` | Evaluates Triple Win → Triple Lose → Double Win → Double Lose → Piss/bust in order (falling through to a normal roll via `ChinRollDie` if none hit) — each threshold checked against `(rand() + SAVE_FRAMECOUNT) % 100`. All five formulas match "Win/Lose thresholds" above exactly. |
-| `ChinUpdateCursor` | `0x80015d08` | Animates the cursor gauge: initializes to `0x75` (117) and ramps up, reversing at `0xcb`/`0xca` (203/202). Matches "The Cursor" above exactly. |
+- **`ChinRollDie`** (`0x80017394`): Die-face accumulator:
+  `counter = (counter + (rand() + SAVE_FRAMECOUNT) % 100) & 0xff`, retries
+  while `counter >= 6`, returns the die face (0-5). Matches the "Die
+  generation primitive" above exactly.
+- **`ChinDetermineRollType`** (`0x80016c58`): Evaluates Triple Win →
+  Triple Lose → Double Win → Double Lose → Piss/bust in order (falling
+  through to a normal roll via `ChinRollDie` if none hit) — each
+  threshold checked against `(rand() + SAVE_FRAMECOUNT) % 100`. All five
+  formulas match "Win/Lose thresholds" above exactly.
+- **`ChinUpdateCursor`** (`0x80015d08`): Animates the cursor gauge:
+  initializes to `0x75` (117) and ramps up, reversing at `0xcb`/`0xca`
+  (203/202). Matches "The Cursor" above exactly.
 
 Two globals were also identified and named in the Ghidra project:
 - `g_pChinGameState` (was `DAT_80064a98`) — base pointer to the room's
