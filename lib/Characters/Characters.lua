@@ -35,21 +35,19 @@ local function CharacterBuilder(name)
 
     for i = 1, 9, 1 do
       local offset = 0x21 + (4 * (i - 1))
-      local item_id = buffer[offset]
-      local item_unknown = buffer[offset + 1]
+      local item_id = readFromByteTable(buffer, offset, 2)
       local item_equipped = buffer[offset + 2]
       local item_quantity = buffer[offset + 3]
       items[i] = {
         Id = item_id,
-        Unknown = item_unknown,
         Equipped = item_equipped,
         Quantity = item_quantity
       }
     end
 
     local data = {
-      Name = character.name,
-      Address = character.stats_address,
+      Name = self.Name,
+      Address = address,
       Id = buffer[0x1],
       Stats = {
         HP_Max = readFromByteTable(buffer, 0x5, 2),
@@ -143,8 +141,7 @@ local function CharacterBuilder(name)
       for i = 1, 9, 1 do
         local offset = 0x20 + (4 * (i - 1))
         local item = items[i]
-        memory.write_u8(address + offset, item.Id)
-        memory.write_u8(address + offset + 1, item.Unknown)
+        memory.write_u16_le(address + offset, item.Id)
         memory.write_u8(address + offset + 2, item.Equipped)
         memory.write_u8(address + offset + 3, item.Quantity)
       end

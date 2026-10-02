@@ -14,13 +14,11 @@ local function readCharacterData(character)
 
   for i = 1, 9, 1 do
     local offset = 0x21 + (4 * (i - 1))
-    local item_id = buffer[offset]
-    local item_unknown = buffer[offset + 1]
+    local item_id = readFromByteTable(buffer, offset, 2)
     local item_equipped = buffer[offset + 2]
     local item_quantity = buffer[offset + 3]
     items[i] = {
       Id = item_id,
-      Unknown = item_unknown,
       Equipped = item_equipped,
       Quantity = item_quantity
     }
@@ -140,10 +138,9 @@ local function characterDataToStr(cd)
   for i = 1, 9, 1 do
     local item = cd.Items[i]
     local item_str = string.format(
-      "%d. Id:%d Unknown:0x%x Equipped:0x%x Quantity:%d",
+      "%d. Id:%d Equipped:0x%x Quantity:%d",
       i,
       item.Id,
-      item.Unknown,
       item.Equipped,
       item.Quantity)
     table.insert(item_strings, item_str)
@@ -212,8 +209,7 @@ local function writeCharacterData(character_data)
     for i = 1, 9, 1 do
       local offset = 0x20 + (4 * (i - 1))
       local item = items[i]
-      memory.write_u8(address + offset, item.Id)
-      memory.write_u8(address + offset + 1, item.Unknown)
+      memory.write_u16_le(address + offset, item.Id)
       memory.write_u8(address + offset + 2, item.Equipped)
       memory.write_u8(address + offset + 3, item.Quantity)
     end

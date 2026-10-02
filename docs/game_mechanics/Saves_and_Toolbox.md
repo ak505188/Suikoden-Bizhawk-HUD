@@ -93,8 +93,8 @@ for the byte layout.
 - **Stats menu**: Max HP (cap 65535), Current HP (cap 65535), MP 1–4, LVL,
   EXP (cap 65535), PWR, SKL, DEF, SPD, MGC, LUK. Default cap otherwise 255.
   Up/Down move cursor; Left/Right adjust ±1 (×10 with R1, ×100 with R2).
-- **Inventory menu**: `Items.Count` plus 9 item slots, each with `Id`,
-  `Unknown`, `Equipped`, `Quantity` (capped at 255 by default). Item names
+- **Inventory menu**: `Items.Count` plus 9 item slots, each with `Id`
+  (u16), `Equipped`, `Quantity` (capped at 255 by default). Item names
   resolved via `Battle.getItemName(id)`.
 - **Weapon & Rune menu**: Weapon Class, Weapon Level, Equipped Rune Piece
   Type, 5 elemental Piece Counts (Fire/Water/Wind/Thunder/Earth), Rune ID,

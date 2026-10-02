@@ -30,7 +30,6 @@ local function isAntique(def) return def and (def.Flags & 0x7000) ~= 0 end
 -- appraised, and consumables at full quantity (+0x1e). Equipment and never-consumed items hold 0.
 local function applyItemDefaults(item)
   local def = readItemDefinition(item.Id)
-  item.Unknown = 0
   item.Equipped = 0
   item.Quantity = 0
   if not def then return end
@@ -41,7 +40,6 @@ end
 local function ItemMenu(character, item_index)
   local list = {
     { label = "Id", keys = { "Id" }, type = MenuProperties.ENTRY_TYPES.edit, max = MAX_ITEM_ID },
-    { label = "Unknown", keys = { "Unknown" }, type = MenuProperties.ENTRY_TYPES.edit },
     { label = "Equipped", keys = { "Equipped" }, type = MenuProperties.ENTRY_TYPES.edit },
     { label = "Quantity", keys = { "Quantity" }, type = MenuProperties.ENTRY_TYPES.edit },
   }

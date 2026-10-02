@@ -81,7 +81,8 @@ entry.
 | 0x4E–0x4F | Unknown |
 
 ¹ u8 each — static per-character growth-rate tier indices, see below.
-² `{Id, Unknown, Equipped, Quantity}` per slot.
+² `{Id (u16), Equipped, Quantity}` per slot. Ids only go up to 179, so
+the id's high byte is always 0.
 
 Fields marked "Unknown" are explicitly unresolved in the source, not
 speculation added here.
