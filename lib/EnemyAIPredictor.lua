@@ -104,10 +104,10 @@ end
 
 -- Sydonia: scans ALL 6 party members (not just front row), then the move is fully DETERMINED
 -- by the chosen target's own row (front row -> always special, back row -> always plain
--- Attack) - no real RNG in the move choice itself. See
--- sydonia_ai_select_target_and_move's own Ghidra plate comment for the full derivation
--- (including a confirmed-unreachable counterattack sub-mechanism, not modeled here since it
--- never fires).
+-- Attack) - no real RNG in the move choice itself. The special deals
+-- floor(calc_damage * 4 / 3) with no hit or crit roll (sydonia_special_apply_damage, corrected
+-- 2026-09-27 - it was previously misread as an unreachable counterattack). See
+-- Battle_Damage_Formula.md "Sydonia's special move".
 local function sydoniaProbabilities(ctx)
   local targetProbs = targetDistribution(ctx.all, TARGET_ACCEPT_PROB)
   local attackProb, specialProb = 0, 0
@@ -162,9 +162,9 @@ local KNOWN_AI = {
                                                                  -- as Attack attempts - see
                                                                  -- Battle_Damage_Formula.md)
   [0x80013b1c] = makeFrontRowSplitTemplate(0x33, "Special"),    -- Ain Gide
-  [0x80012594] = neclordProbabilities,                          -- Dragon (final boss dragon,
-                                                                 -- same "always special" shape
-                                                                 -- as Neclord - found live from
+  [0x80012594] = neclordProbabilities,                          -- Dragon (regular boss, not
+                                                                 -- Golden Hydra; "always special"
+                                                                 -- shape as Neclord - found live from
                                                                  -- TurnOrderRNGCall.State, not
                                                                  -- the name-search)
   [0x8001789c] = assassinProbabilities,                         -- Assassin

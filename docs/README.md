@@ -22,8 +22,13 @@ verified or current understanding.
 - [Zones, Areas, and Rooms](./game_mechanics/Zones_Areas_and_Rooms.md) — the
   area/zone/screen/room memory model and area categorization (Forced/Random/All).
 - [Item Drops](./game_mechanics/Drops.md) — the post-battle drop-roll algorithm.
+- [Items](./game_mechanics/Items.md) — the static item definition table
+  (price, flags, equipment bonuses/wear classes, use handlers) and the
+  per-character inventory slot layout.
 - [Chinchironin](./game_mechanics/Chinchironin.md) — the dice minigame's
   roll algorithm and RNG modifier.
+- [Duels](./game_mechanics/Duels.md) — the 1v1 duel overlays: enemy move
+  roll, dialogue selection, outcome/hit table and damage formula.
 - [Saves and Toolbox](./game_mechanics/Saves_and_Toolbox.md) — savestate/
   autosave handling, the Character Editor, and the Recruitment Editor.
 - [Gregminster Birds](./game_mechanics/Gregminster_Birds.md) — a standalone

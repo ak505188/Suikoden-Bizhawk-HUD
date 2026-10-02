@@ -34,7 +34,7 @@ end
 function LoadStateMenu:draw()
   local controls_draw_tbl = {
     string.format("Sq: Show %ssaves", self.save_type == SAVETYPES.SAVE and "auto" or "normal "),
-    "Select: Delete Selected Save",
+    "Tr: Delete Selected Save",
     "X: Load Selected Save",
     "O: Back",
   }
@@ -67,7 +67,7 @@ function LoadStateMenu:run()
       save_path = lib.getAutoSavePath(self.saves[self.slot])
     end
     savestate.load(save_path)
-  elseif Buttons.Select:pressed() then
+  elseif Buttons.Triangle:pressed() then
     local save_path = lib.getSavePath(self.saves[self.slot])
     if self.save_type == SAVETYPES.AUTOSAVE then
       save_path = lib.getAutoSavePath(self.saves[self.slot])

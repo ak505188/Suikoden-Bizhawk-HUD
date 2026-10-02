@@ -181,8 +181,11 @@ and `vf2.bin` also decrement it. Zombie Dragon (`vb5g.bin`) never writes it.
   on Lv4 spells), then runs that spell's
   [cast state machine](./Battle_Damage_Formula.md#how-spells-call-rng-the-cast-state-machine),
   which owns all of its ★ calls.
-- **Item** (`battle_try_special_attack`): resolves the inventory slot and
-  decrements its use count.
+- **Item** (`battle_try_special_attack`): waits (no RNG) until every
+  combatant is idle, then resolves the inventory slot and decrements its
+  use count. No `rand()` calls. The next roll comes 20 frames after it
+  resolves, while the target is busy, so the target is always skipped
+  on that roll. See [Item turns](./Turn_Order.md#item-turns).
 - **Unite** (`battle_select_unite_attack`): physical pairing table, or the
   Magic Unite path above.
 

@@ -377,21 +377,217 @@ enemy despite the name, see
   (`equip_ptr+0x1c+0x20`, 4 bytes/entry: `ushort` item id + a use-count
   byte). Decrements the use-count on cast; at `0` calls
   `FUN_800ca408(class_ptr, slot_idx)` (removes the now-empty slot).
+  Waits for every combatant to be idle first. Timing:
+  [Item turns](./Turn_Order.md#item-turns).
 - **`battle_select_unite_attack`** (`0x800f5790`, Unite): resolves
   `AbilitySlot` through its own table (`DAT_8016d18c`) — the manually
-  selected character-pair physical Unite Attack (e.g. Viktor+Flik "Twin
-  Dragons"). Loops every other party member for one with matching
-  `ActionType==4` and the same `AbilitySlot` this turn (and a valid
-  target); defers (returns early) rather than firing immediately if a
-  partner match is found — the "wait for your Unite partner to also
-  select it" sync check.
+  selected physical Unite Attack. There is no "wait for the partner" sync:
+  the participant who wins the turn roll first runs the whole Unite, and the
+  partner loop only *fails* it if a participant is invalid (corrected
+  2026-09-27; see [Physical Unite attacks](#physical-unite-attacks)).
 
 All three resolvers re-validate `TargetIdx` via `check_combatant_valid_target`
 and store a pointer from the resolved definition into their own base-struct
 slot (`+0x14` Rune, `+0x10` Item, `+0x18` Unite) — an animation/effect
 script pointer, one slot per action type.
 
-### Magic Unite spells: `battle_check_magic_unite` (`0x800f5398`)
+### Physical Unite attacks
+
+Traced 2026-09-27 from `main.exe` decompiles. Handler and helper names are
+the ones given in Ghidra that day. **Live-confirmed the same day** on
+Talisman Attack (`scripts/VerifyTalismanUnite.lua`,
+`VarkasSydoniaUniteTest.State`, 10 rounds over 6 seeds):
+
+- The first participant to reach its turn runs the Unite. It waits, with
+  no RNG, until every combatant is idle. Both participants go to
+  ActionTag `1` on the same frame the Unite starts (frame S).
+- Both animations have fixed timing from S. Pahn's impact bit is set at
+  S+66 and Gremio's at S+74, whoever starts. Damage lands the frame after
+  the **initiator's** impact: S+75 when Gremio starts (2 seeds), S+67 when
+  Pahn starts (6 seeds, AGL pinned to 60 vs 1). The partner's impact never
+  triggers damage, even when it comes first.
+- The damage frame has exactly 2 `rand()` calls. In all 8 rounds the
+  damage matched (Pahn roll + Gremio roll) × 2, e.g. 104 = (31+21)×2. The
+  target's busy byte is `9` while it reacts, for 37 frames (Gremio's slot
+  15 reaction).
+- S is the tick after the resolver first finds everyone idle. The resolver
+  polls, with no RNG, from the dispatch tick until then.
+- The handler ends at S+136, the tick after Pahn's done bit `0x4` (S+135;
+  Gremio's is at S+130). The turn loop resumes at once: next roll at
+  S+137, next current actor at S+138. That's while both participants
+  are still busy walking back (return script `0x8016d214`, started when
+  each one's `0x4` is seen). Busy clears at S+176 (Gremio) and S+188
+  (Pahn). None of these offsets depend on who starts.
+- The static walker (`AttackTimingWalker.py --party pan 9`, `gre 9`)
+  predicts the impacts (66 / 74) and done bits (135 / 130) exactly.
+- A dead partner, whether killed by the boss mid-round or by writing HP
+  `0` and letting `party_member_death` run: the initiator's turn becomes
+  the Defend fallback. That means ActionTag `1`, roll gate `0`, and no RNG.
+  `ActionType` stays `4` until the round-end reset.
+- **No Defend damage reduction for that character.** In all 6 dead-partner
+  runs, Pahn took the full, unhalved `calc_damage` hit. In the same log,
+  real Defenders' hits matched the halved formula. The halving tests
+  `ActionType == 1`, which a failed Unite never sets, so this holds for the
+  whole round. Only hits before Pahn's failed turn were observed.
+
+#### Unite menu eligibility: `compute_unite_eligible_slots` (`0x800ef104`)
+
+`battle_menu_compute_command_availability` enables the Unite command only
+when this function finds at least one Unite. For each of the 32 Unite
+definitions that include the commanded character's roster Id, **every**
+required Id, the character's own included, must match a party member
+that passes all of these:
+
+- **At or after the commanded character in command order.** The search
+  starts at the menu's current position (`DAT_80179fe8+0x10`) and walks
+  the per-position combatant list (`DAT_80179fe8+0x1c + pos*4`).
+  User-confirmed: only the participant earliest in command order can
+  select a Unite. If that participant picks anything else, the later
+  participants can't select that Unite this round.
+- **Menu flag `DAT_80179fe8+0xb4 + pos*4 == 1`.** Its meaning isn't
+  traced (likely "hasn't had a command taken yet").
+- **Valid combatant** (`check_combatant_valid_target`: not dead or fled).
+- **`+0x4a & 0x61 == 0`**: not Poisoned (`0x1`, id0), asleep (`0x20`,
+  id5) or Unbalanced (`0x40`, id7).
+
+So any of those three statuses on any participant, the commanded
+character included, removes that Unite. An Unbalanced character never
+has the Unite command (user-confirmed). HP isn't checked. The eligible
+slots go to `DAT_80179fe8+0x80`, the count to `+0xa8`. The Unbalanced
+case and the command-order rule are user-confirmed. The `+0xb4` flag is
+decompile only; the command-order rule alone explains the user's
+observations, so its role hasn't been isolated.
+
+The resolver below doesn't recheck status, only validity. A participant
+who gets one of those statuses after the menu still takes part. Only
+death or fleeing makes the Unite fail.
+
+**Resolver** (`battle_select_unite_attack`, `0x800f5790`), run on the
+initiator's turn. `check_combatant_valid_target` returns `0` for a valid
+combatant, `-1` otherwise.
+
+1. Not every combatant idle (`battle_check_all_combatants_idle`): return
+   `0`, poll again next tick. No RNG.
+2. Any party member with `ActionType==4` and the same `AbilitySlot` (the
+   initiator included) invalid, meaning dead, fled or HP minus pending
+   damage below 0: return `-1`.
+3. Def `+0x16 & 3 == 1` (all enemies) and `dwUsesAvailableCounter < 1`:
+   `-1`. `& 3 == 3` (one enemy) with an invalid target: retarget to the
+   first enemy in combatant order that is valid and has HP minus pending
+   damage > 0 (`battle_find_first_ready_enemy`, `0x800f6344`), `-1` if
+   none. That's the same pick a basic Attack makes (per the user), except
+   the Attack accepts HP minus pending = 0.
+4. Otherwise store the handler `DAT_8016d2d0[def+0x19]` in
+   `g_pBattleState+0x18` and return `1`.
+
+On `-1` the dispatcher runs `battle_resolve_defend_action`: the initiator
+loses the turn (ActionTag `1`, roll gate `0`). The partners keep
+`ActionType 4`, so each fails the same way on its own turn: if any
+participant is dead, the Unite fails for everyone (per the user).
+On `1` the dispatcher state `LAB_800f4550` calls the handler
+with the current actor every tick until it returns something other than
+`-1`. It then sets `+0x30 = 1` and goes back to `battle_advance_turn`
+without resetting `nRollGateCountdown`. **The turn loop is paused for the
+whole Unite**, and nothing else starts.
+
+**Every handler** (24 of them, `unite_<name>_stage1` + later stages) first
+calls `unite_gather_participants` (`0x800f91c0`). That sets ActionTag `1`
+on every participant, so the partners' turns are used up. It lists the
+participants in the def's **Id order** (p0, p1, ... below), not
+initiator-first. It also copies the initiator's target into theirs and
+clears everyone's `+0x40` effect flags. The handlers then start each
+participant's own script (their table slots 9-16), and poll `+0x40` bits
+the scripts set with opcode 26: `0x2` = impact, `0x10` = cue, `0x4` =
+participant done. The Unite ends when every participant has set `0x4`.
+
+**Damage.** Only two helpers call `calc_damage`, and neither rolls hit,
+crit, counter or cover:
+
+- `unite_damage_on_actor_impact(gate, n, m, p[])` (`0x800f9488`): when
+  `gate`'s `+0x40 & 0x2` is set, the gate's target takes
+  `sum(calc_damage(p[i], target)) * m / 10`.
+- `unite_damage_target(target, n, m, p[])` (`0x800f95e8`): the same sum,
+  applied when the caller decides. Skips a target with `+0x45 != 0`.
+
+So one damage event costs one `calc_damage` roll per participant, made in
+p0, p1, ... order, and uses each participant's own ATK. `m / 10` is the
+multiplier below. p0, p1, ... is the def's Id list at `+0x1a`, read from
+`main.exe` (defs at `0x8016cd0c`, stride `0x24`). Names are the def's own
+charmap string at `+0x0`, as the game shows it.
+
+| Slots | Name | Participants (p0, p1, ...) | × | Fires on |
+|---|---|---|---|---|
+| 1 | Talisman attack | Pahn, Gremio | 2 | initiator impact |
+| 2 | Fisherman attack | Tai Ho, Yam Koo | 3 | initiator impact |
+| 3 | Wild arrow attack | Kirkis, Sylvina | 1 | p1 impact, all |
+| 20 | Wild arrow attack | Kirkis, Rubi | 1 | p1 impact, all |
+| 21 | Wild arrow attack | Kirkis, Stallion | 1 | p1 impact, all |
+| 4 | Elf attack | Kirkis, Stallion, Sylvina | 2 | initiator impact |
+| 5 | Pirate attack | Anji, Kanak, Leonardo | 2 | p0 impact |
+| 6, 22-25 | Blacksmith attack | the four smiths | 3 | p3 impact |
+| 7 | Bumpy attack | Krin, Humphrey | 1.5 | p0 cue (`0x10`) |
+| 8 | Pretty boy attack | Flik, Alen, Grenseal | 3 | p2 impact |
+| 9 | Pretty girl attack | Camille, Tengaar, Kasumi | 2.5 | p1 impact |
+| 10 | Beauty attack | Cleo, Eileen, Valeria | 0.4 | timer, all |
+| 26 | Beauty attack | Cleo, Eileen, Sonya | 0.4 | timer, all |
+| 11 | Flash attack | Liukan, Fukien, Kai | 2 | timer |
+| 12 | Kobold attack | Kuromimi, Gon | 2 | initiator impact |
+| 13 | Dragon Knight attack | Futch, Milia | 2 | initiator impact |
+| 14 | Fatal attack | Gen, Kamandol | 2 | p1 impact |
+| 15 | Trick attack | Meg, Juppo | 1 | sweep, all |
+| 16 | Warriors attack | Tengaar, Hix | 2 | timer |
+| 17 | Couple attack | Eileen, Lepant | 2 | p1 impact |
+| 18 | Bandit attack | Varkas, Sydonia | 2.5 | target's impact |
+| 19 | Carpenter attack | Gen, Sansuke | 2 | initiator impact |
+| 27 | Kobold +1 attack | Kuromimi, Fu Su Lu, Gon | 3 | p1 impact |
+| 28 | Beat'em up attack | Pahn, Ronnie | 3 | p1 impact |
+| 29 | Ninja attack | Kasumi, Fuma, Kage | 2 | p1 impact |
+| 30 | Martial arts attack | Eikei, Pahn, Morgan | 0.5 | timer, all |
+| 31 | Lepant family attack | Lepant, Eileen, Sheena | 2 | target's cue |
+| 32 | Master pupil attack | Hero, Kai | 1 | each impact, each |
+
+Notes on the "Fires on" column:
+
+- **initiator impact**: gated on the current actor's own `0x2`, so the
+  timing depends on which participant won the turn roll.
+- **all**: one damage event per living enemy, in enemy index order,
+  except Trick (15). Trick hits enemies as a sweep passes their screen X
+  position (`+0x68`), so its order is positional.
+- **timer**: fixed tick counts inside the handler. Flash: phase 2, tick 32.
+  Warriors: phase 2, tick 32 of stage 3. Beauty: after phase 2 (tick 32).
+  Martial Arts: handler tick `0x8c`.
+- **Master Pupil (32)**: each participant, on its `0x10` cue, takes the
+  next enemy that was valid and idle at the start. On its impact that enemy
+  takes the full 2-person sum ×1. Each enemy is hit once.
+- A handler may fire more than once if a script sets the impact bit more
+  than once. The static scripts weren't checked for that.
+
+**Other RNG inside a Unite.** The handlers themselves call `rand()` in only
+one place, Beauty's VFX. The rest comes from script opcode 40
+(`anim_op_roll_status_effect_chance`). That opcode always rolls once unless
+the owner is a party member wearing the Turtle Rune (Rune.Id 25), which
+skips both the roll and the status.
+
+- **Unbalanced (status 7, 100%) on the participant itself**: Pahn's slot
+  10 in Beat'Em'Up (28) and Kasumi's slot 10 in Pretty Girl (9). No other
+  participant's Unite script has opcode 40. For a party member arg 100
+  always lands; the only exceptions are a Turtle Rune (no roll) or being
+  Unbalanced already (roll, no new status). The walker puts the roll at
+  f394 of Pahn's script (impact f60) and f191 of Kasumi's (impact f56).
+- **Beauty (10, 26)**: every living enemy plays Cleo's slot 15 as its hit
+  reaction, which rolls Sleep (status 5, arg 30). For an enemy the check
+  is inverted (applied when `roll % 100 >= 30`), so Sleep lands **70%**
+  of the time. That's one roll per enemy.
+- **Beauty VFX**: the setup spawns 30 particles, each costing
+  `rand() % 32` + `rand() % 64` + `vfx_randomize_sphere_particle` (3
+  `rand()`), for **150 fixed calls**. For the next 128 ticks each
+  particle re-randomises (3 more calls) whenever its sprite animation
+  ends, so the total depends on the seed. It can be simulated the same
+  way as the other spell VFX (shared sheet `DAT_800aa01c`, seq `0xd`).
+
+The shared-effect sub-scripts spawned through opcode 24 weren't scanned.
+
+
 
 A separate mechanic from the `ActionType==4` command above: Suikoden 1 has
 five **magic** Unite spells — Scorched Earth (Fire+Earth), Storm Fang
@@ -438,6 +634,25 @@ vs. `1` for the other four combos) matches its documented single-target
 behavior and cross-validates the same field's meaning in the full spell
 table below (`3` = single-target, `1` = AOE, wherever both a spell and a
 sibling of its own level differ only in that bit).
+
+**Turn use and damage** (decompile, 2026-09-27). The combo fires on the
+turn of whichever caster rolls first. The partner is the first party
+member, in index order, with ActionTag `0`, `ActionType 2`, `AbilitySlot
+4` and a matching Lv4 spell. The partner gets ActionTag `1` (turn used)
+and loses a Lv4 charge (`decrement_rune_level_charge`, `0x800f5344`).
+There's no alive or validity check on the partner, which needs a live test.
+Damage comes from `calc_dual_element_spell_damage` (`0x80125c94`), which
+has no RNG:
+
+```
+dmg = base_power + caster.MGC / 2
+c   = max(compat[elemA], compat[elemB])    -- worst of the two wins
+c == 1: x2    c == 2: /2    c == 3: 0    c == 0: unchanged
+```
+
+The worst compatibility wins: immune beats resist beats weak. The
+`caster` argument is most likely the initiating caster, not yet
+confirmed.
 
 ### The full spell table: `DAT_8016d33c`
 
@@ -721,6 +936,124 @@ The per-rune `DAT_8016a0e0` record also has an undocumented `+0x18` field
 (slot count) and a fuller `+0x16` flags word (bit `0x8000` = roster-id
 whitelist for character-restricted unique runes).
 
+#### Falcon Rune (Valeria, Rune.Id 10)
+
+Traced 2026-09-27 from `main.exe`, **live-confirmed the same day**
+(`scripts/VerifyFalconRune.lua`, `Dragon.State`, 4 seeds × 3 rounds: 12 of
+12 hits matched `3 × calc_damage` using the first `rand()` of the damage
+frame, none matched ×1, no misses). Falcon's rune
+record (`DAT_8016a0e0[10]`, flag `1`) maps slot 0 to ability id 3.
+`DAT_8016a630[3]` has target type 3 (one enemy; an invalid target is
+replaced by the first ready enemy) and cast handler `0x800f8c24`.
+Unique runes skip `decrement_rune_level_charge` and the shared item-use
+script.
+
+```
+rune_falcon_cast_entry (0x800f8c24):
+    Valeria plays her own script slot 13 at the target
+    multiplier global DAT_8017a008 = 30; DAT_80179ff8 = her slot 14 script
+rune_falcon_wait_impact (0x800f86f0), each tick:
+    Valeria's +0x40 & 0x2 (impact, f62 of slot 13):
+        target plays Valeria's slot 14 (at Valeria)
+        target's +0x50 = rune_falcon_apply_damage
+rune_falcon_apply_damage (0x800f881c), on the TARGET, each tick:
+    target's +0x40 & 0x2 (impact, f94 of slot 14):
+        dmg = ★calc_damage(Valeria, target)
+        apply_hp_damage_display(target, dmg * 30 / 10)    -- exactly 3 x dmg
+rune_falcon_wait_done (0x800f87d4): Valeria's +0x40 & 0x4 -> done,
+    gate unchanged
+```
+
+So Falcon does exactly `3 × calc_damage(Valeria, target)`, with no hit
+roll and no crit. `calc_damage` is her normal one (ATK − DEF with the
+variance roll, weapon-element weakness and Rune Piece bonus included), so
+the ×3 applies after all of those (user-confirmed live 2026-09-29; the
+scripted run's Valeria had no piece and no element). `dmg × 30 / 10` loses nothing to
+rounding. Neither script calls `rand()` (static walker), so the only RNG
+is the one `calc_damage` roll. Live, the target's impact bit was set 158
+frames after Valeria's `ActionTag` flipped and the damage landed on the
+next frame (+159), on every hit. The walker's estimate (slot 13 impact
+f62, then slot 14's impact 94 frames later) came out one frame short,
+since it walked slot 14 with Valeria's sprite rather than the target's.
+
+#### Boar Rune (Rune.Id 8)
+
+Traced 2026-09-29 from `main.exe`, **live-confirmed the same day**
+(`scripts/VerifyBoarRune.lua`, `Seifu6Ant.State`, Pahn, 6 seeds × 2
+casts: 12 of 12 hits matched `2 × calc_damage` using the `rand()` of the
+damage frame, none matched ×1, no misses, and all 12 casts Unbalanced
+Pahn). Boar's rune record (`DAT_8016a0e0[8]`, flag `1`, roster whitelist
+bit set) maps slot 0 to ability id 1. `DAT_8016a630[1]` (`0x8016ca2c`)
+has target type 3 (one enemy, reselected if invalid) and cast handler
+`rune_boar_cast_entry` (`0x800f8a9c`). That handler is Falcon's,
+instruction for instruction, except for the multiplier global:
+
+```
+rune_boar_cast_entry (0x800f8a9c):
+    caster plays its own script slot 13 at the target
+    DAT_8017a008 = 20; DAT_80179ff8 = caster's slot 14 script
+then the shared Falcon chain: rune_falcon_wait_impact ->
+    rune_falcon_apply_damage (on the target) -> rune_falcon_wait_done
+damage = ★calc_damage(caster, target) * 20 / 10    -- exactly 2 x dmg
+```
+
+So Boar does exactly `2 × calc_damage`, with no hit roll and no crit, and
+one `rand()` (the variance roll). `× 20 / 10` loses nothing to rounding.
+The ×2 applies after everything `calc_damage` does itself for a party
+attacker: element weakness +50% (the Rune Piece type's element, else the
+weapon's innate one) and the Fire/Earth Rune Piece amp. Both runes call
+the same `calc_damage` as a basic attack; the user confirmed both bonuses
+live 2026-09-29. (The scripted runs had no element and no piece, so they
+didn't exercise either.)
+
+**Self-Unbalance.** None of the handlers touch status. The Unbalanced
+comes from opcode 40 (`status 7`, `chance 100`) near the end of the
+caster's own slot 13 script. Three party files have this Boar-shaped slot
+13/14 pair: Pahn (`pan`, roster 6), Eikei (`eik`, 66) and Morgan (`moh`,
+52); only Pahn was live-tested. For a party member, chance 100 always
+lands. The Turtle Rune skip can't apply, since the caster is wearing
+Boar. The "already Unbalanced" skip can't either, since Unbalanced
+disables Rune. So each cast costs exactly one more `rand()`, and the
+caster is always Unbalanced.
+
+`apply_status_effect(…, 7)` sets `+0x4d = 1`. At each round end,
+`battle_process_round_end_status_and_formation` clears the status if
+`+0x4d` is already 0, then decrements it. So a cast in round R leaves the
+caster Unbalanced for all of round R+1 (Defend/Item only, no Unite). The
+status is cleared at the end of R+1. Live, across all 12 casts: `+0x4d`
+went 1 → 0 at R's end, the bit cleared at R+1's end (`+0x4d` → 255). The
+slot's active word (`+0x1d58`) stays 1 after the clear, but something
+between that round end and the next prompt resets it to 0, so a second
+Boar two rounds later re-Unbalances normally. That reset code wasn't
+identified.
+
+**Timeline** (Pahn; frames from S, the tick the cast entry runs; identical
+in all 12 live casts and to the static walker):
+
+```
+S+0     caster busy 1, target busy 8, caster starts slot 13
+S+60    caster impact (0x2)           walker, Eikei/Morgan: S+56
+S+61    target starts the caster's slot 14; target busy 9
+S+261   caster fx 0x10
+S+291   caster fx 0x4
+S+292   rune_falcon_wait_done returns done (gate unchanged)
+S+293   next turn roll, if anyone is left to act; S+294 new actor
+S+321   target's slot 14 impact (0x2)
+S+322   ★ damage rand() + HP drop; target busy 0 if it survives,
+        busy 1 (death) until S+415 if the hit kills it
+S+344   ★ Unbalanced roll; caster busy 0     walker: Eikei 340,
+                                             Morgan 339
+S+347   round over, if Boar was the last action and the target lived
+        (S+418 after a kill): the round-end status/backfill tick, 3
+        frames after the last busy clears (the round-end wait itself
+        passes 1 frame after; see TickBasedAlgorithm.md ROUND_END)
+```
+
+Unlike Falcon, the handler is done **before** the damage. The next actor
+is picked at S+293 and starts at S+294, so both Boar `rand()` calls land
+during that actor's turn, on animation time. The caster stays out of turn
+order (busy) until S+344.
+
 ### Free Will: automatic action selection
 
 `battle_menu_fight_run_bribe_freewill`'s Free Will branch (choice `3`)
@@ -810,9 +1143,20 @@ family sharing one "immune to this ailment" accessory check.
   handle).
 
 **`anim_op_roll_status_effect_chance(combatant_idx)`** (animation-script
-opcode 40, script args: `status_id`, `chance_arg`): rolls RNG2 against
-`chance_arg` (inverted — roll `< chance_arg` means *skip*, so the real
-infliction chance is `100-chance_arg`%). Party members get an extra
+opcode 40, script args: `status_id`, `chance_arg`): rolls
+`roll = ((rand() * 100) / 0x7fff) % 100` (0-99) against `chance_arg`. The
+direction depends on who owns the script (re-read from the decompile
+2026-09-27):
+
+- **Party member:** the status lands when `roll < chance_arg`, so the
+  chance is `chance_arg`% (`100` = always). It's also skipped, after the
+  roll, if the member already has that status (its duration slot is in
+  use).
+- **Enemy:** inverted. The status lands when `roll >= chance_arg`, so the
+  chance is `100 - chance_arg`% (Beauty's Sleep, arg 30, lands 70%).
+
+Either way the roll costs exactly one `rand()`, except in the Turtle Rune
+case. Party members get an extra
 unconditional-immunity check first: if their persistent-stats `Rune.Id`
 (`+0x4c`) `== 25` (Turtle Rune), the roll never happens at all — one of
 several rune ids gating hardcoded passive effects on this same field
@@ -926,13 +1270,19 @@ enabled/disabled before the player picks an action:
   `0x20`=`id5` OR bit `0x40`=`id7`).
 - **Rune slot** disabled if `combatant_rec+0x4a & 0xe0` (bit `0x20`=`id5` OR
   bit `0x80`=`id6` OR bit `0x40`=`id7`).
-- **Defend** always enabled; **Item**/**Unite** gated only by availability,
-  never by status.
+- **Defend** always enabled; **Item** gated only by the item count.
+- **Unite slot** enabled only if at least one Unite passes
+  `compute_unite_eligible_slots`. That checks **every** participant,
+  the commanded character included, for `+0x4a & 0x61` (Poison, Sleep,
+  Unbalanced). See
+  [Unite menu eligibility](#unite-menu-eligibility-compute_unite_eligible_slots-0x800ef104).
 
-This means `id7` ("Unbalanced") disables Attack and Rune, leaving only
-Defend/Item/Unite selectable for 1 turn, and those selections actually
-execute. `id6` ("Silence-equivalent") is a Rune-only disable, nothing
-else. `id5` shares the same Attack+Rune-disabled *menu* state with `id7`
+This means `id7` ("Unbalanced") disables Attack, Rune and Unite, leaving
+only Defend/Item selectable for 1 turn, and those selections actually
+execute. An Unbalanced character can never Unite (user-confirmed), and
+neither can anyone whose Unite needs them. `id6` ("Silence-equivalent")
+is a Rune-only disable, nothing else. `id5` shares the same
+Attack+Rune-disabled *menu* state with `id7`
 (same icon too), but is not functionally equivalent to it — per the
 user's live confirmation, `id5`'s Defend/Item input is accepted by the
 menu but then silently ignored (the character still doesn't act), and
@@ -1005,8 +1355,26 @@ enough regen sources active can end up healing instead of taking poison
 damage on a given round, and the whole thing is skipped (no call at all) if
 the netted total is exactly 0.
 
-**Duration**: `apply_status_effect`'s own switch sets Poison's initial
-duration to `12` (rounds).
+**Duration: none. Poison never wears off by itself** (corrected
+2026-09-30; this used to say "12 rounds"). For a party member,
+`apply_status_effect` does set a per-status value of `12` for Poison.
+But that value only goes to `build_sprite_poly_resource` (the status
+icon). The duration slot's own fields are set to `active=1, 1,
+expired=0`, with no counter anywhere:
+- `+0x30a8` is an "expired" flag. Only `clear_status_effect` sets it,
+  and `FUN_800e02cc` (the per-frame status-icon updater) frees the icon
+  once it's set.
+- Round-end decay (`battle_process_round_end_status_and_formation`)
+  handles only ids 3, 7 and 8.
+
+So Poison lasts until something calls `clear_status_effect(idx, 0)`:
+- the death routine `FUN_800e2c90`, which clears every status
+- cure fragments `0x800f2d24` / `0x800f3140` (not yet mapped to items)
+- `FUN_801204ec`, which clears ids 0–6 together
+
+It also carries over between battles via the save-data Status byte.
+This is the same no-countdown behavior as Sleep (`id5`) below. The
+Mosquito's opcode 40 passes no duration either way.
 
 ### Passive rune effects (`Rune.Id`, persistent Stats `+0x4c`)
 
@@ -1110,13 +1478,63 @@ When an attack is about to land on `target_idx`:
      `Rune.Id == 26` (Phero), scans every other valid, non-busy party
      member (wrapping from `target_idx+1`) for the first one whose own
      "classData+10" byte *differs* from `target_idx`'s — a gender byte.
+
+   **Exact conditions** (decompile re-read and live-checked 2026-09-30,
+   `scripts/VerifyCover.lua` + `VerifyCoverCompare.py`, 85/85 predictions
+   plus 42 cover timelines exact; pseudocode and JS in
+   [TickBasedAlgorithm.md](../../TickBasedAlgorithm.md#find_cover-find_cover_target-0x800f79e0)):
+   - **Trigger:** `(short)combatant_rec+0x12 < (short)+0x10 >> 2`. That's
+     committed HP (not minus pending damage) against HPMax, strictly less.
+     Live: Hero at 28 HPMax was covered at 6 HP, never at 7.
+   - **Pair partner:** for each table pair in order whose self-id is the
+     target's `classData[0]`, the first party member with the partner's
+     roster id (`EnemyData+0`) that isn't the target and passes
+     `check_combatant_alive` (not busy, `+0x45` clear, HP − pending > 0).
+     A partner who is absent or fails that moves on to the next pair.
+     There's no row check. Live: Gremio busy, so Pahn covered; Gremio and
+     Pahn busy or KO'd, so back-row Cleo covered.
+   - **Phero:** only reached under the same HP trigger. Its scan checks
+     `+0x45` and busy, not pending damage. Live: Pahn with Phero was
+     covered by Cleo, skipping Ted. Decompile-only quirk: for a target in
+     the last party slot, the first index scanned is `partyCount + 1` (an
+     enemy) before the wrap.
+   - **Nothing else disables cover:** no check for Sleep, Unbalanced,
+     Poison, Defend or a queued action (decompile only).
+
+   **The gender byte** (`classData+10`). `classData` is the member's
+   loaded `data/04_play/<code>.bin` header (byte 0 roster id, bytes 1-9
+   name, byte 10 gender), live-matched through `ClassPtrs[i]` at
+   `battle_state+0xf84 + i*0xc`. Phero compares for *difference*, so
+   Milich (2) counts as opposite to everyone, and Kuromimi and Gon (3)
+   don't count as opposite to each other.
+
+   Female (1), 18 characters:
+   : Eileen, Cleo, Camille, Sylvina, Sonya, Ronnie, Kasumi, Milia,
+     Tengaar, Valeria, Kimberly, Lorelai, Sarah, Lotte, Hellion, Mina,
+     Meg, Odessa
+
+   Male (0), 57 characters:
+   : Gremio, Kirkis, Mose, Pahn, Liukan, Hero, Anji, Varkas, Krin, Kasim,
+     Flik, Fukien, Futch, Gen, Humphrey, Kage, Kwanda, Luc, Lepant,
+     Sydonia, Tai Ho, Viktor, Warren, Yam Koo, Juppo, Kessler, Leonardo,
+     Griffith, Kanak, Alen, Grenseal, Rubi, Morgan, Clive, Fuma, Sheena,
+     Hix, Crowley, Fu Su Lu, Eikei, Kamandol, Quincy, Meese, Maas, Mace,
+     Moose, Blackman, Kreutz, Stallion, Kirke, Kai, Sergei, Sansuke,
+     Antonio, Lester, Pesmerga, Ted
+
+   Other values:
+   : 2 Milich; 3 Kuromimi and Gon (the kobolds)
 2. If a cover character is found, `battle_check_counter_attack` plays
    reciprocal "jump in front" animations between the two, then sets the
    attacker's own per-actor "next micro-state" slot (`combatant_rec+0x50`)
    to **`apply_covered_attack_damage`** (`0x800f5e90`); with no cover
    found, to **`apply_uncovered_attack_damage`** (`0x800f5960`) instead.
    Either way, the attacker's main attack animation still plays against the
-   *original* `target_idx` — the actual redirect happens later.
+   *original* `target_idx` — the actual redirect happens later. The
+   ally's `0x8016c270` sets its own busy bit 8 at dispatch, so both the
+   ally and the target are busy from t0 (live: all 42 covers).
+   `battle_execute_player_attack` (the enemy basic Attack) is the only
+   caller.
 3. Once the animation reaches its "apply damage" point, whichever state
    function was set runs: `apply_covered_attack_damage` computes and
    applies damage against the **cover character** instead of the original
@@ -1284,7 +1702,9 @@ reaction, which is why the log shows busy going straight from 8 to 1.
 
 Elsewhere in the same pass: a living enemy whose script has ended restarts
 its slot 0 (idle); a living party member not busy switches between the
-normal and the "tired" pose (HP < 25% or status bits `0x61`).
+normal and the "tired" pose (HP < 25% or status bits `0x61`). The same
+`0x61` mask gates Unite eligibility, but low HP doesn't: a tired-looking
+member at HP < 25% with none of those statuses can still Unite.
 
 ### Sacrificial Buddha (item 83)
 
@@ -2453,7 +2873,8 @@ from S:
    `dragon_overlay.bin`.
 5. Front-row only, unless a global flag is set, in which case no scan at all.
 6. Round 1: Fire Breath guaranteed; else ~71% Attack / ~29% Fire Breath.
-7. Fully determined by the chosen target's row: front row → always special,
+7. Fully determined by the chosen target's row: front row → always special
+   (`calc_damage × 4 / 3`, can't miss; see "Sydonia's special move"),
    back row → always plain Attack.
 8. Round > 2: always special; else ~51% Attack / ~49% special.
 9. 3 moves: AoE Wind (~49.00%), single-target physical Bats (~26.01%,
@@ -2483,18 +2904,88 @@ Crimson Dwarf, Death Boar, Death Machine") and charmap-searching `vc3.bin`
 for those names confirms both Death Machine variants also live in
 `vc3.bin` (`0x800420e0`, `0x80043618`).
 
-Sydonia's boss AI (`sydonia_ai_select_target_and_move`) schedules a
-counterattack structure after her special move — the party member she just
-hit would strike back at her — gated on a bit in `enemy_data+0x40` that
-only `anim_op_set_effect_flags` (opcode 26, `0x800e4fd8`) can set, using a
-mask read from the invoking script's own embedded data. Opcode 26 never
-appears in Sydonia's own special-move script (`0x800700c0`), so her own
-attack can never arm this counter — it never triggers in game. This is
-distinct from the player-side "Bandit Attack" Unite (`DAT_8016d18c` slot
-18, same Varkas+Sydonia pairing), whose own resolved script address
-(`DAT_8016d2d0[18]` = `0x800fcd1c`, in `main.exe`) doesn't match either
-script address referenced in Sydonia's boss AI. This counter structure is
-genuine but dead/leftover code, never wired to a real trigger.
+### Sydonia's special move
+
+Corrected 2026-09-27 from the `va7.bin` decompile and the static walker.
+Earlier notes called the special's follow-up an unreachable
+"counterattack". It isn't: it's where the special deals its damage.
+
+**Live-confirmed the same day** (`scripts/VerifySydoniaSpecial.lua`,
+`VarkasSydoniaUniteTest.State`, 4 seeds × 3 rounds):
+
+- All 11 special hits (front-row targets) matched
+  `floor(calc_damage × 4 / 3)` using the first `rand()` of the damage
+  frame. None matched plain `calc_damage`.
+- The impact bit was set 79 frames after her `ActionTag` flipped, and the
+  damage landed on the next frame, as the walker predicts.
+- The one back-row hit was a plain Attack: impact at +39 (the walker's
+  slot 1 value), damage = plain `calc_damage`.
+- Every target she hit was Defending, so the halving-before-×4/3 order is
+  confirmed, but a non-Defending special hit wasn't captured.
+
+`sydonia_ai_select_target_and_move` (`0x8001234c`):
+
+```
+target scan: every party member (all 6 rows), in formation order:
+    alive and not busy -> ★ roll; accept if roll % 100 > 50
+    nobody accepted -> return 0 (scan again next tick)
+TargetIdx = target
+target in the back row (formationPos > 3): return -1   -- plain Attack
+★ roll; if roll % 100 < 121 (always true):
+    ActionTag = 1, clear own +0x40
+    play special script 0x800700c0 (target busy 8 from f0)
+    own +0x50 = sydonia_special_apply_damage
+    return 1
+```
+
+`sydonia_special_apply_damage` (`0x8001258c`), polled each tick as her
+`+0x50` step. Her script sets her impact bit (`+0x40 & 0x2`) at f79, so it
+fires on f80:
+
+```
+dmg = ★calc_damage(Sydonia, target)           -- service slot 3
+apply_hp_damage_display(target, (dmg * 4) / 3)  -- service slot 4, truncating
+target plays reaction 0x80064880                -- busy 8, clears 45 frames later
+own +0x50 = 0
+```
+
+So the special does `floor(calc_damage × 4 / 3)`, with **no hit roll and
+no crit**. It can't miss. Defend halving happens inside `calc_damage`,
+before the ×4/3. The special's RNG is: the scan rolls, the one
+always-passing roll, and the `calc_damage` roll at f80. Her script's
+native VFX handler (`0x80011e34`) and the reaction script don't reach
+`rand()`. Her script ends and clears her busy at f180.
+
+Against a back-row target the AI returns -1, and the dispatcher runs the
+enemy basic attack (`battle_execute_player_attack`): hit roll, no crit,
+normal damage.
+
+**Who she targets, and so which move she uses.** The scan walks party
+members in combatant index order and takes the first one that accepts, so
+earlier slots are strongly favoured. With *n* eligible members (alive, not
+busy), the *k*-th is picked with probability
+`0.49 × 0.51^(k−1) / (1 − 0.51^n)`; the divisor covers failed scans, which
+retry next tick with fresh rolls. For the 5-member test party (back row in
+slots 4 and 5):
+
+| Slot | Chance | Move |
+|---|---|---|
+| #1 | 50.8% | special |
+| #2 | 25.9% | special |
+| #3 | 13.2% | special |
+| #4 | 6.7% | plain Attack |
+| #5 | 3.4% | plain Attack |
+
+About 10% of her actions go to the back row, matching the live run (1 of
+12). Front-row members who are dead or busy when she scans are skipped
+without a roll, which moves the back row up the order. Nothing else
+(HP, stats, Defend) affects the pick. The scan follows combatant index
+while the row check reads `formationPos`; the two matched in the test
+party, and a party where they differ wasn't checked.
+
+The Bandit attack Unite (slot 18, Varkas + Sydonia on the party side) is
+unrelated: its handler (`DAT_8016d2d0[18]` = `0x800fcd1c`, `main.exe`)
+uses neither of these scripts.
 
 ### Dragon's move selection
 
@@ -2589,6 +3080,66 @@ comment (`dragon_overlay.bin @ 0x80013690`) has the full derivation;
 `tests/test_Dragon.lua` for the test vectors (50 seeds for move-selection,
 16 for the Lightning VFX).
 
+#### Dragon's move timing
+
+Live-measured 2026-09-28 (`scripts/TraceDragonTiming.lua`,
+`Dragon.State`, two runs of 5 seeds × 3 rounds: 15 Fire Breaths, 15
+Lightnings). In the second run Gremio's AGL was pinned to 1 so he acted
+after her every time. Party Defending and idle when her turn starts. T0 = the first frame she's the
+current actor; M = the move-choice roll.
+
+Both moves start the same way:
+
+| What | Frame |
+|---|---|
+| AI runs, scan rolls, `ActionTag` 1 | T+1 |
+| Dragon busy 0→1 | T+2 |
+| her `+0x40` bit `0x1` | T+31 |
+| callback `0x800123b8` installed | T+36 |
+| move roll (M) | T+37 |
+
+In one run the AI ran a frame late (T+2), and everything after it
+shifted by one.
+
+**Fire Breath.** The damage frame drifts: the damage rolls (one per
+party member, all on one frame) came at M+264 to M+268, HP committed the
+next frame. Everything else is fixed relative to the damage-roll frame D:
+
+| What | Frame |
+|---|---|
+| hit reaction, slot 3 (busy 8, 34 frames) | D−154 |
+| hit reaction, slots 2, 5, 6 | D−127 |
+| hit reaction, slots 1, 4 | D−96 |
+| damage rolls / HP committed | D / D+1 |
+| her `+0x42` = 99, callback cleared | D+2 / D+3 |
+| Dragon busy clears | D+21 |
+
+The reaction waves follow formation position, and all end before the
+damage lands.
+
+**Lightning.** The particle phase starts at M+15 to M+19 (the drift),
+then everything is fixed relative to its first frame P:
+
+| What | Frame |
+|---|---|
+| particle phase (128 frames) | P to P+127 |
+| target hit reaction (busy 8, 70 frames) | P+144 to P+214 |
+| damage roll (D) / HP committed | P+251 / P+252 |
+| her `+0x42` = 99 | D+3 |
+| Dragon busy clears | D+22 |
+
+The last particle roll can fall a few frames before P+127: a tick where
+no particle is inactive makes no rolls. Particle-phase `rand()` totals in
+these runs were 680 to 760, one more than the earlier 651–759 range.
+
+**End of her turn.** Her turn ends when her busy clears (B, about T+322
+to T+329 for either move). On B+1 the roll gate is set to **30**, so the
+next turn-order roll comes at B+31 and the next actor starts at B+32.
+Measured on all 15 rounds of the second run. (The first run misread that
+B+1 gate write as the round-end reset, since she always acted last.) If
+the party is still busy when her turn starts, her AI waits before
+scanning (no RNG), which pushes everything later.
+
 #### Dragon's damage formula
 
 Both Lightning and Fire Breath call the shared `calc_rune_element_attack_
@@ -2610,6 +3161,12 @@ Breath loop starts at 1 and passes `element=1`, so the bug hits slot 1 —
 whichever party member occupies the first position in the hit order gets
 an extra accidental 50% reduction if their rune isn't one of the explicit
 cases, on top of the unconditional AOE halving.
+
+**Fire Breath's RNG cost** (user-confirmed 2026-09-27): nothing beyond
+the move selection (target scan rolls plus the move-choice roll) and one
+damage roll per party member hit, in hit-loop order. Unlike Lightning,
+it has no VFX particle RNG, so a sim needs no Fire Breath equivalent of
+`simulateLightning`.
 
 `lib/Enemies/Dragon.lua`'s `calculateLightningDamage` /
 `calculateFireBreathDamage` reuse `lib/EnemyElementalAttack.lua`'s existing
@@ -2746,7 +3303,18 @@ writeup above/below this table; everything else is one row.
 
 - **FurFur, BonBon, Mosquito (identical shared function)** (`a_data.bin`,
   `0x80080004`) — target scan: front-row only; move: always plain Attack (AI
-  declines to act specially once target is locked)
+  declines to act specially once target is locked). **Mosquito's Attack
+  poisons**, but the AI isn't what does it. Its hit reaction (slot 2,
+  `0x800a0f4c`, which runs on the victim) has opcode 40 with
+  `status_id=0, chance_arg=20`. The victim is a party member, so Poison
+  lands on `roll < 20`: 20%. That's one extra `rand()` on the damage
+  frame, right after `calc_damage`'s. It still rolls on a cover (on the
+  covering ally), and it rolls but doesn't reapply on an already-poisoned
+  member. FurFur's and BonBon's reaction (`0x8009e988`) has no roll.
+  Live-verified 2026-09-30 (`3Mosquito1Ant.State`): 96/96 damage frames
+  took 2 `rand()`s, and the replayed rolls predicted every round-start
+  Poison tick (24/24 round starts; the tick lands on frame 2 after
+  confirm).
 - **Crow** (`a_data.bin`, `0x80080604`) — target scan: front-row only; move:
   always plain Attack
 - **Wild Boar** (`a_data.bin`, `0x80080760`) — target scan: front-row only;
@@ -2754,7 +3322,24 @@ writeup above/below this table; everything else is one row.
 - **Red Solider Ant [sic — the ROM's own name field has this typo]**
   (`a_data.bin`, `0x80080adc`) — target scan: front-row only; move: ~77%
   Attack / ~23% DoubleStrike — shares Soldier Ant's exact move-choice
-  formula and threshold (`((roll*100)/32767)%100 < 0x4d`, see below)
+  formula and threshold (`((roll*100)/32767)%100 < 0x4d`, see below).
+  DoubleStrike (**live-verified** 2026-09-30, see below): the AI plays
+  script `0x800a5460` (table slot 8) itself and sets the roll gate to
+  20; continuation
+  `red_soldier_ant_special_double_strike` (`0x80080950`) waits for the
+  attacker's `+0x40 & 0x2`, then does `calc_damage << 1` with **no hit
+  roll and no crit** (always hits) and plays reaction `0x800a5550` on the
+  target. Walker: impact f28, damage f29, target free f63 (reaction 34),
+  attacker's script clears its own busy at f145 (no slot-4 return).
+  Live check (`3Mosquito1Ant.State`, 8 seeds × 4 rounds, party
+  Defending; `scripts/VerifyMosquitoRedAnt.lua` +
+  `VerifyMosquitoRedAntCompare.py`): all 128 enemy turns matched — 96
+  Mosquito, 20 Red Ant Attack, 12 DoubleStrike. Target and move replay
+  exactly from the LCG, and so does the per-tick `rand()` count: basic
+  Attack = scan rolls (+ the ant's move roll) + 1 hit roll; DoubleStrike
+  has no hit roll. Every frame matched the tables, including the counter, cover
+  and kill paths. Unclamped DoubleStrike damage was always even
+  (18–22 vs 9–11 for Attack).
 - **Empire Captain, Empire Soldier (×4, all sharing this function)**
   (`va2.bin`, `0x80010004`) — target scan: front-row only; move: always
   plain Attack

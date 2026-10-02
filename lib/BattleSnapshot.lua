@@ -48,9 +48,9 @@
 -- NOT included here (deliberately out of scope for a per-battle snapshot): static, unchanging
 -- game-data tables that are identical across every battle/savestate - the Rune ability-set table
 -- (DAT_8016a0e0), spell definitions (DAT_8016d33c), the Unite table (DAT_8016d18c), item
--- definitions (LAB_80167658), and attack_data_table's elemental compatibility rows. A simulator
--- needs these too, but they should be extracted ONCE as a separate static reference dump, not
--- re-captured in every snapshot.
+-- definitions (LAB_80167658, dumped to outputs/Items.json by scripts/DumpItemTable.py), and
+-- attack_data_table's elemental compatibility rows. A simulator needs these too, but they should
+-- be extracted ONCE as a separate static reference dump, not re-captured in every snapshot.
 
 local Address = require "lib.Address"
 local CharAddresses = require "lib.Characters.Addresses"
@@ -58,7 +58,6 @@ local Names = require "lib.Characters.NamesList"
 
 local BattleSnapshot = {}
 
-local ITEM_DEFINITION_TABLE = 0x167658 -- LAB_80167658, same table lib/ActionEnumerator.lua uses
 local WEAPON_CLASS_TABLE = 0x165890    -- DAT_80165890, pointer table indexed by WeaponType*4
 local WEAPON_POWER_TABLE = 0x1659cc    -- PTR_DAT_801659cc, used as a raw i16 table base directly
                                        -- (not dereferenced) - see FUN_800d4ec0's own decompile.
@@ -122,7 +121,7 @@ local function computeAllyATKDEF(statsAddr)
     local itemId = memory.read_u16_le(entry + 0x20)
     local equipped = memory.read_u8(entry + 0x22)
     if itemId ~= 0 and equipped ~= 0 then
-      local defPtrRaw = memory.read_u32_le(ITEM_DEFINITION_TABLE + itemId * 4)
+      local defPtrRaw = memory.read_u32_le(Address.ITEM_DEFINITION_TABLE + itemId * 4)
       if Address.isValidPointer(defPtrRaw) then
         local defPtr = Address.sanitize(defPtrRaw)
         local flags = memory.read_u16_le(defPtr + 0x1c)

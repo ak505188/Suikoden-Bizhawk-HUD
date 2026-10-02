@@ -47,7 +47,6 @@ local RUNE_ABILITY_SET_TABLE = 0x16a0e0 -- DAT_8016a0e0, indexed by Rune.Id (0-3
 local SPELL_DEFINITION_TABLE = 0x16d33c -- DAT_8016d33c, indexed by resolved spell id (normal casters)
 local ALT_ABILITY_TABLE = 0x16a630      -- DAT_8016a630, indexed the same way, for ability-set+0x16==1
 local UNITE_ATTACK_TABLE = 0x16d18c     -- DAT_8016d18c, indexed by AbilitySlot (1-32)
-local ITEM_DEFINITION_TABLE = 0x167658  -- LAB_80167658, indexed by item id
 
 local ActionType = { ATTACK = 0, DEFEND = 1, RUNE = 2, ITEM = 3, UNITE = 4 }
 ActionEnumerator.ActionType = ActionType
@@ -213,7 +212,7 @@ function ActionEnumerator:enumerateItem(ctx, actorIdx)
     local itemId = memory.read_u16_le(entryAddr + 0x0)
     local quantity = memory.read_u8(entryAddr + 0x3)
     if itemId ~= 0 and quantity > 0 then
-      local itemDefPtr = memory.read_u32_le(ITEM_DEFINITION_TABLE + itemId * 4)
+      local itemDefPtr = memory.read_u32_le(Address.ITEM_DEFINITION_TABLE + itemId * 4)
       if Address.isValidPointer(itemDefPtr) then
         itemDefPtr = Address.sanitize(itemDefPtr)
         local targetType = memory.read_u16_le(itemDefPtr + 0x1c) & 3

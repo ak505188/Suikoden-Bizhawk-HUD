@@ -230,53 +230,59 @@ Status per `ActionType`:
   `+0x19` = an animation index, and `+0x1a` onward = exactly `count` bytes — the required party
   members' roster `Id`s (the same `Id` used everywhere else, e.g. `Addresses.lua`).
   Cross-referenced against the
-  [Suikosource Unites Guide](http://www.suikosource.com/games/gs1/guides/unites.php) — matches
-  on all 32 entries, both decoded names and required-`Id` bytes.
+  [Suikosource Unites Guide](http://www.suikosource.com/games/gs1/guides/unites.php) — the
+  same 32 entries and participants. Names below are the defs' own strings as the game shows
+  them (Suikosource says "Trickster"/"Warrior" for Trick/Warriors). The Ids are in def order
+  (`+0x1a`), which is also the `calc_damage` roll order
+  ([Physical Unite attacks](./Battle_Damage_Formula.md#physical-unite-attacks)); re-read
+  from `main.exe` 2026-09-27, fixing slots 1, 15, 16, 17 and 27, which were out of order.
 
   `battle_menu_compute_command_availability` calls **`compute_unite_eligible_slots`**
-  (`0x800ef104`) to filter this table down to what the current party can actually perform: it
-  walks all 32 entries, checks the actor's own roster Id against each entry's required-Id list,
-  and validates the other required Id(s) are present and alive in the living party
-  (`check_combatant_valid_target` + `wStatusFlags & 0x61 == 0`), writing eligible slots to
-  `DAT_80179fe8+0x80` and the count to `+0xa8` — this drives the Unite command slot's
-  enable/disable in the menu. A script enumerating "what a character can currently Unite into"
-  without reading the menu's own state can instead check each entry's required-`Id` list against
-  the live party roster directly.
+  (`0x800ef104`) to filter this table down to what the current party can perform. For each
+  entry that includes the commanded character, every required Id, the character's own
+  included, must be a valid party member at or after the character in command order, with
+  no Poison, Sleep or Unbalanced (`wStatusFlags & 0x61 == 0`). So only the participant
+  earliest in command order can select a Unite (user-confirmed). Eligible slots go to
+  `DAT_80179fe8+0x80` and the count to `+0xa8`, which enables or disables the Unite command.
+  Full rules:
+  [Unite menu eligibility](./Battle_Damage_Formula.md#unite-menu-eligibility-compute_unite_eligible_slots-0x800ef104).
+  A script enumerating "what a character can currently Unite into" without reading the
+  menu's own state has to apply the same checks: roster presence alone isn't enough.
 
-  | Slot | Name | Required party (roster `Id`s) |
+  | Slot | Name | Required party (roster `Id`s, def order) |
   |---|---|---|
-  | 1 | Talisman Attack | Gremio (2), Pahn (6) |
-  | 2 | Fisherman Attack | Tai Ho (32), Yam Koo (38) |
-  | 3 | Wild Arrow Attack | Kirkis (4), Sylvina (9) |
-  | 4 | Elf Attack | Kirkis (4), Stallion (75), Sylvina (9) |
-  | 5 | Pirate Attack | Anji (11), Kanak (43), Leonardo (41) |
-  | 6 | Blacksmith Attack | Maas (70), Moose (72), Meese (69), Mace (71) |
-  | 7 | Bumpy Attack | Krin (15), Humphrey (21) |
-  | 8 | Pretty Boy Attack | Flik (17), Alen (48), Grenseal (49) |
-  | 9 | Pretty Girl Attack | Camille (3), Tengaar (33), Kasumi (23) |
-  | 10 | Beauty Attack | Cleo (1), Eileen (0), Valeria (36) |
-  | 11 | Flash Attack | Liukan (7), Fukien (18), Kai (91) |
-  | 12 | Kobold Attack | Kuromimi (14), Gon (80) |
-  | 13 | Dragon Knight Attack | Futch (19), Milia (29) |
-  | 14 | Fatal Attack | Gen (20), Kamandol (67) |
-  | 15 | Trickster Attack | Juppo (39), Meg (76) |
-  | 16 | Warrior Attack | Hix (63), Tengaar (33) |
-  | 17 | Couple Attack | Lepant (30), Eileen (0) |
-  | 18 | Bandit Attack | Varkas (12), Sydonia (31) |
-  | 19 | Carpenter Attack | Gen (20), Sansuke (95) |
-  | 20 | Wild Arrow Attack | Kirkis (4), Rubi (51) |
-  | 21 | Wild Arrow Attack | Kirkis (4), Stallion (75) |
-  | 22 | Blacksmith Attack | Maas (70), Moose (72), Meese (69), Mose (5) |
-  | 23 | Blacksmith Attack | Mose (5), Moose (72), Meese (69), Mace (71) |
-  | 24 | Blacksmith Attack | Maas (70), Mose (5), Meese (69), Mace (71) |
-  | 25 | Blacksmith Attack | Maas (70), Moose (72), Mose (5), Mace (71) |
-  | 26 | Beauty Attack | Cleo (1), Eileen (0), Sonya (10) |
-  | 27 | Kobold +1 Attack | Fu Su Lu (65), Kuromimi (14), Gon (80) |
-  | 28 | Beat'Em'Up Attack | Pahn (6), Ronnie (13) |
-  | 29 | Ninja Attack | Kasumi (23), Fuma (55), Kage (22) |
-  | 30 | Martial Arts Attack | Eikei (66), Pahn (6), Morgan (52) |
-  | 31 | Lepant Family Attack | Lepant (30), Eileen (0), Sheena (62) |
-  | 32 | Master Pupil Attack | Hero (8), Kai (91) |
+  | 1 | Talisman attack | Pahn (6), Gremio (2) |
+  | 2 | Fisherman attack | Tai Ho (32), Yam Koo (38) |
+  | 3 | Wild arrow attack | Kirkis (4), Sylvina (9) |
+  | 4 | Elf attack | Kirkis (4), Stallion (75), Sylvina (9) |
+  | 5 | Pirate attack | Anji (11), Kanak (43), Leonardo (41) |
+  | 6 | Blacksmith attack | Maas (70), Moose (72), Meese (69), Mace (71) |
+  | 7 | Bumpy attack | Krin (15), Humphrey (21) |
+  | 8 | Pretty boy attack | Flik (17), Alen (48), Grenseal (49) |
+  | 9 | Pretty girl attack | Camille (3), Tengaar (33), Kasumi (23) |
+  | 10 | Beauty attack | Cleo (1), Eileen (0), Valeria (36) |
+  | 11 | Flash attack | Liukan (7), Fukien (18), Kai (91) |
+  | 12 | Kobold attack | Kuromimi (14), Gon (80) |
+  | 13 | Dragon Knight attack | Futch (19), Milia (29) |
+  | 14 | Fatal attack | Gen (20), Kamandol (67) |
+  | 15 | Trick attack | Meg (76), Juppo (39) |
+  | 16 | Warriors attack | Tengaar (33), Hix (63) |
+  | 17 | Couple attack | Eileen (0), Lepant (30) |
+  | 18 | Bandit attack | Varkas (12), Sydonia (31) |
+  | 19 | Carpenter attack | Gen (20), Sansuke (95) |
+  | 20 | Wild arrow attack | Kirkis (4), Rubi (51) |
+  | 21 | Wild arrow attack | Kirkis (4), Stallion (75) |
+  | 22 | Blacksmith attack | Maas (70), Moose (72), Meese (69), Mose (5) |
+  | 23 | Blacksmith attack | Mose (5), Moose (72), Meese (69), Mace (71) |
+  | 24 | Blacksmith attack | Maas (70), Mose (5), Meese (69), Mace (71) |
+  | 25 | Blacksmith attack | Maas (70), Moose (72), Mose (5), Mace (71) |
+  | 26 | Beauty attack | Cleo (1), Eileen (0), Sonya (10) |
+  | 27 | Kobold +1 attack | Kuromimi (14), Fu Su Lu (65), Gon (80) |
+  | 28 | Beat'em up attack | Pahn (6), Ronnie (13) |
+  | 29 | Ninja attack | Kasumi (23), Fuma (55), Kage (22) |
+  | 30 | Martial arts attack | Eikei (66), Pahn (6), Morgan (52) |
+  | 31 | Lepant family attack | Lepant (30), Eileen (0), Sheena (62) |
+  | 32 | Master pupil attack | Hero (8), Kai (91) |
 
   Several names repeat across multiple slots (Wild Arrow ×3, Blacksmith ×5, Beauty ×2) — each is
   a distinct valid partner combination for the same physical attack/animation, not a duplicate;
@@ -322,9 +328,9 @@ from the live per-battle combatant array — already correct and stable at this 
 
 Not yet extracted into the snapshot (needed by a simulator, but static/unchanging across every
 battle, so planned as a separate one-time reference dump rather than re-captured per snapshot):
-the Rune ability-set table, spell definitions, the Unite table, item definitions, and
-`attack_data_table`'s elemental compatibility rows — all located during the action enumeration
-work above.
+the Rune ability-set table, spell definitions, the Unite table, and `attack_data_table`'s
+elemental compatibility rows — all located during the action enumeration work above. Item
+definitions are dumped by `scripts/DumpItemTable.py` (see [Items](./Items.md)).
 
 ## The TurnResult capture (`BattleRoundInput:runTurn()`)
 

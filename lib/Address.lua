@@ -14,6 +14,7 @@ local Address = {
   ENEMY_GROUP_PTR = 0x197F10,
   ENCOUNTER_TABLE_PTR = 0x197F14,
   ITEM_NAME_PTR_1 = 0x16765c,
+  ITEM_DEFINITION_TABLE = 0x167658, -- LAB_80167658: u32 pointer per item id (1-179; id 0 is empty). Static, same as main.exe. Record layout in docs/game_mechanics/Items.md.
   BATTLE_ITEM_DROP = 0x18FAF0,
   GAMESTATE_BASE = 0x1B8000,
   RECRUIT_FIRST_SLOT = 0x1B9AF4,

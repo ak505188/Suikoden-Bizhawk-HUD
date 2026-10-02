@@ -216,7 +216,8 @@ frame in practice. Seeing them match is expected behavior, not a bug.
   Free Will, otherwise a stale leftover
   value" — a fixed constant, just conditionally written.
 - Rune/Item/Unite never touch the field directly — they defer to their own
-  wait-for-animation coroutine states.
+  wait-for-animation coroutine states. For Item the next roll comes 20
+  frames after the item resolves; see [Item turns](#item-turns).
 - `battle_advance_turn`'s own "no eligible combatant" branch resets it to
   `30` (see step 5 above).
 - A phase-4→5 round-cleanup function (`0x800f74a8`, tags a
@@ -285,6 +286,54 @@ the selections it produced before the final confirm — is written up in
 [Scripted_Battle_Actions.md](./Scripted_Battle_Actions.md); this section's
 `battle_dispatch_current_actor_action` mechanism is still exactly what
 executes each action afterward, it just isn't the whole story.
+
+## Item turns
+
+Live-confirmed 2026-09-27 (`scripts/TraceItemDoneTick.lua`,
+`ZombieDragon.State`, McDohl uses Medicine, 3 seeds per setup). Frames
+count from R, the frame the item resolves. Every item has the same timing
+(user), and the item path makes no `rand()` calls: the seed didn't move
+from R until the next turn-order roll in any run.
+
+1. **Wait for idle.** `battle_try_special_attack` (`0x800f5050`) starts
+   with `battle_check_all_combatants_idle()`. While anyone is busy it
+   returns 0 and retries next tick, with no RNG. In one run McDohl became
+   the current actor 99 frames before R, while Cleo's Attack was still
+   playing out. R was the frame right after the last busy byte cleared.
+   Defend doesn't wait like this (it finished on the next frame in the same
+   setup).
+2. **Resolve (R).** It takes one off the use count, stores the item's
+   effect handler (`itemDef+0x20`) at `BattleState+0x10`, sets
+   `ActionTag = 1`, clears the user's `wEffectFlags` and plays the shared
+   item-use script `0x8016c194` on the user. The user's busy byte goes to
+   1. A single-target item whose target isn't a valid combatant returns
+   -1, and the dispatcher treats it as Defend. A valid target that
+   `check_combatant_alive` rejects makes it wait instead.
+3. **Effect handler (R+1 to R+19).** The dispatcher's Item wait state
+   (`LAB_800f445c`) calls the handler at `+0x10` every tick. Medicine's
+   (`0x800f0708`) returns -1 until the user's `wEffectFlags` bit `0x8` is
+   set, which the item-use script does at R+19. It then starts script
+   `0x8016c1c0` on the user and `0x8016c2f0` on the target (both through
+   `play_attack_animation`) and returns 0, which means "done". The target's
+   busy byte goes 0→1 on that same frame.
+4. **Next roll (R+20).** The wait state sets `+0x30 = 1` and returns to
+   `battle_advance_turn`. The gate is still ≤ 0 from the last roll, so the
+   roll runs on the next tick. The new current actor is set at R+21.
+
+| What | Frame |
+|---|---|
+| item resolves, user busy 0→1 | R |
+| target busy 0→1, handler done | R+19 |
+| next turn-order roll | R+20 |
+| new current actor | R+21 |
+| target busy clears | R+83 |
+| user busy clears, self-targeted | R+83 |
+| user busy clears, ally targeted | R+88 |
+
+**The target always misses the next roll.** Its busy byte is 1 at R+20,
+so the roll skips it (see "Tie-breaking and edge cases"). The skip doesn't
+depend on RNG or on when the item started. It's why Medicine on a party
+member pushes their turn back. Rolls after R+83 can pick them again.
 
 ## Finding a living enemy's move-choice probability, per-instance
 

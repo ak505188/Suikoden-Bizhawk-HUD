@@ -2,6 +2,11 @@
 -- Copyright (c) 2018, xiedacon.
 local fs = { _VERSION = "0.1" }
 
+-- Quote a string for POSIX sh, escaping embedded single quotes
+local function shq (s)
+    return "'" .. string.gsub(s, "'", "'\\''") .. "'"
+end
+
 local function popen (command, n)
     if not n then n = 3 end
     local result, err
@@ -35,7 +40,7 @@ function fs.read (path, n)
 end
 
 function fs.readdir (path, n)
-    local content = popen("ls -a '" .. path .. "'", n)
+    local content = popen("ls -a " .. shq(path), n)
 
     if not content or content == "" then
         return nil, "No such file or directory"
@@ -144,7 +149,7 @@ function fs.copy (path1, path2)
 end
 
 function fs.move (path1, path2)
-    local ok = os.execute("mv '" .. path1 .. "' '" .. path2 .. "'")
+    local ok = os.execute("mv " .. shq(path1) .. " " .. shq(path2))
 
     if not ok then
         return false, "failed to move " .. path1 .. " to " .. path2
@@ -154,7 +159,7 @@ function fs.move (path1, path2)
 end
 
 function fs.mkdir (path)
-    local ok = os.execute("mkdir -p '" .. path .. "'")
+    local ok = os.execute("mkdir -p " .. shq(path))
 
     if not ok then
         return false, "failed to mkdir " .. path
@@ -164,10 +169,10 @@ function fs.mkdir (path)
 end
 
 function fs.rm (path)
-    local ok = os.execute("rm '" .. path .. "'")
+    local ok, err = os.remove(path)
 
     if not ok then
-        return false, "failed to rm " .. path
+        return false, "failed to rm " .. tostring(err)
     else
         return true
     end
@@ -176,7 +181,7 @@ end
 fs.remove = fs.rm
 
 function fs.rmdir (path)
-    local ok = os.execute("rmdir '" .. path .. "'")
+    local ok = os.execute("rmdir " .. shq(path))
 
     if not ok then
         return false, "failed to rmdir " .. path
@@ -186,17 +191,17 @@ function fs.rmdir (path)
 end
 
 function fs.unlink (path)
-    local ok = os.execute("unlink '" .. path .. "'")
+    local ok, err = os.remove(path)
 
     if not ok then
-        return false, "failed to unlink " .. path
+        return false, "failed to unlink " .. tostring(err)
     else
         return true
     end
 end
 
 function fs.rmAll (path)
-    local ok = os.execute("rm -rf '" .. path .. "'")
+    local ok = os.execute("rm -rf " .. shq(path))
 
     if not ok then
         return false, "failed to rmAll " .. path
@@ -208,7 +213,7 @@ end
 fs.removeAll = fs.rmAll
 
 function fs.chown (path, own)
-    local ok = os.execute("chown '" .. own .. "' '" .. path .. "'")
+    local ok = os.execute("chown " .. shq(own) .. " " .. shq(path))
 
     if not ok then
         return false, "failed to chown " .. own .. " " .. path
@@ -218,7 +223,7 @@ function fs.chown (path, own)
 end
 
 function fs.chmod (path, mode)
-    local ok = os.execute("chmod '" .. tostring(mode) .. "' '" .. path .. "'")
+    local ok = os.execute("chmod " .. shq(tostring(mode)) .. " " .. shq(path))
 
     if not ok then
         return false, "failed to chmod " .. tostring(mode) .. " " .. path
