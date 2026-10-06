@@ -668,11 +668,10 @@ spell id `N` → array index `N-1`), each pointing to a 0x20-byte struct:
   combo-Unite structs (ids 34-38) do *not* have a valid charmap name here —
   those bytes are non-printable, presumably unused since combo casts never
   show a normal "cast X" name prompt.
-- `+0x16`: a flags word. Low bits appear to encode target type (`3` =
-  single-target, `1` = AOE, confirmed via Ball of Lightning, Thor, and
-  Explosion/Earthquake/Charm Arrow all matching their already-documented
-  targeting), but values `0`, `2`, `8`, `0xA` also occur and are not fully
-  decoded — recorded as-is below rather than guessed at.
+- `+0x16`: the target flags word, fully decoded: bit `0x8` = ally audience,
+  low 2 bits = target validation. All six values that occur (`0`, `1`, `2`,
+  `3`, `8`, `0xA`) are listed per spell in "Target flags by spell" below
+  and decoded in "`+0x16` flags word" further down.
 - `+0x1c`: the `cast_entry` code pointer (see "How spells call RNG" below).
 
 All 38 ids, decoded directly from the charmap names (element/level grouping
@@ -4041,11 +4040,13 @@ the damage number itself. See
 the repeatable tracing process; this section only records the per-spell
 results.
 
-Duration numbers below come from summing each phase's hardcoded tick-count
-immediate and dividing by 60 (NTSC fps). Two spells (Shining Wind, Hell)
-run part of their state machine at non-1:1 tick:frame ratios (a
-rendering-load quirk); their listed duration is the real measured span, not
-the naive tick-sum.
+The "Phase ticks" and "Total ticks" columns below are static: each phase's
+hardcoded tick-count immediate, summed. They are **not** frame counts. Several
+spells run phases at other than one tick per frame (Shining Wind, Final
+Flame, Explosion, Hell), and Hell's and Black Shadow's last phases were never
+resolved, so their sums were lower bounds. The live-measured frame count for
+every spell is in "Measured cast durations" below and supersedes this table
+wherever the two differ.
 
 | Spell | id | Element | Base power | Phase ticks |
 |---|---|---|---|---|
@@ -4062,24 +4063,25 @@ the naive tick-sum.
 
 | Spell | Total ticks (≈s @60fps) | RNG-call total |
 |---|---|---|
-| Explosion | 320 (~10.7s) [1] | 1220 (native seed), 1271 (fresh seed) [5] |
+| Explosion | 320 static; 831 live [1] | 1220 (native seed), 1271 (fresh seed) [5] |
 | Earthquake | 320 (~5.3s) | seed-dep., 1519–1786 (mean 1649) |
-| Charm Arrow | 224 (~3.7s) | 24436 (validated seed, core 64-tick phase) |
+| Charm Arrow | 224 static; 226 live | 24436 (validated seed, core 64-tick phase) |
 | Flaming Arrow | 294 (~4.9s) | 512 for the validated seed |
 | Dancing Flames | 493 (~8.2s) | fixed 150, always |
 | Firestorm | 433 (live) [6] | 0, always (live) |
 | Final Flame | 584 (681 frames) [7] | seed-dep., 530-538 |
-| Shining Wind | 384 raw [1] | 1302 for the validated seed |
+| Shining Wind | 384 raw; 535-539 live [1] | 1302 for the validated seed |
 | Storm Fang | ~360 real frames | fixed 38, always |
-| Hell | ≥224 ticks [4] | seed-dep., ~10320–12220 (20 seeds) |
-| Black Shadow | ≥176 ticks | seed/state-dependent — see below |
+| Hell | 843 live (static sum unresolved) [4] | seed-dep., ~10320–12220 (20 seeds) |
+| Black Shadow | 463 live (static sum unresolved) | seed/state-dependent — see below |
 
 1. case3 phase runs at half framerate, so the real-time span (~9s) is longer
    than the raw tick count implies.
 2. Not decompiled past setup — provably zero RNG.
 3. Corrected from an earlier "Dark (Lv4*)" uncertainty marker — see [the full
    spell table](#the-full-spell-table-dat_8016d33c).
-4. Real-frame span varies 260–318 depending on battle context.
+4. The 260-318 frame variation applies to Hell's RNG-heavy phase only, not to
+   the whole spell (843 frames, measured 2026-10-06).
 5. Fully modeled and validated exact per-tick against two independently-seeded live
    captures - see `simulateExplosion`'s comment in `lib/Magic.lua` for the confirmed
    mechanism (Pool A/B each re-fire once, at a fixed 55/60-tick cycle after their first
@@ -4174,6 +4176,126 @@ immediates above; the measured figure is what the game takes.
 (plural) — this table's "Flaming Arrow" predates that decode and is kept
 here for continuity with earlier trace notes; the plural is the
 authoritative in-game name.
+
+### Measured cast durations, every spell (live, 2026-10-06)
+
+`scripts/MeasureSpellTiming.lua`; `SpellDuration.State` (McDohl, roster id 8,
+formation slot 1; rune swapped per case; all four MP pools set to 9), one
+Zombie Dragon (enemy id 1, not flying), 3 seeds per spell. The five Fire
+spells are the Cleo captures above, re-run through the same script as a
+regression (identical numbers, including damage frame and `rand()` count).
+
+**Markers.** `battle+0x14` is a general handler pointer and never returns to
+0, so it can't mark the end. A cast is the handler sequence:
+
+| Frame | `battle+0x14` |
+|---|---|
+| T0 | the spell's cast entry (`+0x1c` of its definition) |
+| T0+1 | intro state `0x80120660` |
+| T0+15 | the spell's setup handler |
+| T0+16 | the tick machine |
+| end | an end handler (not every spell, see below) |
+
+T0 is the frame before `0x80120660` appears, which doesn't depend on how
+long the game waited for everyone to go idle (32 to 118 frames across runs).
+**The machine ends 3 frames before `battle+0x8` moves off the caster** (the
+next actor is picked): that held for 30 of the 31 spells, and a handler
+change lands exactly there in all of them but Voice of Earth. Machine
+length = end - (T0+16). Not usable as the end marker:
+
+- *Mid-machine handler hops.* Charm Arrow's machine moves from `0x80105130`
+  to `0x801052f8` at T0+18 and to its end handler `0x80105858` at T0+242.
+  Counting handler changes ends it at +18.
+- *No end handler.* Voice of Earth stays on `0x80112ca8` until the next
+  spell: the end is inferred (damage +336, next actor +340, so about 321).
+- Charm Arrow's lag to the next actor is 4 frames, not 3 (226 by the
+  handler, 227 by the rule).
+
+`machine` is the tick machine's length in frames; `dmg` and `next` count
+from T0. `-` means no HP change was seen (heals at full HP, buffs, status
+spells, and instant-death spells on a target that resists them).
+
+| Spell | id | machine | dmg | next |
+|---|---|---|---|---|
+| Flaming Arrows | 1 | 294 | 310 | 313 |
+| Firestorm | 2 | 433 | 385 | 452 |
+| Dancing Flames | 3 | 493 | 509 | 512 |
+| Explosion | 4 | 831 | 847 | 850 |
+| Final Flame | 29 | 681 | 696 | 700 |
+| Scolding | 5 | 256 | 272 | 275 |
+| Yell | 6 | 368 | - | 387 |
+| Scream | 7 | 364-366 | 380-382 | 383-385 |
+| Charm Arrow | 8 | 226 | 242 | 246 |
+| Drops of Kindness | 9 | 306 | - | 325 |
+| Fog of Deception | 10 | 411 | - | 430 |
+| Water of Kindness | 11 | 306 | 262 | 325 |
+| Rain of Kindness | 12 | 419-429 | 435-445 | 438-448 |
+| Mother Ocean | 30 | 557 | 509 | 576 |
+| Wind of Sleep | 13 | 416 | - | 435 |
+| The Shredding | 14 | 264 | 224 | 283 |
+| Healing Wind | 15 | 288 | - | 307 |
+| Storm | 16 | 280 | 240 | 299 |
+| Shining Wind | 31 | 535-539 | 551-555 | 554-558 |
+| Angry Blow | 17 | 304 | 256 | 323 |
+| Rainstorm | 18 | 408 | 361 | 427 |
+| Raging Blow | 19 | 400 | 353 | 419 |
+| Ball of Lightning | 20 | 384 | 400 | 403 |
+| Thunder God | 32 | 484 | 500 | 503 |
+| Clay Guardian | 21 | 336 | - | 355 |
+| Voice of Earth | 22 | ~321 | 336 | 340 |
+| Copper Flesh | 23 | 504 | - | 523 |
+| Earthquake | 24 | 320 | 273 | 339 |
+| Guardian of Earth | 33 | 474-480 | - | 493-499 |
+| Deadly Fingertips | 25 | 575 | - | 594 |
+| Black Shadow | 26 | 463 | 479 | 482 |
+| Hell | 27 | 843 | - | 862 |
+| Judgment | 28 | 504 | 520 | 523 |
+| Scorched Earth | 34 | 562 | 515 | 581 |
+| Storm Fang | 35 | 387 | 340 | 406 |
+| Blazing Camp | 36 | 374 | 390 | 393 |
+| Thor | 37 | 571 | 587 | 590 |
+| Water Dragon | 38 | 671-681 | 592 | 690-700 |
+
+**Unites (ids 34-38).** Measured with McDohl and Luc (roster id 26) both
+queueing Rune slot 4 on the enemy, everyone else Defending. Rune cycle
+Fire > Lightning > Water > Wind > Earth, each case shifting both one step:
+Fire+Lightning is Blazing Camp, Lightning+Water Thor, Water+Wind Water
+Dragon, Wind+Earth Storm Fang, Earth+Fire Scorched Earth. The cast-entry
+handler in each run is the combo's own `+0x1c` pointer, not either solo
+Lv4 spell. McDohl triggered all five on all seeds. A Unite is one cast on
+the triggering caster's turn, and its length is the combo's own. Scorched
+Earth, Storm Fang and Water Dragon deal damage before the machine ends
+(+515, +340 and +592).
+
+Hell is 859 frames from T0 (~14.3 s) and Black Shadow 479 (~8 s). The
+earlier "260 vs 318" Hell figure is only its RNG phase. Four spells vary by
+a few frames between seeds (Scream, Rain of Kindness, Shining Wind,
+Guardian of Earth, and Water Dragon); they don't share a target type, and
+the cause is not known.
+Everything else is identical on every seed. Earthquake's static sum (320)
+and Charm Arrow's (224) were right; Explosion, Final Flame and Shining Wind
+were not.
+
+**Target flags by spell.** The spell definition's `+0x16` word, read from
+all 38 definitions in memory (2026-10-06), decoded in "`+0x16` flags word"
+below: bit `0x8` = ally audience, low 2 bits = how
+`battle_select_special_ability` validates `TargetIdx`. No other value, and
+no bit above `0xA`, occurs in ids 1-38.
+
+| `+0x16` | Validation | Spell ids |
+|---|---|---|
+| `0` | none, party effect | 33 |
+| `1` | any living enemy, AOE | 2 3 4 8 10 13 16 18 22 24 |
+| `1` | (continued) | 26 27 29 31 32 34 35 36 38 |
+| `2` | one ally, as given | 21 23 |
+| `3` | one enemy, reselect | 1 5 14 17 19 20 25 28 37 |
+| `8` | ally audience, none (whole party) | 7 11 12 30 |
+| `0xA` | one ally, as given | 6 9 15 |
+
+For a scripted cast, `TargetIdx` is the caster's own index for `2` and
+`0xA`, the first enemy for `3`, and `0` for the rest
+(`scripts/MeasureSpellTiming.lua`). These runs had one enemy and six allies,
+so a spell that scales with the number of targets would not show it here.
 
 ### Explosion
 
