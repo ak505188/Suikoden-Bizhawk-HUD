@@ -416,4 +416,241 @@ function TestExplosion:testValidatedSeeds()
   end
 end
 
+TestJudgment = {}
+
+-- McDohl's Judgment (Soul Eater Lv4) on SpellDuration.State, start seed read in-game on the
+-- frame battle+0x14 held spell_judgment_vfx_setup (scripts/CaptureJudgment.lua). Expected is the
+-- real number of rand() calls from that frame through the end of the tick machine, summed from the
+-- live per-frame capture (setup's 30 + phase 5's calls), not taken from the simulator. Each seed
+-- gave a different setup roll, so these also cover the 161 / 167 spread.
+function TestJudgment:testKnownCapturedSeeds()
+  luaunit.assertEquals(Magic.simulateJudgment(0xfd5ecce9), 167)
+  luaunit.assertEquals(Magic.simulateJudgment(0x60d0e275), 161)
+  luaunit.assertEquals(Magic.simulateJudgment(0x72bc8dbc), 167)
+end
+
+-- 20 more seeds, injected into SpellDuration.State (scripts/CaptureJudgmentSeeds.lua); the start
+-- value is what the RNG held when setup ran (ambient calls before the cast shift it away from the
+-- injected one), and the count is the LCG-step distance from it to the RNG value on the first frame
+-- of spell_judgment_cleanup. All matched the simulator exactly (0 discrepancies).
+function TestJudgment:testValidatedSeeds()
+  local cases = {
+    { 0x58dbd149, 167 },
+    { 0xb4a56396, 173 },
+    { 0xf0289ce7, 158 },
+    { 0x9cfbae39, 152 },
+    { 0x7d3feff7, 170 },
+    { 0x3101a6f1, 167 },
+    { 0x6ac77c90, 158 },
+    { 0xdd33e45d, 164 },
+    { 0x67651ec6, 167 },
+    { 0x3a8d3d5a, 167 },
+    { 0x70289ce7, 158 },
+    { 0x10de13c5, 170 },
+    { 0x0d1a95a6, 173 },
+    { 0x4c3e8ca5, 170 },
+    { 0xc47f8042, 164 },
+    { 0xa34f3f18, 173 },
+    { 0xa059d79a, 155 },
+    { 0x87d3da0d, 176 },
+    { 0x4289e502, 167 },
+    { 0x2d6210d6, 164 },
+  }
+  for _, case in ipairs(cases) do
+    local seed, expected = case[1], case[2]
+    luaunit.assertEquals(Magic.simulateJudgment(seed), expected,
+      string.format("seed 0x%08x", seed))
+  end
+end
+
+TestDropsOfKindness = {}
+
+-- Like Dancing Flames, a fixed total: McDohl's Water Lv1 (Drops of Kindness, on himself) gave exactly 18
+-- rand() calls from spell_drops_of_kindness_vfx_setup to the tick machine's end on all 20 injected seeds
+-- (scripts/CaptureDropsSeeds.lua, LCG-step distance between the real RNG values), so one case to pin.
+function TestDropsOfKindness:testFixedTotal()
+  luaunit.assertEquals(Magic.simulateDropsOfKindness(), 18)
+end
+
+TestFogOfDeception = {}
+
+-- McDohl's Water Lv2 (Fog of Deception, on the lone enemy of SpellDuration.State) cost exactly 0
+-- rand() calls from spell_fog_of_deception_vfx_setup through the tick machine's end handler on all 20
+-- injected seeds (scripts/CaptureFogSeeds.lua, LCG-step distance between the real RNG values). The 6
+-- calls seen after it come right before the next actor is picked, not from the spell.
+function TestFogOfDeception:testFixedTotal()
+  luaunit.assertEquals(Magic.simulateFogOfDeception(), 0)
+end
+
+TestRainOfKindness = {}
+
+-- McDohl's Water Lv4 (Rain of Kindness; id 12 is Water slot 4, not slot 3) on SpellDuration.State, a
+-- party of 6. Start seed = the RNG value read in-game on the frame battle+0x14 held
+-- spell_rain_of_kindness_vfx_setup (ambient calls before the cast shift it away from the injected
+-- seed); expected = LCG-step distance from it to the RNG value on the first frame of the end handler
+-- (0x80107ea4), from scripts/CaptureRainSeeds.lua - not the simulator's output. All 20 matched
+-- exactly. Every total is 72 (setup) + 5 per rain-line spawn, and ranges 1527-1572.
+function TestRainOfKindness:testValidatedSeeds()
+  local cases = {
+    { 0x58dbd149, 1562 },
+    { 0xb4a56396, 1562 },
+    { 0xf0289ce7, 1527 },
+    { 0x9cfbae39, 1547 },
+    { 0x7d3feff7, 1562 },
+    { 0x3101a6f1, 1552 },
+    { 0x6ac77c90, 1562 },
+    { 0xdd33e45d, 1572 },
+    { 0x67651ec6, 1567 },
+    { 0x3a8d3d5a, 1547 },
+    { 0x70289ce7, 1527 },
+    { 0x10de13c5, 1562 },
+    { 0x0d1a95a6, 1542 },
+    { 0x4c3e8ca5, 1552 },
+    { 0xc47f8042, 1537 },
+    { 0xa34f3f18, 1527 },
+    { 0xa059d79a, 1547 },
+    { 0x87d3da0d, 1547 },
+    { 0x4289e502, 1532 },
+    { 0x2d6210d6, 1552 },
+  }
+  for _, case in ipairs(cases) do
+    local seed, expected = case[1], case[2]
+    luaunit.assertEquals(Magic.simulateRainOfKindness(seed, 6), expected,
+      string.format("seed 0x%08x", seed))
+  end
+end
+
+-- Same spell with a party of 5 (RainOfKindness.State: McDohl slot 1, Water rune, Lv4 available, nothing
+-- edited), same method (scripts/CaptureRainSeeds5.lua). Setup drops to 60 and the totals to 1515-1570,
+-- each 60 + 5 per rain-line spawn; 0 mismatches.
+function TestRainOfKindness:testValidatedSeedsPartyOfFive()
+  local cases = {
+    { 0xf0103b50, 1520 },
+    { 0x7f88a2b1, 1545 },
+    { 0x29749aa6, 1535 },
+    { 0xd9e2b600, 1515 },
+    { 0x23780ff6, 1535 },
+    { 0x8886be98, 1530 },
+    { 0x2093fb53, 1570 },
+    { 0x61c71e34, 1545 },
+    { 0xebb28ca1, 1545 },
+    { 0xbf8c7905, 1565 },
+    { 0xa9749aa6, 1535 },
+    { 0xef984a3c, 1545 },
+    { 0x084a1301, 1550 },
+    { 0x857d9a9c, 1550 },
+    { 0x9933d68d, 1535 },
+    { 0x11fe92fb, 1550 },
+    { 0xb31e1445, 1540 },
+    { 0xb59b9ca4, 1540 },
+    { 0x2c89d64d, 1540 },
+    { 0x0842bcf1, 1535 },
+  }
+  for _, case in ipairs(cases) do
+    local seed, expected = case[1], case[2]
+    luaunit.assertEquals(Magic.simulateRainOfKindness(seed, 5), expected,
+      string.format("seed 0x%08x", seed))
+  end
+end
+
+TestWaterOfKindness = {}
+
+-- McDohl's Water Lv3 (Water of Kindness, id 11) on SpellDuration.State, a party of 6: exactly 72 rand()
+-- calls from spell_water_of_kindness_vfx_setup to the tick machine's end handler (0x801071b4) on all 20
+-- injected seeds (scripts/CaptureWaterOfKindnessSeeds.lua, LCG-step distance between the real RNG
+-- values). The cost is 12 per party member, independent of the seed.
+function TestWaterOfKindness:testFixedTotalPartyOfSix()
+  luaunit.assertEquals(Magic.simulateWaterOfKindness(6), 72)
+end
+
+-- Observed in-game by the user with a party of 5 (not captured by a script).
+function TestWaterOfKindness:testPartyOfFive()
+  luaunit.assertEquals(Magic.simulateWaterOfKindness(5), 60)
+end
+
+TestWindOfSleep = {}
+
+-- McDohl's Wind Lv1 (Wind of Sleep, id 13) on WindOfSleep.State (5 enemies, all eligible for the Sleep roll;
+-- the rune and MP were edited, see scripts/CaptureWindOfSleep.lua). Native-seed per-frame capture, start
+-- seed read on the frame battle+0x14 held spell_wind_of_sleep_vfx_setup: 100 setup + 200 on the first
+-- spawn tick + 8 for two life rolls of 0 (one frame, the tick after) + 5 Sleep rolls (one frame, machine
+-- tick 360) = 313.
+function TestWindOfSleep:testKnownCapturedSeed()
+  luaunit.assertEquals(Magic.simulateWindOfSleep(0x96b9137b, 5), 313)
+end
+
+-- 20 injected seeds, same state. The start value is what the RNG held when setup ran (ambient calls shift
+-- it from the injected one); the count is the LCG-step distance from it to the RNG value on the first
+-- frame of the end handler (0x80109358). Every total is 305 (the 300 fixed + 5 enemies) plus 4 per life
+-- roll of 0, so 305-317 here. All matched exactly (0 discrepancies).
+function TestWindOfSleep:testValidatedSeeds()
+  local cases = {
+    { 0x8f873905, 309 },
+    { 0xab4c2322, 309 },
+    { 0x5e582083, 305 },
+    { 0x31dff4f5, 305 },
+    { 0x21799493, 313 },
+    { 0xe0f8c12d, 309 },
+    { 0xafcfd1bc, 309 },
+    { 0x154f6959, 305 },
+    { 0xab046152, 305 },
+    { 0xe751d526, 305 },
+    { 0xde582083, 305 },
+    { 0xbd912741, 305 },
+    { 0xbb4a6632, 305 },
+    { 0xa0304e21, 305 },
+    { 0x81095e8e, 317 },
+    { 0xc98534c4, 305 },
+    { 0x47edd366, 305 },
+    { 0x26f10a09, 309 },
+    { 0xe4354f4e, 305 },
+    { 0xd9466462, 305 },
+  }
+  for _, case in ipairs(cases) do
+    local seed, expected = case[1], case[2]
+    luaunit.assertEquals(Magic.simulateWindOfSleep(seed, 5), expected,
+      string.format("seed 0x%08x", seed))
+  end
+end
+
+-- Same spell against SpellDuration.State's lone enemy, Ain Gide: his attack data (battle+0x1344 table,
+-- enemy id * 4) has u16 +0x26 = 0x4003, so the 0x4000 (immune to Sleep) bit is set and the case-3 loop
+-- never runs the hit script on him: no Sleep roll. Native-seed per-frame capture
+-- (scripts/CaptureWindOfSleepAinGide.lua): 100 setup + 200 on the first spawn tick and nothing else = 300.
+function TestWindOfSleep:testImmuneEnemyKnownCapturedSeed()
+  luaunit.assertEquals(Magic.simulateWindOfSleep(0xfd5ecce9, 0), 300)
+end
+
+-- 20 injected seeds vs the immune enemy, measured like testValidatedSeeds: 300 + 4 per life roll of 0
+-- (300-304 here), all matched exactly.
+function TestWindOfSleep:testValidatedSeedsImmuneEnemy()
+  local cases = {
+    { 0x58dbd149, 304 },
+    { 0xb4a56396, 304 },
+    { 0xf0289ce7, 300 },
+    { 0x9cfbae39, 300 },
+    { 0x7d3feff7, 308 },
+    { 0x3101a6f1, 304 },
+    { 0x6ac77c90, 304 },
+    { 0xdd33e45d, 304 },
+    { 0x67651ec6, 300 },
+    { 0x3a8d3d5a, 300 },
+    { 0x70289ce7, 300 },
+    { 0x10de13c5, 300 },
+    { 0x0d1a95a6, 300 },
+    { 0x4c3e8ca5, 300 },
+    { 0xc47f8042, 312 },
+    { 0xa34f3f18, 300 },
+    { 0xa059d79a, 300 },
+    { 0x87d3da0d, 304 },
+    { 0x4289e502, 300 },
+    { 0x2d6210d6, 300 },
+  }
+  for _, case in ipairs(cases) do
+    local seed, expected = case[1], case[2]
+    luaunit.assertEquals(Magic.simulateWindOfSleep(seed, 0), expected,
+      string.format("seed 0x%08x", seed))
+  end
+end
+
 os.exit(luaunit.LuaUnit.run())

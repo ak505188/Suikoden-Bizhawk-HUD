@@ -4060,6 +4060,13 @@ wherever the two differ.
 | Storm Fang | `35` | Earth+Wind combo | — | n/a [2] |
 | Hell | `27` | Dark (Lv3, corrected) [3] | 2 (instant-death) | 64+32+128+? |
 | Black Shadow | `26` | Dark (Lv2) | 300 | 64+32+80+? |
+| Judgment | `28` | Dark (Lv4) | 1500 | 64+32+64+64+64+96+60+60 |
+| Drops of Kindness | `9` | Water (Lv1) | heal | 64+32+90+60+60 |
+| Fog of Deception | `10` | Water (Lv2) | status | 9 cases, see below |
+| Rain of Kindness | `12` | Water (Lv4) | heal 300 | 64+32+90+90+60+60 |
+| Water of Kindness | `11` | Water (Lv3) | heal 300 | 64+32+90+60+60 |
+| Mother Ocean | `30` | Flowing (Lv4) | full heal | 64+32+90+60+60+60+64, see below |
+| Wind of Sleep | `13` | Wind (Lv1) | Sleep 70% | 64+64+64+64+96+64 |
 
 | Spell | Total ticks (≈s @60fps) | RNG-call total |
 |---|---|---|
@@ -4074,6 +4081,13 @@ wherever the two differ.
 | Storm Fang | ~360 real frames | fixed 38, always |
 | Hell | 843 live (static sum unresolved) [4] | seed-dep., ~10320–12220 (20 seeds) |
 | Black Shadow | 463 live (static sum unresolved) | seed/state-dependent — see below |
+| Judgment | 504 (static sum = live) | seed-dep., 152-176 (23 seeds) |
+| Drops of Kindness | 306 (static sum = live) | fixed 18, always |
+| Fog of Deception | 411 (live) | 0, always (live) |
+| Rain of Kindness | 419-429 live (static 396) | seed-dep., 1515-1572 (40 seeds) |
+| Water of Kindness | 306 (static sum = live) | 12 x party size (72 for 6) |
+| Mother Ocean | 557 live (static 430) | 12 x party size, static only |
+| Wind of Sleep | 416 (static sum = live) | 300 + 4/zero roll + 1/enemy, 305-317 |
 
 1. case3 phase runs at half framerate, so the real-time span (~9s) is longer
    than the raw tick count implies.
@@ -4530,3 +4544,187 @@ power is a non-HP sentinel); Black Shadow `apply_elemental_multiplier(2, 7,
 
 `simulateHell`/`simulateBlackShadow` in `lib/Magic.lua`,
 `TestHell`/`TestBlackShadow` in `tests/test_Magic.lua`.
+
+### Judgment (Soul Eater Lv4)
+
+`spell_judgment_cast_entry` (`0x80116638`) schedules
+`spell_judgment_vfx_setup` (`0x80116660`), which hands off to
+`spell_judgment_tick_state_machine` (`0x80116b7c`); the context is the shared
+Soul Eater-family struct at `DAT_8017a060`. The eight phases run 64+32+64+64+
+64+96+60+60 = 504 ticks, one tick per frame, which equals the measured
+machine length. Damage is `apply_elemental_multiplier(4, 7, ..., 1500)` at
+the end of the last phase, with no RNG.
+
+`rand()` calls:
+
+- **Setup, 30 calls in one frame.** For each of 15 bolt particles, a
+  `rand()%48` (the bolt's first-spawn tick) and a scale roll.
+- **Phase 5 only (96 ticks).** Four pool heads spawn at ticks 0/6/12/18 and
+  respawn the tick after dying; a head's z starts at -300 and gains 20 per
+  tick, so it lives 15 ticks and spawns every 15 (2 calls each, 50 in all).
+  Bolts 4-14 spawn at their setup-rolled tick and respawn once their
+  non-looping sprite ends (33 active frames, a spawn every 34 ticks), at 3
+  calls each (`rand()%100` plus the shared helper's 2).
+- **Total** = 80 + 3 x (22 + k), where k is the number of bolts 4-14 whose
+  first tick is 27 or less, so 152-176.
+
+Validated against 3 per-frame captures (`scripts/CaptureJudgment.lua`) and 20
+injected seeds (`scripts/CaptureJudgmentSeeds.lua`), 0 mismatches.
+`simulateJudgment` in `lib/Magic.lua`, `TestJudgment` in
+`tests/test_Magic.lua` (expected values are the in-game counts, not simulator
+output). The 6 `rand()` calls a few frames after the machine ends belong to
+the next actor, not the spell.
+
+### Drops of Kindness (Water Lv1)
+
+`spell_drops_of_kindness_cast_entry` (`0x801058ac`) schedules
+`spell_drops_of_kindness_vfx_setup` (`0x801058d4`), then
+`spell_drops_of_kindness_tick_state_machine` (`0x80105bc8`), context
+`DAT_8017a040`. Phases 64+32+90+60+60 = 306 ticks, equal to the measured
+machine length. Setup rolls 3 values for each of 6 droplets (scale,
+`rand()%100` depth, rotation) = 18 calls in one frame; the tick machine
+has no `rand()`. Fixed 18 on all 20 live seeds
+(`scripts/CaptureDropsSeeds.lua`). `simulateDropsOfKindness`,
+`TestDropsOfKindness`.
+
+### Fog of Deception (Water Lv2)
+
+`spell_fog_of_deception_cast_entry` (`0x80106178`) schedules
+`spell_fog_of_deception_vfx_setup` (`0x801061a0`), then
+`spell_fog_of_deception_tick_state_machine` (`0x801062f0`), context
+`DAT_8017a040`; the machine hands off to `0x80106844` when done. Nine
+cases, 411 frames live. Neither setup, the machine nor its helpers call
+`rand()`, and the effect itself is applied inside the machine (case 6:
+`play_attack_animation` on each living enemy, and one enemy field scaled
+by 4/5), so it has no roll of its own either.
+
+Live, 20 injected seeds (`scripts/CaptureFogSeeds.lua`, Water Lv2 on
+`SpellDuration.State`): 0 `rand()` calls from setup to the end handler,
+always. The 6 calls in the 3 frames after it come just before the next actor
+is picked (Judgment shows the same 6, and the following actors show 5 and
+4), so they belong to the turn order, not the spell. I could not pin down
+which byte the 4/5 scale lands on from the combatant-record diff
+(`scripts/CaptureFogDiff.lua`), so the effect landing is not verified, only
+that no `rand()` happens around it. `simulateFogOfDeception`,
+`TestFogOfDeception`.
+
+### Rain of Kindness (Water Lv4)
+
+Water slot 3 is Water of Kindness (id 11); Rain of Kindness (id 12) is
+slot 4. `spell_rain_of_kindness_cast_entry` (`0x8010726c`) schedules
+`spell_rain_of_kindness_vfx_setup` (`0x80107294`), then
+`spell_rain_of_kindness_tick_state_machine` (`0x80107630`), context
+`DAT_8017a040`; the end handler is `0x80107ea4`. Six cases: 64+32+90+90+60+60
+ticks. Case 5 heals every living party member for 300 (no rand).
+
+Not flat: setup alone is a fixed 72 for a party of 6, but the rain adds
+about 1450-1500 more.
+
+- **Setup, 12 x party size calls.** 4 droplet particles per party member,
+  3 `rand()` each (72 for 6, 60 for 5, both confirmed live).
+- **Rain, 239 ticks.** Case 2 sets `ctx[0x55]` on its first tick and case 4
+  clears it on its last, so the epilogue's spawn loop runs on 90 + 90 + 59
+  ticks. Every inactive one of the 32 rain lines respawns via
+  `FUN_80123e2c` (5 calls: x, a second axis, depth, speed, life). The speed
+  is `rand()%5 + 10` units per tick; a line starts at z = -300, gains its
+  speed every tick (the spawn tick included), and deactivates the tick it
+  is seen with z > 0, respawning the tick after. Its period is therefore
+  `300 // speed + 2` ticks (32/29/27/25/23). The life roll is stored in
+  field `+0x5c` and never read.
+
+Validated on 20 injected seeds with a party of 6
+(`scripts/CaptureRainSeeds.lua`, 1527-1572) and 20 with a party of 5
+(`RainOfKindness.State`, `scripts/CaptureRainSeeds5.lua`, 1515-1570), exact
+totals, 0 mismatches. The check is total-only; no per-tick capture was
+made. `simulateRainOfKindness(startSeed, partyCount)`,
+`TestRainOfKindness`.
+
+### Water of Kindness (Water Lv3)
+
+`spell_water_of_kindness_cast_entry` (`0x801068cc`) schedules
+`spell_water_of_kindness_vfx_setup` (`0x801068f4`), then
+`spell_water_of_kindness_tick_state_machine` (`0x80106be4`), context
+`DAT_8017a040`; the end handler is `0x801071b4`. Phases 64+32+90+60+60 =
+306 ticks, equal to the measured machine length. Case 3 heals every living
+party member for 300 (no rand).
+
+Setup rolls 3 values for each of 4 droplets per party member (scale,
+`rand()%200` depth, rotation) = 12 x party size. The tick machine and its
+helpers call no `rand()`: unlike Rain of Kindness it has no rain-line
+spawn, and every function it calls is one Rain's machine also calls. A
+party of 6 gives a flat 72 on all 20 live seeds
+(`scripts/CaptureWaterOfKindnessSeeds.lua`); a party of 5 gave 60 (observed
+in-game by the user), confirming the 12-per-member scaling. `simulateWaterOfKindness(partyCount)`, `TestWaterOfKindness`.
+
+### Mother Ocean (Flowing Lv4)
+
+`spell_mother_ocean_cast_entry` (`0x80107fb4`) schedules
+`spell_mother_ocean_vfx_setup` (`0x80107fdc`), then
+`spell_mother_ocean_tick_state_machine` (`0x801082ec`), context
+`DAT_8017a040`; the end handler is `0x80108a6c`. Seven cases. Case 5 restores
+every party member to full HP and zeroes one byte of their combatant
+record (meaning not identified); case 6 runs
+`FUN_8012055c` per member, a formation swap.
+
+**Static analysis only; no live capture yet.** Setup rolls 3 values for each
+of 4 droplets per party member (scale, `rand()%60` depth, rotation) = 12 x
+party size, the same as Water of Kindness. Neither the tick machine nor any
+function it calls has `rand()`: the callees new to it are `FUN_80121ed8`
+(GPU/GTE math) and `FUN_8012055c` -> `battle_swap_combatant_positions` ->
+`play_attack_animation`, and the rest also appear in spells whose live totals
+had no other source. So 72 for a party of 6, 60 for 5. `simulateMotherOcean`
+has no test yet, since test values here come from the game.
+
+Note: the phase sum (430) is well short of the live 557-frame machine
+(damage at +509), so the machine does not run one tick per frame
+throughout. This does not affect the rand count and was not investigated.
+
+### Wind of Sleep (Wind Lv1)
+
+`spell_wind_of_sleep_cast_entry` (`0x80108b58`) schedules
+`spell_wind_of_sleep_vfx_setup` (`0x80108b80`), then
+`spell_wind_of_sleep_tick_state_machine` (`0x80108d54`), context `DAT_8017a048`;
+the end handler is `spell_wind_of_sleep_end_handler` (`0x80109358`, teardown only).
+Six cases, 64+64+64+64+96+64 = 416 ticks, equal to the measured machine length.
+
+- **Setup, 100 calls.** 50 particles, 2 `rand()` each.
+- **Spawn loop, 200 + 4 per zero roll.** Case 2's first tick (machine tick
+  128) sets `ctx[0x43]`; case 4's last tick clears it, so the shared
+  epilogue's loop runs on ticks 128-350. Every inactive particle gets
+  `vfx_randomize_sphere_particle(p, 200)` (3 calls) and a life roll
+  `rand()%180` (1 call): 50 x 4 = 200 on tick 128. The next loop deactivates
+  a particle whose life is below 1, and nothing else counts it down, so a
+  particle respawns (4 more calls, the next tick) only after a life roll of
+  exactly 0, a 1-in-180 chance per spawn. The native-seed run had two
+  (8 calls in the frame after the 200).
+- **Effect, 1 call per enemy.** Case 3 runs the hit-reaction script
+  `DAT_8016de9c` on each eligible enemy (record byte `0`, attack data
+  `+0x26 & 0x4000` clear). Its opcode 40 (`anim_op_roll_status_effect_chance`,
+  status 5 = Sleep, chance 30) rolls once per enemy; the roll is >= 30, so
+  it lands 70% of the time (enemy branch). The animation only reaches the
+  opcode at machine tick ~360, after the spawn flag is cleared, so these
+  draws never interleave with the particle ones: all 5 came in one frame.
+
+So total = 300 + 4 x (zero life rolls) + (eligible enemies): 305-317 across
+the 20 seeds with 5 enemies, 313 for the native seed. Validated by a per-frame
+capture and 20 injected seeds on `WindOfSleep.State`
+(`scripts/CaptureWindOfSleep.lua`; McDohl's rune was set to Wind, MP to 9),
+0 mismatches.
+
+**Eligibility.** The case-3 loop skips an enemy whose attack data
+(`battle+0x1344` table, enemy id x 4) has `u16 +0x26 & 0x4000` set, which is
+the immune-to-Sleep flag. Ain Gide, the lone enemy of `SpellDuration.State`,
+has `+0x26 = 0x4003`, so he gets no hit script and no roll: that state gave
+100 + 200 = 300 on the native seed and 300-304 across the same 20 seeds
+(`scripts/CaptureWindOfSleepAinGide.lua`), exactly `simulateWindOfSleep(seed,
+0)`. So both 5 eligible and 0 eligible are validated; a mix of the two was
+not tested, nor were other enemy counts.
+
+**Roll order and Sleep behavior (user-confirmed, not captured).** The rolls
+go to enemies in enemy-index order. Sleep on an enemy has a 50% chance to
+wear off at the start of each round, and a still-sleeping enemy skips its
+turn.
+
+The 6-10 calls after the end handler are the next actor's pick, not the spell.
+`simulateWindOfSleep(startSeed, eligibleEnemies)`, `TestWindOfSleep`. The
+simulator returns the call count only, not which enemy falls asleep.

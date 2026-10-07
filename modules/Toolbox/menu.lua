@@ -2,15 +2,18 @@ local Buttons = require "lib.Buttons"
 local ListSelectionMenuBuilder = require "menus.Builders.List"
 local RecruimentEditor = require "modules.Toolbox.Tools.RecruitmentEditor"
 local CharacterEditor = require "modules.Toolbox.Tools.CharacterEditor.CharacterSelection"
+local PartyJson = require "modules.Toolbox.Tools.PartyJson"
 
 local ToolsList = {
   "Recruitment Editor",
   "Character Editor",
+  "Party JSON",
 }
 
 local ToolsMenus = {
   [ToolsList[1]] = RecruimentEditor,
-  [ToolsList[2]] = CharacterEditor
+  [ToolsList[2]] = CharacterEditor,
+  [ToolsList[3]] = PartyJson,
 }
 
 local Menu = ListSelectionMenuBuilder:new(ToolsList, { name = "Tool Selection Menu" })

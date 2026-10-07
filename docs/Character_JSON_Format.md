@@ -104,9 +104,22 @@ Offsets are into the character's persistent Stats struct (see
 
 ## HUD usage
 
+**Toolbox.** Toolbox > Party JSON has two actions, both on the file
+`Config.PartyJSON.FILE` (`PSX/State/Suikoden/party.json` in the BizHawk
+directory):
+
+- *Export party to JSON* writes the current party, in formation order.
+- *Import party from JSON* imports every character in the file.
+
+The result, or the error, shows at the bottom of the screen. Import outside
+battle (see below).
+
+**From Lua.**
+
 ```lua
 local CharacterJSON = require "lib.CharacterJSON"
 CharacterJSON.exportFile("outputs/party.json", { "Cleo", "FLIK", 8 })
+CharacterJSON.exportParty("outputs/party.json") -- the current party
 CharacterJSON.importFile("outputs/party.json")
 ```
 

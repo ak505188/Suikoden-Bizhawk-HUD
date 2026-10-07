@@ -38,4 +38,8 @@ Config.Saves = {
   AUTOSAVE_INTERVAL = 300 -- In seconds. Save at every IGT interval
 }
 
+Config.PartyJSON = {
+  FILE = bizhawk_dir .. "PSX/State/Suikoden/party.json", -- Toolbox > Party JSON exports to / imports from this file
+}
+
 return Config

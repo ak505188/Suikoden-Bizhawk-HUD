@@ -1146,6 +1146,233 @@ local function simulateBlackShadowBats(startSeed)
     BlackShadowBatsScaleInit)
 end
 
+-- simulateJudgment(startSeed) -> totalRandCalls
+-- startSeed is the RNG's raw 32-bit state the frame battle+0x14 holds spell_judgment_vfx_setup
+-- (0x80116660), before its first rand(). Validated against 3 full per-frame live captures
+-- (scripts/CaptureJudgment.lua) and 20 injected seeds (scripts/CaptureJudgmentSeeds.lua), 0 mismatches
+-- - see docs/game_mechanics/Battle_Damage_Formula.md's "Judgment" section. Mechanism (from
+-- spell_judgment_vfx_setup / spell_judgment_tick_state_machine, 0x80116b7c, 1 tick = 1 frame):
+--   setup: 15 bolt particles, each rand()%48 (its first-spawn tick, stored at +0x24) then a scale
+--     roll = 30 rand(). Only bolts 4..14 are ever spawned by the tick machine.
+--   case 0-4 (64+32+64+64+64 ticks) and 6-7 (60+60): no rand(). Damage (case 7's end,
+--     apply_elemental_multiplier(4, Dark, target, caster, 1500)) has none either.
+--   case 5 (96 ticks), the only phase with rand():
+--     4 pool heads, first spawn at tick 0/6/12/18, then re-spawned the tick after each dies. A head's
+--     z starts at -300 and gains 20 per tick (applied in the same tick's epilogue), so it lives
+--     exactly 15 ticks: a spawn every 15 ticks. 2 rand() per spawn (vfx_activate_and_position_particle).
+--     Bolts 4..14: first spawn at their setup-rolled tick, then re-spawned the tick after their
+--     non-looping sprite finishes (33 active frames, measured): a spawn every 34 ticks. 3 rand() per
+--     spawn (rand()%100, then the shared helper's 2).
+local JudgmentConstants = {
+  SETUP_BOLTS = 15,
+  FIRST_ACTIVE_BOLT = 4,
+  CASE5_TICKS = 96,
+  HEAD_FIRST_TICKS = { 0, 6, 12, 18 },
+  HEAD_PERIOD = 15,
+  BOLT_PERIOD = 34,
+  HEAD_CALLS = 2,
+  BOLT_CALLS = 3,
+}
+
+local function simulateJudgment(startSeed)
+  local C = JudgmentConstants
+  local seed = startSeed
+  local calls = 0
+  local function rand()
+    seed = RNGLib.nextRNG(seed)
+    calls = calls + 1
+    return RNGLib.getRNG2(seed)
+  end
+
+  local boltFirst = {}
+  for i = 0, C.SETUP_BOLTS - 1 do
+    boltFirst[i] = rand() % 48                 -- first-spawn tick
+    rand()                                     -- scale
+  end
+
+  for tick = 0, C.CASE5_TICKS - 1 do
+    for _, first in ipairs(C.HEAD_FIRST_TICKS) do
+      if tick >= first and (tick - first) % C.HEAD_PERIOD == 0 then
+        calls = calls + C.HEAD_CALLS
+      end
+    end
+    for i = C.FIRST_ACTIVE_BOLT, C.SETUP_BOLTS - 1 do
+      local first = boltFirst[i]
+      if tick >= first and (tick - first) % C.BOLT_PERIOD == 0 then
+        calls = calls + C.BOLT_CALLS
+      end
+    end
+  end
+
+  return calls
+end
+
+-- simulateDropsOfKindness() -> totalRandCalls
+-- Fixed, seed-independent: spell_drops_of_kindness_vfx_setup (0x801058d4) rolls 3 values for each of 6
+-- droplet particles (scale, depth rand()%100, rotation) = 18 calls in one frame, and the tick machine
+-- (0x80105bc8; 64+32+90+60+60 ticks) never calls rand(). Live-confirmed on 20 seeds, always 18 - see
+-- docs/game_mechanics/Battle_Damage_Formula.md's "Drops of Kindness" section.
+local function simulateDropsOfKindness()
+  return 18
+end
+
+-- simulateFogOfDeception() -> totalRandCalls
+-- Fixed 0: spell_fog_of_deception_vfx_setup (0x801061a0) and the tick machine
+-- (0x801062f0; nine cases, 411 frames live) never call rand(), and neither does the
+-- effect applied in its case 6 (per-enemy hit animation + a 4/5 scale of one enemy field). Live-confirmed
+-- on 20 seeds: 0 calls from setup to the end handler (0x80106844) - see
+-- docs/game_mechanics/Battle_Damage_Formula.md's "Fog of Deception" section.
+local function simulateFogOfDeception()
+  return 0
+end
+
+-- simulateRainOfKindness(startSeed, partyCount) -> totalRandCalls
+-- startSeed is the RNG's raw 32-bit state the frame battle+0x14 holds spell_rain_of_kindness_vfx_setup
+-- (0x80107294), before its first rand(). Mechanism (spell_rain_of_kindness_vfx_setup /
+-- spell_rain_of_kindness_tick_state_machine 0x80107630, FUN_80123e2c = the rain-line spawn):
+--   setup: 4 droplet particles per party member, 3 rand() each = 12 * partyCount (72 for a party of 6).
+--   tick machine: cases 0-1 (64+32 ticks) no rand. Case 2 (90 ticks) sets ctx[0x55], the "rain" flag,
+--     on its first tick; case 4 clears it on its last tick (60), so the shared epilogue runs the rain
+--     spawn loop on 90 + 90 (case 3) + 59 = 239 ticks. Each tick, every inactive one of the 32 rain
+--     lines (index order) spawns: 5 rand() = x, second axis, depth, speed (rand()%5 + 10, whole
+--     units/tick) and a life roll the code never reads. A line starts at z = -300 and gains its speed
+--     every tick (the spawn tick included); the tick it is seen with z > 0 it deactivates, so it respawns
+--     the tick after: period = floor(300 / speed) + 2. Healing (-300 HP each, case 5) has no rand().
+local RainOfKindnessConstants = {
+  SETUP_CALLS_PER_PARTY_MEMBER = 12,
+  LINE_COUNT = 32,
+  RAIN_TICKS = 239,
+  SPAWN_CALLS = 5,
+  START_Z = -300,
+  SPEED_BASE = 10,
+  SPEED_RANGE = 5,
+}
+
+local function simulateRainOfKindness(startSeed, partyCount)
+  local C = RainOfKindnessConstants
+  local seed = startSeed
+  local calls = 0
+  local function rand()
+    seed = RNGLib.nextRNG(seed)
+    calls = calls + 1
+    return RNGLib.getRNG2(seed)
+  end
+
+  for _ = 1, C.SETUP_CALLS_PER_PARTY_MEMBER * partyCount do rand() end
+
+  local lines = {}
+  for i = 1, C.LINE_COUNT do lines[i] = { active = false, z = 0, speed = 0 } end
+
+  for tick = 0, C.RAIN_TICKS do
+    if tick < C.RAIN_TICKS then
+      for i = 1, C.LINE_COUNT do
+        local line = lines[i]
+        if not line.active then
+          rand()                                   -- x
+          rand()                                   -- second axis
+          rand()                                   -- depth
+          line.speed = rand() % C.SPEED_RANGE + C.SPEED_BASE
+          rand()                                   -- life, never read
+          line.z = C.START_Z
+          line.active = true
+        end
+      end
+    end
+    for i = 1, C.LINE_COUNT do
+      local line = lines[i]
+      if line.z > 0 then
+        line.active = false
+      elseif line.active then
+        line.z = line.z + line.speed
+      end
+    end
+  end
+
+  return calls
+end
+
+-- simulateWaterOfKindness(partyCount) -> totalRandCalls
+-- Seed-independent, but scales with the party: spell_water_of_kindness_vfx_setup (0x801068f4) makes 4
+-- droplet particles per party member with 3 rand() each = 12 * partyCount, and the tick machine
+-- (0x80106be4; 64+32+90+60+60 ticks) and every function it calls have none (they are the same helpers
+-- Rain of Kindness's machine calls, whose live totals match with no other source). Healing is 300 HP each,
+-- no rand(). Live-confirmed on 20 seeds with a party of 6 (always 72) and by the user with a party of 5 (60) - see
+-- docs/game_mechanics/Battle_Damage_Formula.md's "Water of Kindness" section.
+local function simulateWaterOfKindness(partyCount)
+  return 12 * partyCount
+end
+
+-- simulateMotherOcean(partyCount) -> totalRandCalls
+-- STATIC ONLY, not yet checked against a live capture. Same shape as Water of Kindness: setup
+-- (spell_mother_ocean_vfx_setup, 0x80107fdc) makes 4 droplet particles per party member with 3 rand()
+-- each (the depth roll is %60 here, %200 there - no effect on the count) = 12 * partyCount, and the tick
+-- machine (0x801082ec) and everything it calls have no rand(): the two helpers new to it only do GPU math
+-- and a formation swap (FUN_8012055c -> battle_swap_combatant_positions -> play_attack_animation). The
+-- heal (case 5: restore each member to full HP) has none either. See
+-- docs/game_mechanics/Battle_Damage_Formula.md's "Mother Ocean" section.
+local function simulateMotherOcean(partyCount)
+  return 12 * partyCount
+end
+
+-- simulateWindOfSleep(startSeed, eligibleEnemies) -> totalRandCalls
+-- startSeed is the RNG's raw 32-bit state the frame battle+0x14 holds spell_wind_of_sleep_vfx_setup
+-- (0x80108b80), before its first rand(). eligibleEnemies = enemies whose combatant-record byte is 0 and whose
+-- attack data has no 0x4000 bit (5 in WindOfSleep.State). Validated against one per-frame capture and 20
+-- injected seeds (scripts/CaptureWindOfSleep.lua), 0 mismatches. Mechanism
+-- (spell_wind_of_sleep_vfx_setup / spell_wind_of_sleep_tick_state_machine 0x80108d54, 1 tick = 1 frame):
+--   setup: 50 particles x 2 rand() = 100.
+--   tick machine: cases 64+64+64+64+96+64 = 416 ticks. Case 2's first tick (machine tick 128) sets
+--     ctx[0x43]; case 4's last tick (350 + 1) clears it, so the shared epilogue's spawn loop runs on ticks
+--     128..350 (223). Each tick, every INACTIVE particle (index order) gets vfx_randomize_sphere_particle
+--     (3 rand) and a life roll rand()%180 (1 rand) = 4; the loop right after deactivates a particle whose
+--     life is below 1. Nothing else counts life down, so a particle only respawns (next tick, 4 more rand)
+--     after a life roll of exactly 0 (1 in 180).
+--   effect: case 3 runs the hit-reaction script DAT_8016de9c on each eligible enemy; its opcode 40 rolls
+--     once per enemy (status 5 = Sleep, 70% to land). The animation reaches it at machine tick ~360,
+--     after the particle flag is cleared, so these draws never interleave with the particle ones.
+local WindOfSleepConstants = {
+  SETUP_PARTICLES = 50,
+  FIRST_SPAWN_TICK = 128,
+  LAST_SPAWN_TICK = 350,
+  SPAWN_CALLS = 4,
+  SPHERE_CALLS = 3,
+  LIFE_RANGE = 180,
+}
+
+local function simulateWindOfSleep(startSeed, eligibleEnemies)
+  local C = WindOfSleepConstants
+  local seed = startSeed
+  local calls = 0
+  local function rand()
+    seed = RNGLib.nextRNG(seed)
+    calls = calls + 1
+    return RNGLib.getRNG2(seed)
+  end
+
+  for _ = 1, C.SETUP_PARTICLES * 2 do rand() end
+
+  local active, life = {}, {}
+  for i = 1, C.SETUP_PARTICLES do active[i], life[i] = false, 0 end
+
+  for tick = C.FIRST_SPAWN_TICK, C.LAST_SPAWN_TICK + 1 do
+    if tick <= C.LAST_SPAWN_TICK then
+      for i = 1, C.SETUP_PARTICLES do
+        if not active[i] then
+          for _ = 1, C.SPHERE_CALLS do rand() end
+          life[i] = rand() % C.LIFE_RANGE
+          active[i] = true
+        end
+      end
+    end
+    for i = 1, C.SETUP_PARTICLES do
+      if life[i] < 1 then active[i] = false end
+    end
+  end
+
+  for _ = 1, eligibleEnemies do rand() end       -- Sleep roll, one per enemy
+  return calls
+end
+
 return {
   simulateEarthquake = simulateEarthquake,
   simulateCharmArrow = simulateCharmArrow,
@@ -1160,4 +1387,11 @@ return {
   simulateBlackShadow = simulateBlackShadow,
   simulateBlackShadowWind = simulateBlackShadowWind,
   simulateBlackShadowBats = simulateBlackShadowBats,
+  simulateJudgment = simulateJudgment,
+  simulateDropsOfKindness = simulateDropsOfKindness,
+  simulateFogOfDeception = simulateFogOfDeception,
+  simulateRainOfKindness = simulateRainOfKindness,
+  simulateWaterOfKindness = simulateWaterOfKindness,
+  simulateMotherOcean = simulateMotherOcean,
+  simulateWindOfSleep = simulateWindOfSleep,
 }

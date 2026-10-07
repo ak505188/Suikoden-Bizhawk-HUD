@@ -14,6 +14,7 @@ local fs = require "lib.fs"
 local Address = require "lib.Address"
 local Names = require "lib.Characters.Names"
 local Addresses = require "lib.Characters.Addresses"
+local Party = require "lib.Party"
 
 local OFFSET = {
   ID = 0x00,
@@ -59,11 +60,13 @@ local KEY_ALIASES = { HERO = "MCDOHL" }
 -- Roster id -> { key, name, address }, for every character with a Stats struct
 local BY_ID = {}
 local BY_NAME = {}
+local BY_ADDRESS = {}
 for key, name in pairs(Names) do
   local addresses = Addresses[name]
   if addresses and addresses.Stats then
     local entry = { key = KEY_ALIASES[key] or key, name = name, address = addresses.Stats }
     BY_ID[addresses.Id] = entry
+    BY_ADDRESS[addresses.Stats] = entry
     BY_NAME[name] = entry
     BY_NAME[key] = entry
     BY_NAME[entry.key] = entry
@@ -310,6 +313,26 @@ local function exportFile(path, names)
   return characters
 end
 
+-- HUD names of the characters in the current party, in formation order. The party's slots point at
+-- each character's persistent Stats struct, which is what BY_ADDRESS is keyed by.
+local function partyNames()
+  local names = {}
+  for slot = 0, Party.getPartySize() - 1 do
+    local address = Party.getCharacterDataAddress(slot)
+    local entry = BY_ADDRESS[address]
+    if not entry then
+      error(string.format("CharacterJSON: party slot %d (0x%06x) is not a known Stats struct", slot, address))
+    end
+    table.insert(names, entry.name)
+  end
+  return names
+end
+
+-- Writes the current party to a JSON file. Returns the characters written.
+local function exportParty(path)
+  return exportFile(path, partyNames())
+end
+
 -- Imports every character in a JSON file. All are checked before any is written. Returns the
 -- keys written.
 local function importFile(path)
@@ -332,4 +355,6 @@ return {
   decode = decode,
   exportFile = exportFile,
   importFile = importFile,
+  partyNames = partyNames,
+  exportParty = exportParty,
 }
