@@ -155,6 +155,7 @@ end
 
 local Worker = {
   ShowHPExperimental = true,
+  LogEnabled = false, -- prints lib/BattleLogger events to the Lua console while this view is active
   InBattle = false,
   State = nil,
   -- Tick counter (TickBasedAlgorithm.md's sim tick): game frames (Address.SESSION_FRAMECOUNT,
@@ -164,6 +165,8 @@ local Worker = {
   -- frame since that increment, or has visited the current game frame before (rewind) - see
   -- updateTick.
   RoundStartIGT = nil,
+  RoundEndIGT = nil,    -- game frame the round ended (battle phase back to 0); freezes the tick
+  RoundDriving = false, -- a driver phase (4-6) was seen this round, so phase 0 now means "ended"
   LastRound = nil,
   LastFrame = nil,
   VisitedTicks = {},   -- SESSION_FRAMECOUNT -> { round, start, rng } for frames seen with a
@@ -260,6 +263,13 @@ function Worker:writeCombatantField(idx, key, value)
   end
 end
 
+-- BattleState+0x3428, the battle phase: 4-6 while the round driver runs a round, back to 0 when
+-- battle_process_round_end_status_and_formation runs (the round's actions are over). Garbage reads
+-- on the first frames of a battle (round like 21247, phase anything) never count.
+local PHASE_OFFSET = 0x3428
+local DRIVER_PHASE_MIN, DRIVER_PHASE_MAX = 4, 6
+local MAX_SANE_ROUND = 999
+
 local VISITED_TICKS_MAX = 216000 -- one hour of frames; the table is reset past this
 
 local function sessionFrames()
@@ -291,14 +301,29 @@ function Worker:updateTick(state)
   local continuous = self.LastFrame ~= nil and frame == self.LastFrame + 1
 
   if not state then
-    self.RoundStartIGT = nil
+    self.RoundStartIGT, self.RoundEndIGT, self.RoundDriving = nil, nil, false
   elseif continuous then
     if self.LastRound ~= nil and round ~= self.LastRound then
       self.RoundStartIGT = (round == self.LastRound + 1) and igt or nil
+      self.RoundEndIGT, self.RoundDriving = nil, false
     end
   else
     local seen = self.VisitedTicks[igt]
-    self.RoundStartIGT = (seen and seen.round == round and seen.rng == rng) and seen.start or nil
+    local match = seen and seen.round == round and seen.rng == rng
+    self.RoundStartIGT = match and seen.start or nil
+    self.RoundEndIGT = match and seen.ended or nil
+    self.RoundDriving = false
+  end
+
+  -- Round end: freeze the tick the frame the phase drops back to 0 after a driver phase.
+  if state and round > 0 and round <= MAX_SANE_ROUND then
+    local phase = memory.read_u32_le(state.Base + PHASE_OFFSET)
+    if phase >= DRIVER_PHASE_MIN and phase <= DRIVER_PHASE_MAX then
+      self.RoundDriving = true
+    elseif phase == 0 and self.RoundDriving then
+      self.RoundDriving = false
+      if self.RoundStartIGT then self.RoundEndIGT = igt end
+    end
   end
 
   if continuous and state then
@@ -310,7 +335,7 @@ function Worker:updateTick(state)
         end
         self.VisitedCount = self.VisitedCount + 1
       end
-      self.VisitedTicks[igt] = { round = round, start = self.RoundStartIGT, rng = rng }
+      self.VisitedTicks[igt] = { round = round, start = self.RoundStartIGT, ended = self.RoundEndIGT, rng = rng }
     elseif existing then
       -- this branch passed the frame without a known tick: drop the other branch's entry
       self.VisitedTicks[igt] = nil
@@ -321,10 +346,11 @@ function Worker:updateTick(state)
   self.LastFrame = frame
 end
 
--- Current sim tick, or nil if unknown. -1 on the frame the round-start refresh ran.
+-- Current sim tick, or nil if unknown. -1 on the frame the round-start refresh ran. Stops counting
+-- on the frame the round ends (RoundEndIGT) and holds that value until the next round starts.
 function Worker:currentTick()
   if not self.RoundStartIGT then return nil end
-  return sessionFrames() - self.RoundStartIGT - 1
+  return (self.RoundEndIGT or sessionFrames()) - self.RoundStartIGT - 1
 end
 
 function Worker:run()
@@ -335,6 +361,10 @@ function Worker:run()
     self.State = nil
   end
   self:updateTick(self.State)
+  if self.LogEnabled then
+    -- Lazy require: BattleLogger itself requires this worker.
+    require("lib.BattleLogger"):process()
+  end
 end
 
 function Worker:draw()

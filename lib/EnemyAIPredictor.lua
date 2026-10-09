@@ -76,7 +76,7 @@ end
 
 -- Factory for the "standard" shape shared by several bosses (structurally confirmed; live-
 -- validated only for the Sonya Shulen entry below, see its own comment - Golem/Gigantes/Shell
--- Venus/Ain Gide still aren't): front-row-only target scan, then a single move-probability
+-- Venus still aren't; Ain Gide was 2026-10-07): front-row-only target scan, then a single move-probability
 -- split with no round-counter override. `specialName` is just a label (the actual special move
 -- isn't individually identified/named for most of these).
 local function makeFrontRowSplitTemplate(attackThresholdN, specialName)
@@ -161,7 +161,9 @@ local KNOWN_AI = {
                                                                  -- once Attack misses are counted
                                                                  -- as Attack attempts - see
                                                                  -- Battle_Damage_Formula.md)
-  [0x80013b1c] = makeFrontRowSplitTemplate(0x33, "Special"),    -- Ain Gide
+  [0x80013b1c] = makeFrontRowSplitTemplate(0x33, "Special"),    -- Ain Gide - LIVE-VALIDATED
+                                                                 -- 2026-10-07 (80/80 rounds exact,
+                                                                 -- scripts/TraceAinGide.lua)
   [0x80012594] = neclordProbabilities,                          -- Dragon (regular boss, not
                                                                  -- Golden Hydra; "always special"
                                                                  -- shape as Neclord - found live from

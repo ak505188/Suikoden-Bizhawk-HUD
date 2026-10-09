@@ -18,6 +18,26 @@ local DamageVariance = require "lib.DamageVariance" -- commanded-ant damage (pur
 
 local QueenAnt = {}
 
+-- Ant death/respawn timing, in frames - measured live 2026-10-07 (queen MGC 55, set at round 1
+-- start), see
+-- docs/game_mechanics/Queen_Ant_Ant_Respawn.md. K = frame ant HP hits 0. Dead flag lands at K+D
+-- (D depends on the killer's party slot), busy clears 93 frames later, revive happens on the first
+-- callback poll after that once every combatant has acted. Zero RNG cost.
+QueenAnt.RESPAWN = {
+  -- D by killer: weapon kills by party slot; spell/Unite/counter kills by kind.
+  DEAD_DELAY_BY_KILLER_SLOT = { [1] = 36, [2] = 36, [3] = 49, [4] = 28, [5] = 28 },
+  DEAD_DELAY = { Unite_Talisman = 37, SpellSingle = 0, Fire2 = 3, Earth2 = 0,
+                 CounterSlot12 = 97, CounterSlot3 = 110 },
+  BUSY_CLEAR_AFTER_DEAD = 93,
+  REVIVE_AFTER_BUSY_CLEAR = 1, -- when the all-acted gate is already open
+  -- frames from the last actor's ActionTag being set to the first poll
+  POLL_LATENCY_AFTER_LAST_TAG = { Defend = 1, Attack = 10, Item = 17,
+                                  UniteTalisman = 137, RuneSingleFire1 = 310, RuneAllFire2 = 449 },
+  SPAWN_ANIMATION = 61,
+  ROUND_END_AFTER_LAST_REVIVE = 84, -- menu ready again (23 samples; 52 with no ant involved)
+  FIGHT_EXIT_AFTER_SIG34 = 65,      -- BattleState+0x34 set -> battle exits (clean samples 65-66)
+}
+
 -- Move-selection: ONE roll, no target-scan (queen_ant_ai_self_heal_and_select_move, 0x80010ae0).
 -- (roll*100)/32767 < 0x33 -> her own AoeEarth attack; else -> CommandAnts (gated on an
 -- unidentified enemy_data+0x90 bit 0x2 precondition and a counter this module doesn't model - see

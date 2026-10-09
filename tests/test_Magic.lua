@@ -237,6 +237,282 @@ function TestStormFang:testFixedTotal()
   luaunit.assertEquals(Magic.simulateStormFang(), 38)
 end
 
+TestScolding = {}
+
+-- Zero RNG, static only (spell_scolding_* plate comments).
+function TestScolding:testFixedTotal()
+  luaunit.assertEquals(Magic.simulateScolding(), 0)
+end
+
+TestYell = {}
+
+-- Fixed 33: 11 sparkle activations x 3 rand(). Live: 20 injected seeds all gave 33 (scripts/CaptureYellSeeds.lua,
+-- aimed at a live ally); the first seed's activations were at counter 10,20,29,30,34,39,40,41,44,46,47.
+function TestYell:testFixedTotal()
+  luaunit.assertEquals(Magic.simulateYell(), 33)
+end
+
+TestScream = {}
+
+-- Fixed 162: 54 sparkle activations x 3 rand(). Live: 20 injected seeds all gave 162
+-- (scripts/CaptureScreamSeeds.lua) and the first seed's per-tick counts matched the model.
+function TestScream:testFixedTotal()
+  luaunit.assertEquals(Magic.simulateScream(), 162)
+end
+
+TestBlazingCamp = {}
+
+-- Fixed 54: 10 meteors x (2 + 1 impact) + 12 sparkles x 2. Live: 20 injected seeds all gave 54
+-- (scripts/CaptureBlazingCampSeeds.lua) and the first seed's per-tick counts matched.
+function TestBlazingCamp:testFixedTotal()
+  luaunit.assertEquals(Magic.simulateBlazingCamp(), 54)
+end
+
+TestThor = {}
+
+-- McDohl Lightning + Luc Water (Magic Unite Thor, id 37) on SpellDuration.State, aimed at the first enemy. 20
+-- injected seeds (scripts/CaptureThorSeeds.lua): the real rand() count from spell_thor_vfx_setup (0x8011a81c) to
+-- the end handler (0x8011bc3c). Each case is { RNG at setup, calls }. The first seed's per-tick counts matched too
+-- (6 at setup, 8 at the bolt tick, 83 when the 20 arcs first spawn, ...).
+function TestThor:testKnownSeed()
+  luaunit.assertEquals(Magic.simulateThor(0x58dbd149), 594)
+end
+
+function TestThor:testValidatedSeeds()
+  local cases = {
+    { 0x58dbd149, 594 }, -- injected seed 0x11111111
+    { 0xb4a56396, 590 }, -- injected seed 0xcafebabe
+    { 0xf0289ce7, 574 }, -- injected seed 0xdeadbeef
+    { 0x9cfbae39, 590 }, -- injected seed 0x00000001
+    { 0x7d3feff7, 554 }, -- injected seed 0x7fffffff
+    { 0x3101a6f1, 550 }, -- injected seed 0x9e3779b9
+    { 0x6ac77c90, 570 }, -- injected seed 0x12345678
+    { 0xdd33e45d, 610 }, -- injected seed 0xa5a5a5a5
+    { 0x67651ec6, 570 }, -- injected seed 0x00c0ffee
+    { 0x3a8d3d5a, 574 }, -- injected seed 0x1badb002
+    { 0x70289ce7, 574 }, -- injected seed 0x5eadbeef
+    { 0x10de13c5, 574 }, -- injected seed 0x8badf00d
+    { 0x0d1a95a6, 566 }, -- injected seed 0xfeedface
+    { 0x4c3e8ca5, 586 }, -- injected seed 0x0defaced
+    { 0xc47f8042, 578 }, -- injected seed 0xabad1dea
+    { 0xa34f3f18, 586 }, -- injected seed 0x31337000
+    { 0xa059d79a, 566 }, -- injected seed 0x42424242
+    { 0x87d3da0d, 554 }, -- injected seed 0x55555555
+    { 0x4289e502, 574 }, -- injected seed 0xaaaaaaaa
+    { 0x2d6210d6, 550 }, -- injected seed 0xfffffffe
+  }
+  for _, case in ipairs(cases) do
+    luaunit.assertEquals(Magic.simulateThor(case[1]), case[2], string.format("seed 0x%08x", case[1]))
+  end
+end
+
+TestScorchedEarth = {}
+
+-- Fixed 282: 48 setup + 154 (F) + 32 (A) + 48 (E). Live: 20 injected seeds all gave 282
+-- (scripts/CaptureScorchedEarthSeeds.lua) and the first seed's per-tick counts matched.
+function TestScorchedEarth:testFixedTotal()
+  luaunit.assertEquals(Magic.simulateScorchedEarth(), 282)
+end
+
+TestWaterDragon = {}
+
+-- McDohl Water + Luc Wind (Magic Unite Water Dragon, id 38) on SpellDuration.State, aimed at the first enemy. 20
+-- injected seeds (scripts/CaptureWaterDragonSeeds.lua): the real rand() count from spell_waterdragon_vfx_setup
+-- (0x8011be0c) to the end handler (0x8011cd48). Each case is { RNG at setup, calls }. The first seed's per-tick
+-- counts matched too (302 at setup, 440 on the first gated pass).
+function TestWaterDragon:testKnownSeed()
+  luaunit.assertEquals(Magic.simulateWaterDragon(0x58dbd149), 2998)
+end
+
+function TestWaterDragon:testValidatedSeeds()
+  local cases = {
+    { 0x58dbd149, 2998 }, -- injected seed 0x11111111
+    { 0xb4a56396, 3024 }, -- injected seed 0xcafebabe
+    { 0xf0289ce7, 3013 }, -- injected seed 0xdeadbeef
+    { 0x9cfbae39, 3179 }, -- injected seed 0x00000001
+    { 0x7d3feff7, 3160 }, -- injected seed 0x7fffffff
+    { 0x3101a6f1, 3128 }, -- injected seed 0x9e3779b9
+    { 0x6ac77c90, 3040 }, -- injected seed 0x12345678
+    { 0xdd33e45d, 3025 }, -- injected seed 0xa5a5a5a5
+    { 0x67651ec6, 3104 }, -- injected seed 0x00c0ffee
+    { 0x3a8d3d5a, 3037 }, -- injected seed 0x1badb002
+    { 0x70289ce7, 3013 }, -- injected seed 0x5eadbeef
+    { 0x10de13c5, 3013 }, -- injected seed 0x8badf00d
+    { 0x0d1a95a6, 3061 }, -- injected seed 0xfeedface
+    { 0x4c3e8ca5, 3022 }, -- injected seed 0x0defaced
+    { 0xc47f8042, 3193 }, -- injected seed 0xabad1dea
+    { 0xa34f3f18, 3095 }, -- injected seed 0x31337000
+    { 0xa059d79a, 3097 }, -- injected seed 0x42424242
+    { 0x87d3da0d, 3004 }, -- injected seed 0x55555555
+    { 0x4289e502, 3099 }, -- injected seed 0xaaaaaaaa
+    { 0x2d6210d6, 3048 }, -- injected seed 0xfffffffe
+  }
+  for _, case in ipairs(cases) do
+    luaunit.assertEquals(Magic.simulateWaterDragon(case[1]), case[2], string.format("seed 0x%08x", case[1]))
+  end
+end
+
+TestDeadlyFingertips = {}
+
+-- McDohl's own Soul Eater Rune slot 1 (Deadly Fingertips, id 25) on SpellDuration.State, aimed at the first
+-- enemy. 20 injected seeds (scripts/CaptureDeadlyFingertipsSeeds.lua): the real rand() count from
+-- spell_deadlyfingertips_vfx_setup (0x80113a90) to the cleanup (0x801147d4). Each case is { RNG at setup, calls }.
+-- The first seed's per-tick counts matched too (150 on the first pass, then 5 per spark respawn).
+function TestDeadlyFingertips:testKnownSeed()
+  luaunit.assertEquals(Magic.simulateDeadlyFingertips(0x58dbd149), 1130)
+end
+
+function TestDeadlyFingertips:testValidatedSeeds()
+  local cases = {
+    { 0x58dbd149, 1130 }, -- injected seed 0x11111111
+    { 0xb4a56396, 1120 }, -- injected seed 0xcafebabe
+    { 0xf0289ce7, 1100 }, -- injected seed 0xdeadbeef
+    { 0x9cfbae39, 1110 }, -- injected seed 0x00000001
+    { 0x7d3feff7, 1150 }, -- injected seed 0x7fffffff
+    { 0x3101a6f1, 1160 }, -- injected seed 0x9e3779b9
+    { 0x6ac77c90, 1145 }, -- injected seed 0x12345678
+    { 0xdd33e45d, 1120 }, -- injected seed 0xa5a5a5a5
+    { 0x67651ec6, 1075 }, -- injected seed 0x00c0ffee
+    { 0x3a8d3d5a, 1150 }, -- injected seed 0x1badb002
+    { 0x70289ce7, 1100 }, -- injected seed 0x5eadbeef
+    { 0x10de13c5, 1160 }, -- injected seed 0x8badf00d
+    { 0x0d1a95a6, 1125 }, -- injected seed 0xfeedface
+    { 0x4c3e8ca5, 1075 }, -- injected seed 0x0defaced
+    { 0xc47f8042, 1140 }, -- injected seed 0xabad1dea
+    { 0xa34f3f18, 1120 }, -- injected seed 0x31337000
+    { 0xa059d79a, 1120 }, -- injected seed 0x42424242
+    { 0x87d3da0d, 1170 }, -- injected seed 0x55555555
+    { 0x4289e502, 1105 }, -- injected seed 0xaaaaaaaa
+    { 0x2d6210d6, 1105 }, -- injected seed 0xfffffffe
+  }
+  for _, case in ipairs(cases) do
+    luaunit.assertEquals(Magic.simulateDeadlyFingertips(case[1]), case[2], string.format("seed 0x%08x", case[1]))
+  end
+end
+
+TestAngryBlow = {}
+
+-- 6 rand() calls at the native target depth (z=0); live-measured at forced target z of
+-- 0/500/900 -> 6, 1000 -> 5, 1500 -> 4 (scripts/CaptureAngryBlowDepth.lua).
+function TestAngryBlow:testFixedTotal()
+  luaunit.assertEquals(Magic.simulateAngryBlow(), 6)
+end
+
+function TestAngryBlow:testLiveMeasuredDepths()
+  for z, expected in pairs({ [0] = 6, [500] = 6, [900] = 6, [1000] = 5, [1500] = 4 }) do
+    luaunit.assertEquals(Magic.simulateAngryBlow(z), expected)
+  end
+end
+
+TestRainstorm = {}
+
+-- 26 + 2 per living enemy: 12 bolts x 2, bolt 0's one respawn x 2, then 2 per enemy in
+-- phase 4 (28 for the one-enemy test save; enemy scaling confirmed live by the user).
+function TestRainstorm:testOneEnemy()
+  luaunit.assertEquals(Magic.simulateRainstorm(1), 28)
+end
+
+function TestRainstorm:testScalesWithLivingEnemies()
+  for n = 0, 6 do
+    luaunit.assertEquals(Magic.simulateRainstorm(n), 26 + 2 * n)
+  end
+end
+
+TestClayGuardian = {}
+
+-- McDohl's Earth Lv1 (Clay Guardian, id 21) on SpellDuration.State, aimed at himself. 20 injected seeds
+-- (scripts/CaptureClayGuardianSeeds.lua): the real rand() count from spell_clayguardian_vfx_setup to the
+-- tick machine's end handler (0x80110c38) is LCG-step-counted between the real RNG values. Each case is
+-- { RNG at setup, calls }. The first seed's per-tick counts also matched exactly (30 at tick 0, then
+-- 3 per sparkle respawn, 6 at ticks 51 and 58).
+function TestClayGuardian:testKnownSeed()
+  luaunit.assertEquals(Magic.simulateClayGuardian(0x58dbd149), 105)
+end
+
+function TestClayGuardian:testValidatedSeeds()
+  local cases = {
+    { 0x58dbd149, 105 }, -- injected seed 0x11111111
+    { 0xb4a56396, 117 }, -- injected seed 0xcafebabe
+    { 0xf0289ce7, 129 }, -- injected seed 0xdeadbeef
+    { 0x9cfbae39, 120 }, -- injected seed 0x00000001
+    { 0x7d3feff7, 111 }, -- injected seed 0x7fffffff
+    { 0x3101a6f1, 105 }, -- injected seed 0x9e3779b9
+    { 0x6ac77c90, 132 }, -- injected seed 0x12345678
+    { 0xdd33e45d, 114 }, -- injected seed 0xa5a5a5a5
+    { 0x67651ec6, 105 }, -- injected seed 0x00c0ffee
+    { 0x3a8d3d5a, 99 }, -- injected seed 0x1badb002
+    { 0x70289ce7, 129 }, -- injected seed 0x5eadbeef
+    { 0x10de13c5, 132 }, -- injected seed 0x8badf00d
+    { 0x0d1a95a6, 117 }, -- injected seed 0xfeedface
+    { 0x4c3e8ca5, 117 }, -- injected seed 0x0defaced
+    { 0xc47f8042, 105 }, -- injected seed 0xabad1dea
+    { 0xa34f3f18, 96 }, -- injected seed 0x31337000
+    { 0xa059d79a, 105 }, -- injected seed 0x42424242
+    { 0x87d3da0d, 102 }, -- injected seed 0x55555555
+    { 0x4289e502, 114 }, -- injected seed 0xaaaaaaaa
+    { 0x2d6210d6, 90 }, -- injected seed 0xfffffffe
+  }
+  for _, case in ipairs(cases) do
+    luaunit.assertEquals(Magic.simulateClayGuardian(case[1]), case[2],
+      string.format("seed 0x%08x", case[1]))
+  end
+end
+
+TestCopperFlesh = {}
+
+-- Zero RNG; the effect is apply_status_effect(target, 8) on phase 4's first tick.
+function TestCopperFlesh:testFixedTotal()
+  luaunit.assertEquals(Magic.simulateCopperFlesh(), 0)
+end
+
+TestGuardianOfEarth = {}
+
+-- McDohl's Mother Earth Rune (id 30, slot 4 = Guardian of Earth, id 33) on SpellDuration.State, party-wide.
+-- 20 injected seeds (scripts/CaptureGuardianOfEarthSeeds.lua): the real rand() count from
+-- spell_guardianofearth_vfx_setup (0x80112070) to the end handler (0x801129ec). Each case is
+-- { RNG at setup, calls }. The first seed's per-tick counts matched too (40 at setup, 2 per sparkle
+-- activation, 2 at phase 3's last tick).
+function TestGuardianOfEarth:testKnownSeed()
+  luaunit.assertEquals(Magic.simulateGuardianOfEarth(0x58dbd149), 408)
+end
+
+function TestGuardianOfEarth:testValidatedSeeds()
+  local cases = {
+    { 0x58dbd149, 408 }, -- injected seed 0x11111111
+    { 0xb4a56396, 404 }, -- injected seed 0xcafebabe
+    { 0xf0289ce7, 396 }, -- injected seed 0xdeadbeef
+    { 0x9cfbae39, 400 }, -- injected seed 0x00000001
+    { 0x7d3feff7, 402 }, -- injected seed 0x7fffffff
+    { 0x3101a6f1, 408 }, -- injected seed 0x9e3779b9
+    { 0x6ac77c90, 396 }, -- injected seed 0x12345678
+    { 0xdd33e45d, 380 }, -- injected seed 0xa5a5a5a5
+    { 0x67651ec6, 408 }, -- injected seed 0x00c0ffee
+    { 0x3a8d3d5a, 384 }, -- injected seed 0x1badb002
+    { 0x70289ce7, 396 }, -- injected seed 0x5eadbeef
+    { 0x10de13c5, 402 }, -- injected seed 0x8badf00d
+    { 0x0d1a95a6, 392 }, -- injected seed 0xfeedface
+    { 0x4c3e8ca5, 380 }, -- injected seed 0x0defaced
+    { 0xc47f8042, 390 }, -- injected seed 0xabad1dea
+    { 0xa34f3f18, 398 }, -- injected seed 0x31337000
+    { 0xa059d79a, 384 }, -- injected seed 0x42424242
+    { 0x87d3da0d, 400 }, -- injected seed 0x55555555
+    { 0x4289e502, 398 }, -- injected seed 0xaaaaaaaa
+    { 0x2d6210d6, 394 }, -- injected seed 0xfffffffe
+  }
+  for _, case in ipairs(cases) do
+    luaunit.assertEquals(Magic.simulateGuardianOfEarth(case[1]), case[2],
+      string.format("seed 0x%08x", case[1]))
+  end
+end
+
+TestThunderGod = {}
+
+-- 96 (setup) + 16 (8 bolts x 2) + 360 (24 flicker particles x 3 x 5 activations); static only,
+-- see spell_thundergod_tick_state_machine's plate comment.
+function TestThunderGod:testFixedTotal()
+  luaunit.assertEquals(Magic.simulateThunderGod(), 472)
+end
+
 TestHell = {}
 
 -- Both savestates' own native seeds, each validated via a fresh live capture (savestate.load,

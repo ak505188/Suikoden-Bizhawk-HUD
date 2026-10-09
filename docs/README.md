@@ -40,6 +40,10 @@ verified or current understanding.
 - [Turn Order](./game_mechanics/Turn_Order.md) — who acts next: the
   weighted-RNG speed roll, the roll-gate countdown, and how a turn actually
   starts.
+- [Queen Ant Ant Respawn](./game_mechanics/Queen_Ant_Ant_Respawn.md) — frame
+  timings for how a Mt. Seifu Soldier Ant dies, waits and respawns.
+- [Queen Ant Turn Timing](./game_mechanics/Queen_Ant_Turn_Timing.md) — frame
+  offsets for Queen Ant's and the Soldier Ants' own turns, round start.
 - [Scripted Battle Actions](./game_mechanics/Scripted_Battle_Actions.md) — how
   to drive a full battle round (every party member's command) from a Lua
   script with no controller input, for simulation purposes.

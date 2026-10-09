@@ -137,6 +137,76 @@ local function hexToByteArray(hex)
   return bytes
 end
 
+-- The Shredding (spell 14), Healing Wind (15), Storm (16) and Voice of Earth (22) cost no rand() at all
+-- (verified by the user 2026-10-07, not decompiled here).
+local function simulateTheShredding()
+  return 0
+end
+
+local function simulateHealingWind()
+  return 0
+end
+
+local function simulateStorm()
+  return 0
+end
+
+local function simulateVoiceOfEarth()
+  return 0
+end
+
+-- Scolding (spell 5, Resurrection Lv1, one enemy): zero rand() calls (spell_scolding_*, static decompile
+-- 2026-10-06, not live-tested). Setup, the four phases (64+64+32+96 ticks), apply_elemental_multiplier
+-- (the double vs undead is deterministic), the hit-reaction script and the end handler all have none.
+local function simulateScolding()
+  return 0
+end
+
+-- Resurrection-rune sparkle pass shared by Yell and Scream (the two tick machines run the same epilogue).
+-- Each sparkle has a start tick in particle+0x24. The tick counter is already incremented when the pass runs,
+-- so a phase-3 pass of N ticks sees 1..N-1 (the last tick clears the flag first) and start 0 never matches. A match costs
+-- 3 rand() (a height roll + vfx_activate_and_position_particle's 2) and sets the field to 0x30; FUN_8012080c then
+-- counts it down by 1 on every tick the sparkle is active (inactive below 1), so it re-fires whenever the
+-- field again equals the counter: 48-(L-t) = L, i.e. at (48+t)/2 when that is a whole tick.
+local function simulateResurrectionSparkles(startTicks, passes)
+  local REFIRE_VALUE = 0x30
+  local start, active, calls = {}, {}, 0
+  for i, tick in ipairs(startTicks) do start[i] = tick end
+  for label = 1, passes do
+    for i = 1, #start do
+      if start[i] == label then
+        calls = calls + 3
+        start[i], active[i] = REFIRE_VALUE, true
+      end
+    end
+    for i = 1, #start do
+      if active[i] then
+        start[i] = start[i] - 1
+        if start[i] < 1 then active[i] = false end
+      end
+    end
+  end
+  return calls
+end
+
+-- Yell (spell 6, Resurrection Lv2, one ally): a fixed 33 rand() calls (spell_yell_*, static decompile
+-- 2026-10-06, live-validated: 20 seeds, aimed at a live ally). Phase 3 (64 ticks) runs the sparkle pass over 5
+-- sparkles with start ticks 0,10,20,30,40: fires 10,20,30,40 -> 29,34,39,44 -> 41,46 -> 47 = 11 activations.
+-- Setup, the revive (HPMax/3), the hit script and the end handler have none.
+local function simulateYell()
+  return simulateResurrectionSparkles({ 0, 10, 20, 30, 40 }, 63)
+end
+
+-- Scream (spell 7, Resurrection Lv3, whole party): a fixed 162 rand() calls (spell_scream_*, static decompile
+-- 2026-10-06, live-validated: 20 seeds plus the first seed's per-tick counts). Same sparkle pass as Yell, over 20
+-- sparkles with start ticks 0,2..38 and phase 3's 60 ticks (counter 1..59): 54 activations x 3. The +300 heal
+-- (phase 5), the hit script and the end handler have none.
+local function simulateScream()
+  local starts = {}
+  for i = 0, 19 do starts[i + 1] = i * 2 end
+  return simulateResurrectionSparkles(starts, 59)
+end
+
 -- simulateCharmArrow(startSeed) -> totalRandCalls
 -- startSeed is the RNG's raw 32-bit state (Address.RNG) the instant before case 3's first
 -- rand() call (i.e. the frame the game would make its first grid-decay draw).
@@ -825,6 +895,567 @@ local function simulateStormFang()
   return 38
 end
 
+-- Blazing Camp (spell 36, Fire+Lightning Magic Unite, all enemies): a fixed 54 rand() calls, independent of seed and
+-- enemy count (spell_blazingcamp_*, static decompile 2026-10-06; live-validated the same day: 20 seeds plus the
+-- first seed's per-tick counts, scripts/CaptureBlazingCampSeeds.lua, McDohl Fire + Luc Lightning Lv4 on
+-- SpellDuration.State). Setup, the hit scripts, calc_dual_element_spell_damage and the end handler have none.
+--   phase 2 (150 ticks): 10 meteors, meteor k activates at tick 72+6k, 2 rand() each = 20. Each starts at z=-300
+--     and moves +25/tick (starting the tick it activates); when z>>12 passes -10 (the 12th move) it costs one more
+--     rand() (the impact flash's life, rand()%32 + 0x30) = 10. The last impact is at tick 137, inside the phase.
+--   phase 3 (64 ticks): 12 sparkles, sparkle k activates at tick 3k, 2 rand() each = 24 (never re-armed)
+local function simulateBlazingCamp()
+  local METEORS, METEOR_FIRST, METEOR_STEP, PHASE2_TICKS = 10, 72, 6, 150
+  local MOVES_TO_IMPACT, SPARKLES = 12, 12
+  local calls = 0
+  for k = 0, METEORS - 1 do
+    calls = calls + 2
+    if METEOR_FIRST + METEOR_STEP * k + MOVES_TO_IMPACT - 1 < PHASE2_TICKS then calls = calls + 1 end
+  end
+  return calls + SPARKLES * 2
+end
+
+-- Deadly Fingertips (spell 25, Dark Lv1, one enemy): seed-dependent, 1075-1170 rand() calls
+-- (spell_deadlyfingertips_*, static decompile 2026-10-07; live-validated the same day: 20 seeds plus the first
+-- seed's per-tick counts, scripts/CaptureDeadlyFingertipsSeeds.lua, McDohl's own Soul Eater Rune slot 1).
+-- The whole cost is the same 30-particle spark pool as the Dragon's Lightning (Dragon.simulateLightning):
+-- vfx_spawn_random_arc_particle respawns any inactive line particle for 5 rand() (the 4th is its z velocity
+-- -(r % 5 + 5), the 5th its life r % 0x46); a spark goes inactive when its life or z>>12 < -300 runs out. Here the
+-- spawn gate is open on 209 passes: phase 2's 80 (the gate opens on its first tick), phase 3's 60, phase 4's 10
+-- and the first 59 of phase 5 (its last tick closes the gate before the pass). Decay runs on every pass but
+-- nothing spawns after the gate closes. Setup, the instant-death check (apply_elemental_multiplier, whose only
+-- callee is printf), the hit script and the cleanup have no RNG. The machine is 64+32+80+60+10+60+60 = 366
+-- ticks, 576 frames live.
+local function simulateDeadlyFingertips(startSeed)
+  local SPARKS, GATED_PASSES = 30, 80 + 60 + 10 + 59
+  local TOTAL_PASSES = GATED_PASSES + 1 + 60
+  local seed = startSeed
+  local calls = 0
+  local function rand()
+    seed = RNGLib.nextRNG(seed)
+    calls = calls + 1
+    return RNGLib.getRNG2(seed)
+  end
+
+  local active, life, posZ, velZ = {}, {}, {}, {}
+  for i = 1, SPARKS do active[i], life[i], posZ[i], velZ[i] = false, 0, 0, 0 end
+  for pass = 1, TOTAL_PASSES do
+    if pass <= GATED_PASSES then
+      for i = 1, SPARKS do
+        if not active[i] then
+          rand(); rand(); rand()
+          local velRoll = rand()
+          life[i] = rand() % 0x46
+          velZ[i] = -((velRoll % 5) + 5) * 4096
+          posZ[i] = posZ[i] & 0xfff
+          active[i] = true
+        end
+      end
+    end
+    for i = 1, SPARKS do
+      if life[i] < 1 or posZ[i] // 4096 < -300 then active[i] = false end
+      if active[i] then
+        life[i] = life[i] - 1
+        posZ[i] = posZ[i] + velZ[i]
+      end
+    end
+  end
+  return calls
+end
+
+-- Water Dragon (spell 38, Wind+Water Magic Unite, all enemies): seed-dependent, ~3000 rand() calls
+-- (spell_waterdragon_*, static decompile 2026-10-07; live-validated the same day: 20 seeds plus the first seed's
+-- per-tick counts, scripts/CaptureWaterDragonSeeds.lua, McDohl Water + Luc Wind on SpellDuration.State).
+-- Phases 64+64+128+64+64 = 384 ticks. Everything below is rolled in this order inside one tick (the shared
+-- epilogue runs on every phase; only phase 2 has a body):
+--   setup: 302 = 30 x 3 + 20 x 2 + 80 x 2 + 12 x 1.
+--   phase-2 body: 12 bolts, bolt k activates at tick 48+5k (2 rand()); their impacts roll nothing.
+--   epilogue, per pool, in order (a pool respawns any particle that is inactive while its gate is open):
+--     P1, 30 particles, gate = epilogue passes 64..318: 4 rand() (height, 2 in vfx_activate_and_position_particle,
+--       then life = rand() % 180). Life counts down once per active pass and the particle goes inactive when it
+--       reads < 1, so the period is life + 1.
+--     P2, 20 particles, gate = 128..318: 5 rand() (height % 200, 2 in the helper, z velocity %0x400 + 0x1e00, life
+--       % 180). The life never counts down; the particle ends when z>>12 > 0 (it starts at -height, moves by its
+--       velocity each pass, carrying the low 12 bits of z from one life to the next), or at once if life < 1.
+--     P3, 80 particles, gate = 64..318: 4 rand() as P1 with life % 96.
+--   The gates close on phase 3's last pass (318), so phase 4 rolls nothing.
+local function simulateWaterDragon(startSeed)
+  local P1, P2, P3, BOLTS = 30, 20, 80, 12
+  local PASSES, GATE1_FIRST, GATE2_FIRST, GATE_LAST = 384, 64, 128, 318
+  local PHASE2_FIRST, BOLT_FIRST_TICK, BOLT_STEP = 128, 48, 5
+  local seed = startSeed
+  local calls = 0
+  local function rand()
+    seed = RNGLib.nextRNG(seed)
+    calls = calls + 1
+    return RNGLib.getRNG2(seed)
+  end
+
+  for _ = 1, 30 * 3 + 20 * 2 + 80 * 2 + 12 do rand() end
+  local a1, l1, a3, l3 = {}, {}, {}, {}
+  for i = 1, P1 do a1[i], l1[i] = false, 0 end
+  for i = 1, P3 do a3[i], l3[i] = false, 0 end
+  local a2, l2, z2, v2 = {}, {}, {}, {}
+  for i = 1, P2 do a2[i], l2[i], z2[i], v2[i] = false, 0, 0, 0 end
+
+  for pass = 0, PASSES - 1 do
+    local bodyTick = pass - PHASE2_FIRST
+    if bodyTick >= 0 and bodyTick < 128 and bodyTick >= BOLT_FIRST_TICK
+      and (bodyTick - BOLT_FIRST_TICK) % BOLT_STEP == 0 and (bodyTick - BOLT_FIRST_TICK) // BOLT_STEP < BOLTS then
+      rand(); rand()
+    end
+    local gate1 = pass >= GATE1_FIRST and pass <= GATE_LAST
+    local gate2 = pass >= GATE2_FIRST and pass <= GATE_LAST
+    if gate1 then
+      for i = 1, P1 do
+        if not a1[i] then rand(); rand(); rand(); l1[i] = rand() % 180; a1[i] = true end
+      end
+    end
+    for i = 1, P1 do
+      if l1[i] < 1 then a1[i] = false elseif a1[i] then l1[i] = l1[i] - 1 end
+    end
+    if gate2 then
+      for i = 1, P2 do
+        if not a2[i] then
+          local height = rand() % 200
+          rand(); rand()
+          v2[i] = rand() % 0x400 + 0x1e00
+          l2[i] = rand() % 180
+          a2[i] = true
+          z2[i] = (z2[i] & 0xfff) + (-height * 4096)
+        end
+      end
+    end
+    for i = 1, P2 do
+      if l2[i] < 1 or z2[i] // 4096 > 0 then a2[i] = false else z2[i] = z2[i] + v2[i] end
+    end
+    if gate1 then
+      for i = 1, P3 do
+        if not a3[i] then rand(); rand(); rand(); l3[i] = rand() % 96; a3[i] = true end
+      end
+    end
+    for i = 1, P3 do
+      if l3[i] < 1 then a3[i] = false elseif a3[i] then l3[i] = l3[i] - 1 end
+    end
+  end
+  return calls
+end
+
+-- Scorched Earth (spell 34, Fire+Earth Magic Unite, all enemies): a fixed 282 rand() calls, independent of seed and
+-- enemy count (spell_scorchedearth_*, static decompile 2026-10-07; live-validated the same day: 20 seeds plus the
+-- first seed's per-tick counts, scripts/CaptureScorchedEarthSeeds.lua, McDohl Earth + Luc Fire on
+-- SpellDuration.State). Every roll sits inside vfx_activate_and_position_particle (2 rand), so only WHEN a particle
+-- activates matters, never the rolled values. Setup 48 (4 loops x 12 rolls), then 292 shared-epilogue passes
+-- (phase 1: 64, phase 2: 64, phase 3: 164; the tick label is already incremented, and reset to 0 on each phase's
+-- last pass); phase 4 (waits for the meteors) onwards rolls nothing. The 55-tick sprite animation (sequence 0xd,
+-- non-looping) is each A/F particle's life:
+--   F (12 sparkles, start ticks 0,3..33; gate on in phases 1-3): when inactive, label == start fires and the
+--     very next check (+0x24 == -1, no active test) fires again, so a first fire costs 4; then it re-activates
+--     for 2 each time it is inactive again, every 55 passes = 12*4 + 53*2 = 154.
+--   A (12 particles, start ticks 8k, phase-3 body only): fires when its countdown field equals the raw tick, then
+--     the field is set to 30 and counts down once per active pass, so some re-fire at (30+t)/2: 16 activations = 32.
+--   E (8 particles, start ticks 12k, phase-3 body): fires at its tick, then re-fires each time its expanding ring
+--     (47 passes) is gone again: 24 activations = 48.
+local function simulateScorchedEarth()
+  local ANIM_TICKS, RING_TICKS, A_REARM = 55, 47, 30
+  local PHASE1, PHASE2, PHASE3 = 64, 64, 164
+  local calls = 48
+  local F, A, E = {}, {}, {}
+  for i = 0, 11 do
+    F[i + 1] = { start = 3 * i, active = false, left = 0 }
+    A[i + 1] = { counter = 8 * i, active = false, left = 0 }
+  end
+  for k = 0, 7 do E[k + 1] = { counter = 12 * k, ring = false, ringLeft = 0 } end
+
+  for pass = 0, PHASE1 + PHASE2 + PHASE3 - 1 do
+    local label
+    if pass < PHASE1 + PHASE2 then
+      local i = pass % 64
+      label = i < 63 and i + 1 or 0
+    else
+      label = pass - (PHASE1 + PHASE2) + 1
+    end
+    if pass >= PHASE1 + PHASE2 then
+      local tick = pass - (PHASE1 + PHASE2)
+      for _, a in ipairs(A) do
+        if a.counter == tick then
+          calls = calls + 2
+          a.counter = A_REARM
+          if not a.active then a.active, a.left = true, ANIM_TICKS end
+        end
+      end
+      for _, e in ipairs(E) do
+        if e.counter == tick then
+          calls = calls + 2
+          e.ring, e.ringLeft, e.counter = true, RING_TICKS, 0
+        end
+      end
+      for _, e in ipairs(E) do
+        if e.counter == 0 and not e.ring then
+          calls = calls + 2
+          e.ring, e.ringLeft = true, RING_TICKS
+        end
+      end
+    end
+    for _, a in ipairs(A) do
+      if a.active then
+        a.counter, a.left = a.counter - 1, a.left - 1
+        if a.left <= 0 then a.active = false end
+      end
+    end
+    for _, f in ipairs(F) do
+      if not f.active then
+        if f.start == label then
+          calls = calls + 2
+          f.start, f.active, f.left = -1, true, ANIM_TICKS
+        end
+        if f.start == -1 then
+          calls = calls + 2
+          f.active, f.left = true, ANIM_TICKS
+        end
+      end
+      if f.active then
+        f.left = f.left - 1
+        if f.left <= 0 then f.active = false end
+      end
+    end
+    for _, e in ipairs(E) do
+      if e.ring then
+        e.ringLeft = e.ringLeft - 1
+        if e.ringLeft <= 0 then e.ring = false end
+      end
+    end
+  end
+  return calls
+end
+
+-- Thor (spell 37, Lightning+Water Magic Unite, one enemy): seed-dependent (spell_thor_*, static decompile
+-- 2026-10-07). Every rand() consumer, in the order a tick runs them (phases 64+48+128+80+64 ticks; only phase 2's
+-- 128 ticks have a body, the other phases just run the shared epilogue):
+--   setup (6): one roll per spark particle's scale.
+--   phase-2 body, tick t = 0..127:
+--     bolts: 4 bolt particles A[i]; while A[i] and its impact flash B[i] are both inactive it re-activates for 2
+--       rand(). It starts at z=-300, moves +25/tick (from its own tick) and impacts on the 13th move (z>0):
+--       1 rand() (the flash life, which never matters: the paired 48-tick flash C always ends B first), and B/C
+--       stay up until 47 ticks later. So all 4 activate at t=0, 60, 120 and impact at 12, 72, 132 (phase 3).
+--     trails: 6 arrays of 10 particles; array j's lead is armed at t = 32+3j. While the lead and the tail (10th)
+--       are inactive and the lead's counter is 0 it activates for 2 rand(): t=a, a+25, a+50, a+75 (a+100 is past
+--       the phase). A lead lives 16 ticks (the counter runs 0..16), then costs 3 rand() (its spark particle), and
+--       the tail flag trails the lead by 9 ticks.
+--     lightning arcs: from t=48, each of 20 line particles that is inactive respawns via
+--       spell_flamingarrow_spawn_particle(p, 0x78) = 4 rand() (the same helper as Flaming Arrow).
+--   epilogue (every tick of all 5 phases): arcs decay (lifetime < 1, or |trail_x>>12| < 5 -> inactive, else
+--     lifetime-1 and trail_x += velocity), then bolt moves/impacts, then trail leads.
+-- Live-validated (scripts/CaptureThorSeeds.lua, McDohl Lightning + Luc Water on SpellDuration.State, 20 seeds
+-- plus the first seed's per-tick counts). The arcs' trail_x low 12 bits were read live: all 0.
+local function simulateThor(startSeed)
+  local SPARKS, BOLTS, ARRAYS, ARCS = 6, 4, 6, 20
+  local PHASE2_TICKS, TOTAL_TICKS = 128, 128 + 80 + 64
+  local ARC_RADIUS, ARC_FIRST_TICK = 0x78, 48
+  local BOLT_IMPACT_MOVE, BOLT_START_Z, BOLT_SPEED = 13, -300, 25
+  local FLASH_TICKS, TRAIL_FIRST, TRAIL_STEP, TRAIL_LEAD_TICKS, TRAIL_LEN = 48, 32, 3, 16, 10
+  local seed = startSeed
+  local calls = 0
+  local function rand()
+    seed = RNGLib.nextRNG(seed)
+    calls = calls + 1
+    return RNGLib.getRNG2(seed)
+  end
+
+  for _ = 1, SPARKS do rand() end
+
+  local bolt, flashLeft = {}, {}
+  for i = 1, BOLTS do bolt[i], flashLeft[i] = { active = false, z = 0 }, 0 end
+  local lead, armed, flags = {}, {}, {}
+  for j = 1, ARRAYS do
+    lead[j], armed[j], flags[j] = { active = false, counter = 1 }, false, {}
+    for k = 1, TRAIL_LEN do flags[j][k] = false end
+  end
+  local arcs = {}
+  for i = 1, ARCS do arcs[i] = { active = false, lifetime = 0, trailX = 0, velX = 0 } end
+
+  local function spawnArc(residualLow12)
+    local xRoll = rand()
+    local xOffset = (xRoll % ((ARC_RADIUS - 1) * 2) + 1) - ARC_RADIUS
+    rand()
+    local velScale = (rand() % 64) + 128
+    local num, den = xOffset * 5, 6
+    local q = (num < 0) == (den < 0) and (math.abs(num) // math.abs(den)) or -(math.abs(num) // math.abs(den))
+    local lifetime = rand() % 100
+    return { active = true, lifetime = lifetime, trailX = (residualLow12 & 0xfff) | (q * 4096),
+      velX = -xOffset * velScale }
+  end
+
+  for tick = 0, TOTAL_TICKS - 1 do
+    if tick < PHASE2_TICKS then
+      for i = 1, BOLTS do
+        if not bolt[i].active and flashLeft[i] == 0 then
+          rand(); rand()
+          bolt[i].active, bolt[i].z, bolt[i].moves = true, BOLT_START_Z, 0
+        end
+      end
+      for j = 1, ARRAYS do
+        if tick == TRAIL_FIRST + TRAIL_STEP * (j - 1) then lead[j].counter, armed[j] = 0, true end
+      end
+      for j = 1, ARRAYS do
+        if armed[j] and not lead[j].active and not flags[j][TRAIL_LEN] and lead[j].counter == 0 then
+          rand(); rand()
+          lead[j].active = true
+          for k = 1, TRAIL_LEN do flags[j][k] = true end
+        end
+      end
+      if tick >= ARC_FIRST_TICK then
+        for i = 1, ARCS do
+          if not arcs[i].active then arcs[i] = spawnArc(arcs[i].trailX) end
+        end
+      end
+    end
+
+    for i = 1, ARCS do
+      local a = arcs[i]
+      if a.active then
+        if a.lifetime < 1 then
+          a.active = false
+        else
+          local trailXInt = math.floor(a.trailX / 4096)
+          if trailXInt < 0 then trailXInt = -trailXInt end
+          if trailXInt < 5 then
+            a.active = false
+          else
+            a.lifetime = a.lifetime - 1
+            a.trailX = a.trailX + a.velX
+          end
+        end
+      end
+    end
+    for i = 1, BOLTS do
+      local b = bolt[i]
+      if b.active then
+        b.moves = b.moves + 1
+        if b.moves >= BOLT_IMPACT_MOVE then
+          rand()
+          b.active, flashLeft[i] = false, FLASH_TICKS
+        end
+      end
+      if flashLeft[i] > 0 and not (b.active and b.moves == 0) then
+        flashLeft[i] = flashLeft[i] - 1
+      end
+    end
+    for j = 1, ARRAYS do
+      local l = lead[j]
+      if l.active then
+        if l.counter < TRAIL_LEAD_TICKS then
+          l.counter = l.counter + 1
+        else
+          l.active, l.counter = false, 0
+          rand(); rand(); rand()
+        end
+      end
+      flags[j][1] = l.active
+      for k = TRAIL_LEN, 2, -1 do flags[j][k] = flags[j][k - 1] end
+    end
+  end
+  return calls
+end
+
+-- Angry Blow (spell 17, Lightning Lv1): a fixed 6 rand() calls for any realistic target, all
+-- inside the 64-tick phase 3 of spell_angryblow_tick_state_machine. Two "bolt" particles activate
+-- at phase-3 ticks 0 and 12, 2 rand() each via vfx_activate_and_position_particle (4 total). Each
+-- bolt starts at z=-300 and moves +25/tick in the shared epilogue; when z>>12 passes the target's
+-- nRefPosZ>>12 it costs one more rand() (impact-flash life) and deactivates (2 total). Phase 3's
+-- exit clears the bolts before that tick's epilogue, so bolt k (spawn tick s) gets 63-s moves.
+-- targetZ (nRefPosZ>>12, default 0) only matters for a target so far "down" the z axis that a bolt
+-- never arrives. Live-validated 2026-10-06 (scripts/CaptureAngryBlowDepth.lua, SpellDuration.State,
+-- native z=0): z forced to 0/500/900 -> 6, 1000 -> 5, 1500 -> 4. Cutoffs for z in 901..999 are
+-- from the static decompile, not measured. Machine length is 304 frames regardless of z.
+local function simulateAngryBlow(targetZ)
+  targetZ = targetZ or 0
+  local calls = 0
+  for _, spawnTick in ipairs({ 0, 12 }) do
+    calls = calls + 2
+    if -300 + 25 * (63 - spawnTick) > targetZ then calls = calls + 1 end
+  end
+  return calls
+end
+
+-- Raging Blow (spell 19, Lightning Lv3) and Ball of Lightning (spell 20, Lightning Lv4) cost
+-- no rand() at all (verified by the user).
+local function simulateRagingBlow()
+  return 0
+end
+
+local function simulateBallOfLightning()
+  return 0
+end
+
+-- Clay Guardian (spell 21, Earth Lv1, one ally; spell_clayguardian_*, static decompile 2026-10-06).
+-- Setup and phases 0-2 (64+32+80 ticks) have no RNG; the buff itself (stat x3/2 on the target) and the
+-- three hit-reaction scripts (0x8016f234) have none either. All of it is phase 3's sparkle loop, which
+-- runs in the epilogue on each of that phase's 96 ticks (and stops once phase 4 clears its flag):
+--   spawn pass, particles 0..9 in order: an inactive particle costs 3 rand() -
+--     vfx_activate_and_position_particle(p, 30, 0) = 2, then life = rand() % 60 (the 3rd)
+--   age pass, particles 0..9: life < 1 -> inactive, else life-1 (a particle moves at most 59
+--     times, so the z cutoff at -200 never fires)
+-- A sparkle with life L is active for L ticks and can respawn the tick after it expires, so the total
+-- depends on the seed's life rolls (L = 0 respawns on the very next tick).
+local function simulateClayGuardian(startSeed)
+  local PARTICLES, TICKS, LIFE_RANGE = 10, 96, 60
+  local seed = startSeed
+  local calls = 0
+  local function rand()
+    seed = RNGLib.nextRNG(seed)
+    calls = calls + 1
+    return RNGLib.getRNG2(seed)
+  end
+
+  local active, life = {}, {}
+  for i = 1, PARTICLES do active[i], life[i] = false, 0 end
+  for _ = 1, TICKS do
+    for i = 1, PARTICLES do
+      if not active[i] then
+        rand(); rand()
+        life[i] = rand() % LIFE_RANGE
+        active[i] = true
+      end
+    end
+    for i = 1, PARTICLES do
+      if life[i] < 1 then
+        active[i] = false
+      else
+        life[i] = life[i] - 1
+      end
+    end
+  end
+  return calls
+end
+
+-- Copper Flesh (spell 23, Earth Lv3, one ally): zero rand() calls (spell_copperflesh_*, static
+-- decompile 2026-10-06; you confirmed 0 too). The spell's whole effect is apply_status_effect(target, 8) on
+-- phase 4's first tick, and nothing in setup, the 7 phases or that call rolls.
+local function simulateCopperFlesh()
+  return 0
+end
+
+-- Guardian of Earth (spell 33, Earth Lv5, whole party; spell_guardianofearth_*, static decompile
+-- 2026-10-06). Seed-dependent. Phases 0-2 (64+32+64 ticks) have no RNG, and neither do the buff (stat
+-- x3/2 on every living party member), the hit-reaction script (0x8016f234) or the end handler.
+--   setup: 40 sparkle particles, each rolls its start tick = rand() % 48 (40 rand())
+--   epilogue sparkle pass, on every tick of phase 3 (128) and the first 32 of phase 4 (the flag clears
+--   when phase 4's tick counter reads 32). The counter is already incremented when the pass runs, so
+--   a start tick s >= 1 fires on phase-3 tick s-1, and s = 0 fires on phase 3's last tick (the counter
+--   was just reset to 0). Each activation is vfx_activate_and_position_particle(p, 0x78, 0) = 2 rand().
+--   An inactive particle that already fired re-activates the next pass (radius 0x5a, also 2 rand()).
+--   The sparkle sprite loops (vfx_create_particle param_4 = 1), so only the z cutoff ends a life: z
+--   starts at the low 12 bits left over, falls 0x9600 per tick, and dies on the pass that finds
+--   z>>12 < -300, which is 33 moves later. A particle therefore re-activates every 34 passes.
+local function simulateGuardianOfEarth(startSeed)
+  local PARTICLES, START_RANGE, PASSES, PHASE3_TICKS = 40, 0x30, 160, 128
+  local Z_VELOCITY, Z_CUTOFF = -0x9600, -300
+  local seed = startSeed
+  local calls = 0
+  local function rand()
+    seed = RNGLib.nextRNG(seed)
+    calls = calls + 1
+    return RNGLib.getRNG2(seed)
+  end
+
+  local start, active, z = {}, {}, {}
+  for i = 1, PARTICLES do
+    start[i], active[i], z[i] = rand() % START_RANGE, false, 0
+  end
+  local function activate(i)
+    rand(); rand()
+    active[i] = true
+    z[i] = z[i] & 0xfff
+  end
+  for pass = 0, PASSES - 1 do
+    local label = pass < PHASE3_TICKS - 1 and pass + 1 or (pass == PHASE3_TICKS - 1 and 0 or pass - PHASE3_TICKS + 1)
+    for i = 1, PARTICLES do
+      if start[i] == label then
+        start[i] = -1
+        activate(i)
+      end
+    end
+    for i = 1, PARTICLES do
+      if start[i] == -1 and not active[i] then activate(i) end
+    end
+    for i = 1, PARTICLES do
+      if active[i] then
+        if z[i] // 4096 < Z_CUTOFF then active[i] = false end
+        z[i] = z[i] + Z_VELOCITY
+      end
+    end
+  end
+  return calls
+end
+
+-- Thunder God (spell 32, Lightning Lv5): a fixed 472 rand() calls, independent of seed and of
+-- the enemy count (spell_thundergod_*, static decompile 2026-10-06). Live-validated the same day
+-- (scripts/CaptureThunderGod.lua, SpellDuration.State, McDohl with the Thunder Rune, 4 seeds): 96 in
+-- the setup frame, 2 at each bolt tick, 72 at each of the 5 phase-4 activations; machine 484 frames.
+--   setup: 24 flicker particles x 4 rand() = 96, all in the setup frame
+--   phase 3 (180 ticks): 8 bolts, bolt k activates at tick 10k, 2 rand() each = 16 (impact has
+--     no rand and nothing respawns)
+--   phase 4 (64 ticks): each inactive flicker particle re-activates, but only while tick < 48,
+--     at 3 rand() apiece (1 for the height + 2 inside vfx_activate_and_position_particle).
+--     They deactivate when their non-looping sprite animation ends: sequences 6 and 0xb of the
+--     shared effect sheet are both 5 frames x 2 ticks = 10 updates, so a particle is active for
+--     ticks t..t+9 and re-activates at t+10: ticks 0, 10, 20, 30, 40 = 5 times each.
+local function simulateThunderGod()
+  local FLICKER, ANIM_TICKS, ACTIVATE_WHILE_TICK_BELOW = 24, 10, 48
+  local calls = FLICKER * 4                        -- setup
+  for tick = 0, 70, 10 do calls = calls + 2 end    -- phase 3 bolts at ticks 0, 10 .. 70
+  local activeUntil = -1                           -- every flicker particle behaves identically
+  for tick = 0, 63 do
+    if tick < ACTIVATE_WHILE_TICK_BELOW and tick > activeUntil then
+      calls = calls + FLICKER * 3
+      activeUntil = tick + ANIM_TICKS - 1
+    end
+  end
+  return calls
+end
+
+-- Rainstorm (spell 18, Lightning Lv2): 26 + 2 * livingEnemies rand() calls, seed-independent
+-- (spell_rainstorm_tick_state_machine, static decompile 2026-10-06; the enemy dependence is
+-- confirmed live by the user). Phase 2 (96 ticks) has 12 bolts: bolt k activates at tick 5k
+-- (2 rand() via vfx_activate_and_position_particle), moves +25 z/tick from -300 and impacts the
+-- fixed target z=0 on its 13th move (no rand at impact), which lights its flash for 0x38 ticks.
+-- A second loop re-activates any bolt that is inactive with an inactive flash and a schedule
+-- of 0 - only bolt 0 - so bolt 0 respawns once, at tick 68. Phase 4 then spends 2 rand() per
+-- living enemy (the per-enemy hit particle). Damage has no RNG.
+local function simulateRainstorm(livingEnemies)
+  local BOLTS, SCHEDULE_STEP, PHASE_TICKS = 12, 5, 96
+  local MOVES_TO_IMPACT, FLASH_TICKS = 13, 0x38
+  local calls = 0
+  local active, moves, flash = {}, {}, {}
+  for k = 0, BOLTS - 1 do active[k], moves[k], flash[k] = false, 0, 0 end
+
+  for tick = 0, PHASE_TICKS - 1 do
+    for k = 0, BOLTS - 1 do                        -- loop 1: scheduled activation
+      if k * SCHEDULE_STEP == tick then
+        active[k], moves[k] = true, 0
+        calls = calls + 2
+      end
+    end
+    for k = 0, BOLTS - 1 do                        -- loop 2: respawn (schedule 0 only)
+      if not active[k] and flash[k] == 0 and k * SCHEDULE_STEP == 0 then
+        active[k], moves[k] = true, 0
+        calls = calls + 2
+      end
+    end
+    for k = 0, BOLTS - 1 do                        -- epilogue: bolts, then flashes
+      if active[k] then
+        moves[k] = moves[k] + 1
+        if moves[k] >= MOVES_TO_IMPACT then active[k], flash[k] = false, FLASH_TICKS end
+      end
+    end
+    for k = 0, BOLTS - 1 do
+      if flash[k] > 0 then flash[k] = flash[k] - 1 end
+    end
+  end
+
+  return calls + 2 * (livingEnemies or 1)
+end
+
 -- Validated bit-for-bit (exact final LCG-seed match) across 20 injected seeds on THREE
 -- savestates - TedHell.State (a scripted fight), McDohlHell.State (a random encounter), and
 -- McDohlHellGregminster.State (a third, independently-supplied encounter) - all three
@@ -1382,6 +2013,26 @@ return {
   simulateDancingFlames = simulateDancingFlames,
   simulateFinalFlame = simulateFinalFlame,
   simulateStormFang = simulateStormFang,
+  simulateBlazingCamp = simulateBlazingCamp,
+  simulateThor = simulateThor,
+  simulateScorchedEarth = simulateScorchedEarth,
+  simulateWaterDragon = simulateWaterDragon,
+  simulateDeadlyFingertips = simulateDeadlyFingertips,
+  simulateAngryBlow = simulateAngryBlow,
+  simulateRainstorm = simulateRainstorm,
+  simulateClayGuardian = simulateClayGuardian,
+  simulateCopperFlesh = simulateCopperFlesh,
+  simulateScolding = simulateScolding,
+  simulateTheShredding = simulateTheShredding,
+  simulateHealingWind = simulateHealingWind,
+  simulateStorm = simulateStorm,
+  simulateVoiceOfEarth = simulateVoiceOfEarth,
+  simulateYell = simulateYell,
+  simulateScream = simulateScream,
+  simulateGuardianOfEarth = simulateGuardianOfEarth,
+  simulateThunderGod = simulateThunderGod,
+  simulateRagingBlow = simulateRagingBlow,
+  simulateBallOfLightning = simulateBallOfLightning,
   simulateShiningWind = simulateShiningWind,
   simulateHell = simulateHell,
   simulateBlackShadow = simulateBlackShadow,

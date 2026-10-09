@@ -2234,7 +2234,7 @@ vulnerable no matter what value that register holds:
 | 12 | **Not vulnerable — wrong register** |
 | 13 | **Not vulnerable — wrong register** |
 | 14 | Dormant (`>7`) |
-| 15 | Structurally plausible, untested — slot 1 |
+| 15 | **Live — slot 1** (Ain Gide, 2026-10-07) |
 | 16 | Structurally plausible, untested — slot 3 |
 | 17 | Dormant (`>7`) — also wrong register, moot |
 | 18 | Structurally plausible, untested — slot 3 |
@@ -3171,6 +3171,150 @@ it has no VFX particle RNG, so a sim needs no Fire Breath equivalent of
 `calculateFireBreathDamage` reuse `lib/EnemyElementalAttack.lua`'s existing
 `calculateDamage`/variance primitives.
 
+### Ain Gide (`vac.bin`, `0x80013b1c`)
+
+Level 60, HP 8000, PWR 500, MGC 410, SPD 130; lone enemy of
+`AinGide.State`. The AI function is `0x80013b1c` (the `+0x30` pointer of
+his record at file offset `0x644fc`). It is the shared front-row template
+with one move roll and no round-counter gate. Live-validated 2026-10-07
+(`scripts/TraceAinGide.lua`, `scripts/CheckAinGideTrace.py`): 40 injected
+seeds x 2 rounds, 80 of 80 exact on move, target and `rand()` count.
+
+```
+for each party member in formation order:
+  alive (+0x45 == 0) and front row (+0x44 < 4) and not busy: roll
+    rand2 % 100 > 50 -> target                 -- 48.99% per candidate
+no candidate accepted: retry next tick, fresh scan, new rolls
+no living front-row member: ActionTag = 1, turn skipped
+roll = rand2()
+(roll * 100) // 32767 < 0x33 -> Attack  (AI returns -1)   -- 16712/32768
+otherwise                    -> Special (continuation 0x80013d08)
+```
+
+Attack is **51.001%**, Special **48.999%**. The target is stored in
+`+0x125c` and `combatant_rec[self]+0x49` before the move roll, but the
+Special is an AOE and ignores it. Ported to `lib/Enemies/AinGide.lua`
+(`simulateMoveSelection`, `simulateSpecial`, `TIMING`),
+`tests/test_AinGide.lua`.
+
+A fully rejected scan retries on the next tick, so the scan's rolls can
+span several frames. Per-frame counts need summing up to the frame the
+move is committed.
+
+#### Attack
+
+The AI returns -1, so `battle_execute_player_attack` runs on the same
+frame: scan rolls, the move roll and **one hit roll** all land on P, the
+script start (his busy 0 -> 1, normally T0+1). He never uses the
+crit roll. Timings, in frames from P, identical in all 37 captured
+Attacks (P was T0+1 in 30 and T0+2 in 7, when a retry cost a tick):
+
+| P+ | Event |
+|---|---|
+| 0 | script start, his busy set, target busy bit 8 set |
+| 10 | turn-order roll (gate was set to 10) |
+| 66 | his `+0x40` bit `0x1` |
+| 70 | bit `0x2` (impact) |
+| 71 | `calc_damage` roll and HP (hit only, 23 of 37) |
+| 107 | bit `0x4` (hit only) |
+| 109 | next actor (hit or miss) |
+| 154 | his busy clears |
+
+This matches `AttackTimingWalker.py` for slot 1 exactly (impact 70,
+damage 71, done 107, return script 46 frames). The target's busy 8
+clears 44 to 61 frames after the damage, depending on the target.
+
+#### Special
+
+After the move roll the continuation `0x80013d08` waits, with no RNG,
+until no living party member is busy. It then plays script `0x80074800`
+on him: busy, anim 13, anim 14, then opcode 35 installs table slot 6,
+`0x800139d8`. Same skeleton as Zombie Dragon's Fire Breath:
+
+```
+0x800139d8 phase 0 alloc, 1 set callback, 2 run callback, 99 free, 100 clear
+ callback 0x80013dfc  setup (1 tick)
+ callback 0x80013ed8  wait_for_cue: polls slot 0x9c, async, 15-19 ticks
+ callback 0x80013f60  create 24 + 24 particles (slot 0xa4, no RNG)
+ callback 0x800140c0  tick machine, S = its first call
+```
+
+Tick machine, phase 0 runs 160 ticks, phase 1 runs 31:
+
+- **RNG, particles.** Particle `i` (0 to 23) has spawn tick `32 + 4i`. On
+  that tick `vfx_activate_and_position_particle` (slot `0xcc`, radius
+  `0x78`, height 300) rolls **2 `rand()`**. 24 particles, **48 rolls**,
+  on S+32, S+36 ... S+124, exactly as predicted.
+- **Reaction waves.** On S+52, S+90 and S+128 every living party member
+  gets script `0x800741b4` (busy 8 for 34 frames). All end before the
+  damage. No `rand()` in the script.
+- **Damage.** On S+190 (phase 1, 31st call) one
+  `calc_rune_element_attack_damage` roll per living member, in member
+  order, all on one frame, element argument fixed at 1, then HP applied
+  on S+191. 6 rolls with 6 alive, 5 with 5 (43 of 43).
+- **Total.** target scan rolls + 1 move roll + 48 + living members.
+  Nothing else rolls until the next turn-order roll.
+
+**Damage and element** (live-validated 2026-10-07,
+`scripts/TestAinGideRunes.lua`, `scripts/CheckAinGideRunes.py`: 7 seeds x
+8 rune configs, 56 rounds, every member exact). The damage loop at
+`vac.bin @ 0x800143b4` calls `calc_rune_element_attack_damage(attacker,
+slot, 1)` for slots 1 to N, so:
+
+- **Element 1 is Fire.** Only a Fire/Rage Rune (category 1) gets a real
+  halving, plus Soul Eater (category 7, universal). A Water Rune does not
+  reduce it.
+- **Formula:** `base = 410 - target MGC`, then the standard variance with
+  that member's own roll, halved on a match, floor 1. There is no AOE
+  halving (Dragon's Fire Breath has one, this does not). Example: MGC 154
+  gives 275 before halving, 137 after.
+- **The accidental resistance is live.** The loop counter is `$s1`
+  (starts at 1, passed as the target index), the one register the shared
+  function leaves unwritten for an unlisted `Rune.Id` (0, 8 to 0x1a, above
+  0x1f). So the **party slot 1** member takes half damage from the Special
+  whenever their rune is unlisted. Confirmed by editing persistent-stats
+  runes (`*(b+0xf84+slot*0xc)->+0x1c->+0x4c`):
+
+| Config (rune per slot) | Slot 1 | Slots 2 to 6 |
+|---|---|---|
+| all Boar (8) or all none (0) | half (bug) | full |
+| all Fire (2) | half (real) | half (real) |
+| all Water (3) | full | full |
+| slot 1 Water, rest Boar | full | full |
+| slot 1 Boar, rest Water | half (bug) | full |
+| slot 1 Soul Eater, rest Boar | half (real) | full |
+
+  A listed rune in slot 1 masks the bug. Only slot 1 is affected, and
+  that is the combatant index, not the formation position. Ported to
+  `AinGide.calculateSpecialDamage`. The static read of the function
+  (`0x800f8174`, `$s1` written only inside the explicit rune cases) and
+  the live test agree.
+
+Frames from T0 (his first frame as current actor), 43 captured Specials:
+
+| T0+ | Event |
+|---|---|
+| 1 | AI scan, `ActionTag` 1, `+0x0c` = `0x80013d08` |
+| 2 | his busy set (script start P; later if the party is busy) |
+| 12 / 13 | `+0x42` = 1 (callback `0x800139d8`) / 2 |
+| 28 to 32 | S (cue wait 15, 16, 17 or 19 ticks; 17 most common) |
+
+Everything after S is fixed:
+
+| S+ | Event |
+|---|---|
+| 32 + 4i | particle `i` rolls (2 `rand()`) |
+| 52, 90, 128 | hit-reaction waves |
+| 190 / 191 | damage rolls / HP committed |
+| 192 / 193 / 194 | `+0x42` = 99 / 100 / callback cleared |
+| 204 | his busy clears |
+| 205 | roll gate set to 30 |
+| 235 | next turn-order roll |
+| 236 | next actor |
+
+The turn ends B = S+204 (T0+232 to T0+236), and the gate rule matches
+Dragon's: set to 30 on B+1, roll on B+31, next actor on B+32.
+
 ### Neclord (`ve1.bin`/`ve3.bin`)
 
 Neclord's Castle fight (`ve3.bin`, HP 7500): monster record at
@@ -3966,8 +4110,8 @@ for this encounter, pointing at **`queen_ant_end_of_round_callback`**
 
 1. **Wait-for-everyone gate**: scans every combatant (party + enemies) for
    anyone who hasn't acted this round yet (`ActionTag == 0`) — returns
-   immediately (no-op) if so, so the rest of the function only runs once,
-   right as a round finishes.
+   immediately (no-op) if so. The rest runs on every poll after the last
+   actor is picked (every frame until the round ends), not once per round.
 2. **The 3rd-turn battle-end trigger**: once everyone's acted,
    `if (dwRoundNumber > 2) { SyncSignals+4 (BattleState+0x34) = 1; }`.
    `SyncSignals+4` is the same flag `battle_process_round_end_status_and_
@@ -3978,6 +4122,11 @@ for this encounter, pointing at **`queen_ant_end_of_round_callback`**
    sets the same flag for an unrelated purpose) — it plausibly leads to the
    battle ending here, via a generic coroutine-state write not itself
    traced further.
+> **Correction 2026-10-07**: the callback is polled every frame once the
+> last actor is picked, not once per round, and a revive can fire twice in
+> one round. Measured death/spawn timings:
+> [Queen_Ant_Ant_Respawn.md](./Queen_Ant_Ant_Respawn.md).
+
 3. **Ant-respawn**: unconditionally (every call, any round), the same
    function also scans every enemy slot for one that's dead/removed and
    not busy, and fully revives it — HP restored to max, marked valid
@@ -4021,6 +4170,13 @@ mechanism reused for at least two distinct narrative purposes: ending a
 fight on a round threshold, and forcing a specific character's specific
 action with no input.
 
+RNG before the cast (live, `QueenAntTed.State`): 5 `rand()` total. 1 is the
+round-start camera roll; the other 4 are two turn-order rolls of 2 calls each
+(both Ted and Queen un-acted), one when the arm stage fires and one when the
+commit stage fires, 60 ticks apart. The delay ticks in between roll nothing.
+The commit does not reduce its own roll's cost. Attribution is by timing, not
+caller address.
+
 ## How spells call RNG: the cast state machine
 
 `apply_elemental_multiplier` itself has no RNG — but a spell *cast* is not
@@ -4052,12 +4208,20 @@ wherever the two differ.
 |---|---|---|---|---|
 | Explosion | `4` | Fire (Lv4) | 700 | 64+32+128+96 |
 | Earthquake | `24` | Earth (Lv4) | 700 | 64+64+128+64 |
+| Scolding | `5` | Resurrection (Lv1) | 70 (x2 undead) | 64+64+32+96 |
+| Yell | `6` | Resurrection (Lv2) | revive, HPMax/3 | 64+32+80+64+64+64 |
+| Scream | `7` | Resurrection (Lv3) | party +300 | 64+32+80+60+64+64 |
 | Charm Arrow | `8` | Resurrection (Lv4) | 500 | 64+32+64+64 |
 | Flaming Arrow | `1` | Fire (Lv1) | 100 | 64+96+74+60 |
 | Dancing Flames | `3` | Fire (Lv3) | 400 | 64+32+64+77+192+64 |
 | Final Flame | `29` | Fire (Rage Lv4) | 900 | 64+128+296+96 |
 | Shining Wind | `31` | Wind (Lv5) | 500 | 64+32+64+160+64 |
 | Storm Fang | `35` | Earth+Wind combo | — | n/a [2] |
+| Blazing Camp | `36` | Fire+Lightning combo | 1500 | 64+32+150+64+64 |
+| Thor | `37` | Water+Lightning combo | 2000 | 64+48+128+80+64 |
+| Scorched Earth | `34` | Fire+Earth combo | 1300 | 64+64+64+164+?+64+64 |
+| Water Dragon | `38` | Wind+Water combo | 800 | 64+64+128+64+64 |
+| Deadly Fingertips | `25` | Dark (Lv1) | instant death | 64+32+80+60+10+60+60 |
 | Hell | `27` | Dark (Lv3, corrected) [3] | 2 (instant-death) | 64+32+128+? |
 | Black Shadow | `26` | Dark (Lv2) | 300 | 64+32+80+? |
 | Judgment | `28` | Dark (Lv4) | 1500 | 64+32+64+64+64+96+60+60 |
@@ -4067,11 +4231,22 @@ wherever the two differ.
 | Water of Kindness | `11` | Water (Lv3) | heal 300 | 64+32+90+60+60 |
 | Mother Ocean | `30` | Flowing (Lv4) | full heal | 64+32+90+60+60+60+64, see below |
 | Wind of Sleep | `13` | Wind (Lv1) | Sleep 70% | 64+64+64+64+96+64 |
+| Angry Blow | `17` | Lightning (Lv1) | 150 | 64+64+48+64+64 |
+| Rainstorm | `18` | Lightning (Lv2) | 100 (all enemies) | 64+64+96+64+56+64 |
+| Raging Blow | `19` | Lightning (Lv3) | 600 | not decompiled |
+| Ball of Lightning | `20` | Lightning (Lv4) | 1000 (single-target) | not decompiled |
+| Thunder God | `32` | Lightning (Lv5) | 900 (all enemies) | 64+64+48+180+64+64 |
+| Clay Guardian | `21` | Earth (Lv1) | buff (`+0x42` x3/2) | 64+32+80+96+64 |
+| Copper Flesh | `23` | Earth (Lv3) | status id8 (HP lock) | 64+32+64+64+96+64+64 |
+| Guardian of Earth | `33` | Mother Earth | buff (party) | 64+32+64+128+64 |
 
 | Spell | Total ticks (≈s @60fps) | RNG-call total |
 |---|---|---|
 | Explosion | 320 static; 831 live [1] | 1220 (native seed), 1271 (fresh seed) [5] |
 | Earthquake | 320 (~5.3s) | seed-dep., 1519–1786 (mean 1649) |
+| Scolding | 256 (static = live) | 0, always (static) |
+| Yell | 368 (static = live) | fixed 33 (20 seeds) |
+| Scream | 364 static; 364-366 live | fixed 162 (20 seeds) |
 | Charm Arrow | 224 static; 226 live | 24436 (validated seed, core 64-tick phase) |
 | Flaming Arrow | 294 (~4.9s) | 512 for the validated seed |
 | Dancing Flames | 493 (~8.2s) | fixed 150, always |
@@ -4079,6 +4254,15 @@ wherever the two differ.
 | Final Flame | 584 (681 frames) [7] | seed-dep., 530-538 |
 | Shining Wind | 384 raw; 535-539 live [1] | 1302 for the validated seed |
 | Storm Fang | ~360 real frames | fixed 38, always |
+| Blazing Camp | 374 (static = live) | fixed 54 (20 seeds) |
+| Thor | 571 live (static 384) | seed-dep., 550-610 (20 seeds) |
+| Scorched Earth | 563 live | fixed 282 (20 seeds) |
+| Water Dragon | 672-682 live (static 384) | seed-dep., 2998-3193 (20 seeds) |
+| Deadly Fingertips | 576 live (static 366) | seed-dep., 1075-1170 (20 seeds) |
+| The Shredding | 264 | 0, always (user-verified) |
+| Healing Wind | 288 | 0, always (user-verified) |
+| Storm | 280 | 0, always (user-verified) |
+| Voice of Earth | ~321 | 0, always (user-verified) |
 | Hell | 843 live (static sum unresolved) [4] | seed-dep., ~10320–12220 (20 seeds) |
 | Black Shadow | 463 live (static sum unresolved) | seed/state-dependent — see below |
 | Judgment | 504 (static sum = live) | seed-dep., 152-176 (23 seeds) |
@@ -4088,6 +4272,14 @@ wherever the two differ.
 | Water of Kindness | 306 (static sum = live) | 12 x party size (72 for 6) |
 | Mother Ocean | 557 live (static 430) | 12 x party size, static only |
 | Wind of Sleep | 416 (static sum = live) | 300 + 4/zero roll + 1/enemy, 305-317 |
+| Angry Blow | 304 (static sum = live) | fixed 6 (5 or 4 only if the target is absurdly deep) |
+| Rainstorm | 408 (static sum = live) | 26 + 2 per living enemy (28 for one) |
+| Raging Blow | 400 (live) | 0, always (verified by the user) |
+| Ball of Lightning | 384 (live) | 0, always (verified by the user) |
+| Thunder God | 484 (static sum = live) | fixed 472 (live-validated, 4 seeds) |
+| Clay Guardian | 336 (static sum = live) | seed-dep., 90-132 (20 seeds, multiples of 3) |
+| Copper Flesh | 504 live (static 448) | 0, always (static) |
+| Guardian of Earth | 474-480 live (352) | seed-dep., 380-408 (20 seeds) |
 
 1. case3 phase runs at half framerate, so the real-time span (~9s) is longer
    than the raw tick count implies.
@@ -4362,6 +4554,76 @@ X-position, which drives the variable *lifetime* (and therefore the
 variable total call count) per seed, since velocity itself is a fixed
 decay constant. Damage: `apply_elemental_multiplier(4, 2, ..., 700)`.
 
+### Scolding (zero RNG)
+
+Static decompile, 2026-10-06 (`spell_scolding_*` at
+`0x80102dc0/102de8/103000/1037dc`, context `DAT_8017a038`). No `rand()`
+anywhere: not in setup, not in any phase, not in
+`apply_elemental_multiplier` (its only callee is `printf`), not in the hit
+reaction script (`0x8016f1cc`, no opcode 40) and not in the end handler.
+`simulateScolding()` returns `0`. Not live-tested; the static call graph
+is the whole evidence.
+
+Phases: 64 (fade in), 64 (fade out), 32 (projectile travels to the
+target, ends by playing the hit script), 96 (shrink; damage lands on its
+last tick via `apply_elemental_multiplier(1, 5, target, caster, 0x46)`
+then `apply_hp_damage_display`). The sum, 256, equals the live machine
+length already in the duration table.
+
+### Yell (fixed 33)
+
+Static decompile plus a live check, 2026-10-06 (`spell_yell_*` at
+`0x80103824/1384c/103bfc/1043d0`, context `DAT_8017a038`). Setup, the
+revive (phase 5's last tick clears `bValidFlag`, then
+`apply_hp_damage_display(target, -HPMax/3)`), the hit script (`0x8016f080`,
+no opcode 40) and the end handler have no RNG. Phases 64+32+80+64+64+64 =
+368, equal to the live length in the duration table.
+
+The only RNG is a sparkle pass in the epilogue, live only during phase 3
+(its first tick sets the flag, its last tick clears it before the pass).
+Five sparkles are created with start ticks 0, 10, 20, 30, 40 (setup, no
+RNG). A sparkle whose field `+0x24` equals the tick counter (already
+incremented, so phase 3 sees 1..63) costs 3 `rand()`: `rand() % 0x3c` for
+the height, then `vfx_activate_and_position_particle` = 2. It then sets the
+field to `0x30`. **The field is a countdown, not a fixed value:**
+`FUN_8012080c` subtracts 1 from it every tick the sparkle is active, so at
+counter L it holds 48-(L-t) and the sparkle fires again when that equals L,
+at (48+t)/2 when that is a whole tick:
+
+- start 0 never matches (the counter starts at 1)
+- 10, 20, 30, 40 fire: 4 activations
+- they re-fire at 29, 34, 39, 44 (30 -> 39 and 40 -> 44 included): 4 more
+- 34 -> 41 and 44 -> 46: 2 more; 46 -> 47: 1 more (odd starts never match)
+
+11 activations x 3 = **33**, independent of the seed. Live (McDohl,
+Resurrection Rune id 7, slot 2, aimed at a live ally since Yell can target
+one; `scripts/CaptureYellSeeds.lua`, 20 injected seeds): 33 every time, and
+the first seed's rolls landed on counters 10, 20, 29, 30, 34, 39, 40, 41, 44,
+46, 47. `simulateYell()` returns 33. My first static pass said 24: I read
+the field as a fixed `0x30` re-fire tick and missed the countdown in
+`FUN_8012080c`.
+
+### Scream (fixed 162)
+
+Static decompile plus a live check, 2026-10-06 (`spell_scream_*` at
+`0x80104468/10490/104808/104ff4`, context `DAT_8017a038`; McDohl with the
+Resurrection Rune id 7, slot 3, party-wide; 20 injected seeds,
+`scripts/CaptureScreamSeeds.lua`). Phases 64+32+80+60+64+64 = 364, inside
+the 364-366 live range in the duration table. Setup, the hit script
+(`0x8016f234`, no opcode 40), the party-wide heal (phase 5's last tick,
+`apply_hp_damage_display(member, -300)` for every member not flagged
+`aUnk_0x50 == 1`) and the end handler have no RNG.
+
+The RNG is the same sparkle pass as Yell, with 20 sparkles (start ticks
+0, 2, 4 ... 38) and a 60-tick phase 3, so the counter runs 1..59. A match
+costs 3 `rand()`, the field is set to `0x30`, and `FUN_8012080c` counts it
+down each tick so the sparkle re-fires at (48+t)/2 when that is whole (see
+Yell). Start 0 never fires; the other 19 fire once, then the even-start
+chains re-fire: 54 activations x 3 = **162**, independent of the seed. All 20
+seeds gave 162, and the first seed's per-tick counts (3 per activation, up to
+9 on counters 38 and 43) matched the model exactly. `simulateScream()` returns
+162; Yell and Scream share `simulateResurrectionSparkles` in `lib/Magic.lua`.
+
 ### Charm Arrow
 
 Uses a different mechanic entirely: a 16384-byte pre-baked gradient/"charm
@@ -4491,6 +4753,385 @@ initial height), the rest are deterministic — 38 total, always, and the
 entire tick-phase machine afterward has zero RNG.
 `simulateStormFang()` returns the constant `38`.
 
+### Blazing Camp (Unite, fixed 54)
+
+Static decompile plus a live check, 2026-10-06 (`spell_blazingcamp_*` at
+`0x80119584/195ac/19970/1a660`, context `DAT_8017a068`; `SpellDuration.State`
+with McDohl on the Fire Rune and Luc on the Lightning Rune, both queueing
+Rune slot 4 at the first enemy, which makes the faster one trigger the combo;
+20 injected seeds, `scripts/CaptureBlazingCampSeeds.lua`). Phases
+64+32+150+64+64 = 374, equal to the live length in the duration table.
+Setup, the two enemy hit scripts (`0x8016f150`, `0x8016f0d0`; their native
+handler 13, `0x800f3aa0`, only cycles a palette), the damage
+(`calc_dual_element_spell_damage(0, 3, target, caster, 0x5dc)`, no RNG) and
+the end handler have no RNG.
+
+- **Phase 2, meteors, 30 `rand()`.** Ten meteors; meteor k activates at tick
+  72+6k (`vfx_activate_and_position_particle(p, 0x4b, 300)`, 2 `rand()`,
+  20 total). Each starts at z = -300 and moves +25 per tick starting the tick
+  it activates; on its 12th move `z>>12` passes -10 (a fixed threshold, not
+  the target's depth), it costs one more `rand()` (the impact flash's life,
+  `rand() % 32 + 0x30`) and goes inactive: 10 more. The last impact is at
+  tick 137, inside the 150-tick phase, so all ten land.
+- **Phase 3, sparkles, 24 `rand()`.** Twelve sparkles with start ticks
+  0, 3 ... 33; each activates once when the raw tick equals its start
+  (`vfx_activate_and_position_particle(p, 0x4b, 0)`, 2 `rand()`). Unlike
+  Yell and Scream nothing re-arms the start tick, so none fires twice.
+
+20 + 10 + 24 = **54**, independent of the seed and the number of enemies.
+Live: 54 on all 20 seeds, and the first seed's per-tick counts matched
+(2 at counters 73, 79, ...; 1 at 84, 90, ... for the impacts; 2 at phase-3
+counters 1, 4 ... 34). `simulateBlazingCamp()` returns 54.
+
+### Thor (Unite, seed-dependent)
+
+Static decompile plus a live check, 2026-10-07 (`spell_thor_*` at
+`0x8011a7f4/1a81c/1abd4/1bc3c`, context `DAT_8017a068`; `SpellDuration.State`
+with McDohl on the Lightning Rune and Luc on the Water Rune, both queueing
+Rune slot 4 at the first enemy; 20 injected seeds,
+`scripts/CaptureThorSeeds.lua`). Phases 64+48+128+80+64 = 384 ticks, but the
+machine ran 570-572 frames live (your 571), so ticks are not one per frame
+here: probably the same frame pacing as other heavy spells, unverified. The
+damage (`calc_dual_element_spell_damage(1, 3, ...)`, 2000), the two hit
+scripts and the end handler have no RNG. Counts are 550 to 610 over 20 seeds.
+Only phase 2 (128 ticks) has a body; the shared epilogue runs on all five
+phases, so effects that outlive phase 2 still roll. The RNG, in the order a
+tick runs it:
+
+- **Setup, 6**: one roll per spark particle.
+- **Bolts, 36.** Four bolts. A bolt re-activates for 2 `rand()` whenever it
+  and its impact flash are both inactive: all four at tick 0, 60 and 120 (24).
+  Each flies from z = -300 at +25/tick and impacts on its 13th move for 1
+  `rand()`, at ticks 12, 72, 132 (12); the last impact is in phase 3. The
+  impact flash's life roll never matters: the paired 48-tick flash always
+  ends it first.
+- **Trails, 120.** Six arrays of ten particles; array j is armed at tick
+  32+3j and re-activates for 2 `rand()` while its lead and its tail (10th)
+  particle are both inactive, i.e. at a, a+25, a+50, a+75 (a+100 falls past
+  the phase): 24 activations, 48. A lead runs 16 ticks and then rolls 3
+  `rand()` for its spark (the tail flag trails the lead by 9 ticks): 72.
+  Every lead completes, the last at tick 138.
+- **Arcs, 4 per spawn.** From tick 48, each of 20 line particles that is
+  inactive respawns with `spell_flamingarrow_spawn_particle(p, 0x78)`
+  (4 `rand()`), the same helper Flaming Arrow uses. The shared epilogue
+  despawns an arc when its lifetime hits 0 or `|trail_x>>12| < 5`, else
+  lifetime-1 and `trail_x += velocity`. This is the seed-dependent part:
+  total = 162 + 4 x (arc spawns). Their `trail_x` low 12 bits were read
+  live: all 0, so no savestate residue to carry (unlike Black Shadow).
+
+`simulateThor(startSeed)` takes the RNG at the setup frame. All 20 seeds
+matched, and the first seed's per-tick counts matched (6 at setup, 8 at
+counter 1, 4 at 13, 2 on 33/36 ... 48, 83 = 20 arcs + a trail spark on 49).
+A first draft was 1 tick off on every seed: I shifted the trail flags before
+updating the lead's, but the game copies the lead's updated flag, which
+re-arms the trail a tick sooner (a+25, not a+26).
+
+### Scorched Earth (Unite, fixed 282)
+
+Static decompile plus a live check, 2026-10-07 (`spell_scorchedearth_*` at
+`0x801179bc/179e4/17d5c/187fc`, context `DAT_8017a068`; `SpellDuration.State`
+with McDohl on the Earth Rune and Luc on the Fire Rune, both queueing Rune
+slot 4 at the first enemy; 20 injected seeds,
+`scripts/CaptureScorchedEarthSeeds.lua`). Phases 64+64+64+164, then phase 4
+(waits until the meteors and impacts are all gone), then 64+64. The
+machine ran 563 frames live (your table has 562). If the other phases run
+one tick per frame, phase 4 is about 79; not measured. Damage is
+`calc_dual_element_spell_damage(0, 2, ..., 0x514)` with no RNG, like the
+hit script (`0x8016f0d0`). The tick machine has no direct `rand()`: every
+roll is inside `vfx_activate_and_position_particle` (2 each) or the setup,
+so only *when* a particle activates matters, never the rolled values.
+That makes it **seed- and enemy-count-independent: 282 on all 20 seeds**.
+
+- **Setup, 48**: four loops of 12 rolls (each particle's scale).
+- **F sparkles, 154.** Twelve, start ticks 0, 3 ... 33, driven from the
+  shared epilogue while its gate is on (phases 1-3, 292 passes). A first
+  fire costs **4**: `label == start` activates and sets the field to -1,
+  and the very next check (`field == -1`, no active test) activates again.
+  After that the sparkle re-activates (2) every time its non-looping
+  55-tick sprite (sequence 0xd) has ended: 12 x 4 + 53 x 2 = 154.
+- **A particles, 32.** Twelve, start ticks 0, 8 ... 88, phase-3 body only:
+  fires when its field equals the raw tick, then sets it to 30. The
+  epilogue counts it down once per tick it is active (its sprite is also
+  55 ticks), so some re-fire when the countdown meets the rising tick, at
+  (30+t)/2, as with Yell: 16 activations.
+- **E particles, 48.** Eight, start ticks 0, 12 ... 84, phase-3 body: fires
+  at its tick and starts a ring that expands for 47 ticks; whenever its
+  start field is 0 and the ring is gone it fires again: 24 activations.
+
+282 = 48 + 154 + 32 + 48. Live per-tick counts matched the model on every
+entry (48 at setup, 4 at labels 3, 6 ... 33, then the 55- and 47-tick
+respawn chains). `simulateScorchedEarth()` returns 282.
+
+### Water Dragon (Unite, seed-dependent, about 3000)
+
+Static decompile plus a live check, 2026-10-07 (`spell_waterdragon_*` at
+`0x8011bde4/1be0c/1c24c/1cd48`, context `DAT_8017a068`; `SpellDuration.State`
+with McDohl on the Water Rune and Luc on the Wind Rune, both queueing Rune
+slot 4 at the first enemy; 20 injected seeds,
+`scripts/CaptureWaterDragonSeeds.lua`). Phases 64+64+128+64+64 = 384
+ticks, but the machine ran 672-682 frames live (your 671-681), so as with
+Thor ticks are not one per frame (cause not investigated). Damage is
+`calc_dual_element_spell_damage(1, 4, ..., 800)` on phase 4's last tick, then
+`FUN_8012055c` for each party member (the formation restore); the hit
+scripts (`0x8016f1cc`, `0x8016f234`, `0x8016f080`) and the end handler have
+no RNG. 20 seeds gave 2998 to 3193.
+
+Only phase 2 has a body; the shared epilogue runs on all five phases. Every
+roll, in the order a tick draws them:
+
+- **Setup, 302**: 30 x 3 + 20 x 2 + 80 x 2 + 12 x 1 (scales, start frames).
+- **Bolts, 24.** Twelve; bolt k activates in the phase-2 body at tick 48+5k
+  (`vfx_activate_and_position_particle(p, 100, 300)`, 2). The impacts roll
+  nothing.
+- **Three respawning pools** (the epilogue re-spawns any inactive particle
+  while its gate is open; all three gates close on phase 3's last pass, so
+  phase 4 rolls nothing):
+  - **P1**, 30 particles, passes 64 to 318: 4 `rand()` per spawn (height,
+    the helper's 2, life `rand() % 180`). Life counts down once per active
+    pass and the particle goes inactive when it reads < 1, so a particle is
+    re-spawned every life+1 passes.
+  - **P2**, 20 particles, passes 128 to 318: **5** `rand()` (height `% 200`,
+    the helper's 2, z velocity `rand() % 0x400 + 0x1e00`, life `% 180`).
+    Unlike the others its life never counts down: it ends when `z>>12 > 0`
+    (it starts at -height, moves by its velocity each pass and keeps the low
+    12 bits of z across lives), or at once when the rolled life is 0.
+  - **P3**, 80 particles, passes 64 to 318: 4 `rand()` as P1 with life
+    `% 96`.
+
+The big spike is the first gated pass (pass 64): P1 and P3 all spawn at once
+for 440 `rand()`. `simulateWaterDragon(startSeed)` takes the RNG at the setup
+frame; all 20 seeds matched on the first try, and the first seed's per-tick
+counts matched on all 218 entries.
+
+### The Shredding / Healing Wind / Storm / Voice of Earth (zero RNG)
+
+All four cost no `rand()` (verified by the user, 2026-10-07; not decompiled
+here). `simulateTheShredding()`, `simulateHealingWind()`, `simulateStorm()`
+and `simulateVoiceOfEarth()` return `0`.
+
+### Deadly Fingertips (seed-dependent, 1075 to 1170)
+
+Static decompile plus a live check, 2026-10-07 (`spell_deadlyfingertips_*` at
+`0x80113a68/13a90/13e98/147d4`, context `DAT_8017a060`; `SpellDuration.State`,
+McDohl's own Soul Eater Rune slot 1 at the first enemy; 20 injected seeds,
+`scripts/CaptureDeadlyFingertipsSeeds.lua`). Phases 64+32+80+60+10+60+60 =
+366 ticks; the machine ran 576 frames live (your 575), so ticks are not one
+per frame here either. The instant-death step (phase 5's last tick,
+`apply_elemental_multiplier(1, 7, target, caster, 2)`, then the immunity
+flag test) has no RNG: that function's only callee is `printf`. Setup, the
+hit script (`0x8016f1cc`) and the cleanup have none either.
+
+All the RNG is the same 30-particle spark pool as the Dragon's Lightning
+(`Dragon.simulateLightning`): `vfx_spawn_random_arc_particle(p, 100)` respawns
+any inactive line particle for 5 `rand()` (x offset, y offset, a point-B z,
+then the z velocity `-(r % 5 + 5)` and the life `r % 0x46`). A spark goes
+inactive when its life reaches 0 or `z>>12 < -300`, whichever comes first.
+The spawn gate opens on phase 2's first tick and closes on phase 5's last
+tick, which gives 209 gated passes: 80 (phase 2) + 60 + 10 + 59. Decay runs on
+every pass, so sparks alive when the gate closes just fade out. The first
+gated pass spawns all 30 at once (150 `rand()`); the rest depends on the
+seed's life and velocity rolls: total = 5 x (spark spawns).
+`simulateDeadlyFingertips(startSeed)` takes the RNG at the setup frame. All 20
+seeds matched and the first seed's 129 per-tick entries matched.
+
+### Angry Blow (fixed 6, unless the target is absurdly deep)
+
+Static decompile plus a live check, 2026-10-06 (`SpellDuration.State`, McDohl
+with the Lightning rune, slot 1; `scripts/CaptureAngryBlowDepth.lua`).
+The strike is phase 3 (64 ticks). Two "bolt" particles activate at its
+ticks 0 and 12, and each activation is
+`vfx_activate_and_position_particle`, which calls `rand()` twice: 4 calls.
+Each bolt starts at z = -300 and moves +25 per tick in the shared epilogue.
+When its `z>>12` passes the target's `nRefPosZ>>12`, it costs one more
+`rand()` (the impact flash's life, `rand()%32 + 0x30`) and goes inactive:
+2 calls. Damage lands at the end of phase 3 with no RNG. Nothing else
+rolls: the attack script (`0x8016f150`) has no opcode 40 and no sub-actor
+spawn, its native handler (`0x800f3aa0`) only cycles a palette, and the two
+keyframe tables are arithmetic. `simulateAngryBlow(targetZ)` returns 6.
+
+Depth caveat. Phase 3's exit clears the bolts before that tick's epilogue,
+so bolt 2 (tick 12) gets 51 moves and needs `nRefPosZ>>12` below about
+975. Forcing the target's z live: 0, 500 and 900 gave 6 calls, 1000 gave
+5, 1500 gave 4 (the cast is 304 frames either way). 901-999 comes from the
+decompile, not a measurement. The test enemy's native z is 0 (x = -128).
+On screen z is depth toward the camera: at z = 500 the enemy was already
+below the bottom of the frame, so the cutoff isn't reachable in a real
+fight.
+
+### Rainstorm (26 + 2 per living enemy)
+
+Static decompile, 2026-10-06; the dependence on living enemies was
+confirmed live by the user. Phase 2 (96 ticks) runs 12 bolts. Bolt k
+activates at tick 5k, 2 `rand()` each (`vfx_activate_and_position_particle`,
+radius 150, height 300): 24 calls. A bolt starts at z = -300, moves +25
+per tick, and impacts on its 13th move. The impact target is fixed at
+(-128, 0, 0), written on phase 2's first tick, so enemy position never
+matters, and the impact itself has no `rand()` (unlike Angry Blow).
+
+A second loop re-activates a bolt that is inactive, has an inactive flash,
+and has schedule 0. Only bolt 0 has schedule 0: it impacts at tick 12, its
+flash lasts 56 ticks, so it respawns once at tick 68 (+2) and impacts again
+at tick 80. The next respawn would be tick 136, after phase 2 ends.
+
+Phase 4 (56 ticks) then takes one particle per living enemy,
+`vfx_activate_and_position_particle(p, 2, 0)`: 2 calls each. "Living" is
+the combatant record's `+0x45 == 0` flag, the same one phase 5's damage
+checks. Damage (every living enemy, power 100) has no RNG. Nothing else
+rolls: the attack scripts, keyframe tables and sound dispatch are the same
+RNG-free ones as Angry Blow's. `simulateRainstorm(livingEnemies)` models
+phase 2 tick by tick.
+
+### Raging Blow / Ball of Lightning (zero RNG)
+
+Both cost no `rand()`, verified live by the user (2026-10-06). Their tick
+machines were not decompiled, so there is no phase breakdown here; the
+cast lengths (400 and 384 frames) are the live measurements from "Cast
+timing". `simulateRagingBlow()` and `simulateBallOfLightning()` return `0`.
+
+### Thunder God (fixed 472)
+
+Static decompile, 2026-10-06, then live-validated the same day
+(`scripts/CaptureThunderGod.lua`, `SpellDuration.State`, McDohl with the
+Thunder Rune, slot 4, 4 seeds): the per-tick counts below matched exactly
+and the machine ran 484 frames. Three sources, none of them seed- or
+enemy-dependent:
+
+- **Setup, 96 calls.** 24 flicker particles (12 of sprite 6, 12 of sprite
+  0xb), 4 `rand()` each (initial life, scale, two rotation fields), all in
+  the setup frame.
+- **Phase 3 (180 ticks), 16 calls.** Eight bolts activate at ticks 0, 10
+  .. 70, 2 `rand()` each (`vfx_activate_and_position_particle`, radius 2).
+  Unlike Rainstorm nothing respawns, and the impact has no `rand()`.
+- **Phase 4 (64 ticks), 360 calls.** Every inactive flicker particle
+  re-activates for 3 calls (one height roll plus the 2 inside the helper),
+  but only while the tick is below 48. They go inactive when their sprite
+  animation ends. Both sequences (6 and 0xb in the shared effect sheet in
+  `battle.bin`) are 5 frames of 2 ticks and don't loop, so a particle is
+  active for 10 ticks and re-activates at ticks 0, 10, 20, 30 and 40: 5
+  times each, 24 x 3 x 5.
+
+Damage hits every enemy whose combatant `+0x45` flag isn't 1, with no
+RNG; the phase-4 hit-reaction script has none either. The 10-tick animation
+period is the one assumption read from disc data rather than code (9 would
+give 6 activations, 12 would give 4); the live run confirmed 5. A capture
+window running to the next actor pick shows 478: the extra 6 land 1 frame
+before the next pick, the next turn's roll, not the spell.
+`simulateThunderGod()` returns 472.
+
+### Clay Guardian (seed-dependent sparkle respawns)
+
+Static decompile plus a live check, 2026-10-06 (`SpellDuration.State`,
+McDohl with the Earth Rune, slot 1, aimed at himself; 20 injected seeds,
+`scripts/CaptureClayGuardianSeeds.lua`). Setup and phases 0-2 (64+32+80
+ticks) have no RNG, and neither does the buff: phase 3's first tick runs
+the target's reaction script (`0x8016f234`, no RNG opcodes) and multiplies a
+16-bit stat of the target's record (`+0x34`+0xe) by 3/2; the script replays
+at counter 34 and 68.
+
+All the RNG is phase 3's sparkle loop (10 particles, 96 ticks, in the
+epilogue; it also runs on phase 3's last tick). Per tick, in particle
+order: an inactive sparkle is re-activated for 3 `rand()`
+(`vfx_activate_and_position_particle(p, 30, 0)` = 2, then its life
+`rand() % 60`); then every sparkle with life < 1 goes inactive, else its
+life drops by 1. A sparkle with life L is active L ticks and respawns the
+tick after it expires, so the total follows the seed's life rolls: 90 to
+132 over 20 seeds, always a multiple of 3. The z cutoff (-200) can't fire
+(at most 59 moves of about -3.3 units). `simulateClayGuardian(startSeed)`
+takes the RNG at the setup frame. All 20 seeds matched exactly, and the
+first seed's per-tick counts did too (30 at tick 0, then 3 per respawn,
+6 on ticks 51 and 58).
+
+**The buff appears to do nothing (user-tested 2026-10-06).** It is meant to
+be a DEF boost, but the user found that Clay Guardian did not reduce the
+damage the target took. That fits the code: `calc_damage` subtracts the
+target's `wDEF` (rec `+0x32`), while this spell multiplies rec `+0x42`.
+Whether anything copies `+0x42` into `+0x32` was not traced, so the cause
+is a lead, not a proof. Magic damage (`apply_elemental_multiplier`) wasn't
+tested either.
+
+Update 2026-10-07: while testing Fog of Deception I dumped `aUnk_0x34`
+(`+0x34..+0x42`) for every combatant, McDohl included, and all of it is 0. So
+`+0x42 * 3/2` is 0 as well, which is a simpler explanation for "does nothing"
+than a missing copy into `+0x32`, and it contradicts the earlier guess that
+`+0x42` is the fully-computed final DEF (McDohl's DEF at `+0x32` was 135 in
+the same dump). Only seen on one savestate, with this party's gear.
+
+### Copper Flesh (zero RNG; how the effect works)
+
+Static decompile, 2026-10-06. No `rand()` anywhere: setup, the seven phases,
+`apply_status_effect` and the target's reaction script (`0x8016f234`, the
+same one Clay Guardian uses) are all RNG-free. `simulateCopperFlesh()`
+returns `0`. The static phase sum (448) is 56 short of the measured 504
+frames; the end handler (`0x80111610`) only frees resources, so it's the
+same kind of frame-pacing gap as Mother Ocean's and Rain of Kindness's.
+
+The effect, start to finish:
+
+- **When it lands.** Phase 4's first tick, 224 ticks into the machine
+  (64+32+64+64), not at cast start. It calls `apply_status_effect(target, 8)`.
+  Phases 0-3 are only visuals, so the target is still unprotected for that
+  long. Phase 4 replays the target's reaction script at its ticks 0, 34, 68.
+- **What it sets.** `combatant_rec+0x4c = 2` and bit `0x8000` in `+0x4a`.
+  Always for the one chosen ally; no chance roll, no immunity check, no
+  stat is touched.
+- **What the lock does.** `apply_hp_damage_display` checks `0x8000` first
+  and zeroes the HP delta, so **any change is dropped, healing as well as
+  damage**. The callers I found that go through it: physical hits (covered,
+  uncovered, critical, counter), Rune Falcon, every damaging and healing spell
+  traced here (Drops/Water/Rain of Kindness, Mother Ocean, Voice of Earth
+  and the damage spells), the Unite damage functions, and
+  `battle_refresh_combatant_derived_stats` (the round-start Poison/regen
+  path, so Poison most likely stops too; that path wasn't traced).
+  Status ailments don't go through it and still land.
+- **How long.** `battle_process_round_end_status_and_formation` runs per
+  party member at each round's end: if `0x8000` is set, a zero counter
+  clears the lock, then the counter drops by 1. Cast in round R: the
+  counter is 2 at the end of R (to 1), 1 at the end of R+1 (to 0), and
+  the end of R+2 clears the lock. So the rest of R, all of R+1 and all of
+  R+2: three rounds counting the casting one. Recasting while locked resets
+  the counter to 2.
+- **Enemies.** The decay loop covers party members only
+  (`idx = 1..dwPartyCount`), and `apply_status_effect` has no counter on
+  its enemy branch. An enemy given id 8 would keep it for the whole battle.
+  Nothing in this session did that; it follows from the code.
+- **Not covered.** Anything that changes HP without going through
+  `apply_hp_damage_display`: Hell's instant kill and item use weren't
+  traced for this.
+
+### Guardian of Earth (seed-dependent sparkle respawns)
+
+Static decompile plus a live check, 2026-10-06 (`SpellDuration.State`,
+McDohl with the **Mother Earth Rune** (rune id 30, spell 33 in slot 4; the
+plain Earth Rune only holds ids 21-24), whole party; 20 injected seeds,
+`scripts/CaptureGuardianOfEarthSeeds.lua`). Functions
+`spell_guardianofearth_*` at `0x80112048/12070/122f8/129ec`, context at
+`DAT_8017a058`. Phases 0-4 are 64+32+64+128+64 ticks (352). The buff
+(phase 4's first tick, rec `+0x42` x3/2 for every living party member), the
+hit-reaction script (`0x8016f234`, replays every 32 ticks of phase 3) and
+the end handler have no RNG.
+
+All of it is the 40 sparkle particles:
+
+- **Setup, 40 `rand()`**: each sparkle's start tick is `rand() % 48`.
+- **Sparkle pass**, in the epilogue on all 128 ticks of phase 3 and the
+  first 32 of phase 4 (the flag clears when phase 4's counter reads 32).
+  The counter is already incremented when it runs, so start tick s >= 1
+  fires on phase-3 tick s-1, and s = 0 fires on phase 3's last tick (the
+  counter was just reset to 0; the capture labels it `p4t0`). A first fire
+  and a later respawn both cost 2 `rand()`
+  (`vfx_activate_and_position_particle`, radius 0x78 then 0x5a).
+- **Life is fixed, not rolled.** The sparkle sprite loops
+  (`vfx_create_particle` param_4 = 1), so only the z cutoff ends it: z
+  falls 0x9600 per tick and the pass that finds `z>>12 < -300` deactivates
+  it, 33 moves after activation. A sparkle re-activates every 34 passes.
+
+So a sparkle with s in 1-24 fires 5 times, s in 25-47 fires 4 times, and
+s = 0 fires once: total = 40 + 2 x (activations). 20 seeds gave 380 to 408
+(all even). `simulateGuardianOfEarth(startSeed)` takes the RNG at the setup
+frame; all 20 matched, and the first seed's per-tick counts matched too.
+The live machine ran 474-480 frames against the static 352 (not measured
+per phase this time, probably the usual frame-pacing gap).
+
 ### Shining Wind
 
 Four particle pools (A/B/C/D, 20/20/30/20 objects), 120 `rand()` calls at
@@ -4607,6 +5248,25 @@ which byte the 4/5 scale lands on from the combatant-record diff
 (`scripts/CaptureFogDiff.lua`), so the effect landing is not verified, only
 that no `rand()` happens around it. `simulateFogOfDeception`,
 `TestFogOfDeception`.
+
+**What the 4/5 scale lands on (live, 2026-10-07, `scripts/CaptureFogRec36.lua`,
+`SpellDuration.State`).** Case 6 sets `rec+0x36 = (short)(rec+0x36 * 4 / 5)`
+for each living enemy, no immunity check. `rec+0x36` is the second u16 of the
+unnamed `aUnk_0x34` block. Dumping `+0x26..+0x43` for all 7 combatants before
+the cast, at the setup frame and at the end handler: **every `+0x34..+0x42`
+slot is 0 on every combatant, party and boss**, and no byte in
+`+0x26..+0x43` changed on any frame of the 460-frame cast. So on this save
+Fog scales a 0 and does nothing (the boss being spell-immune does not
+matter, the code never asks). The intended effect, more party evasion or
+less enemy accuracy, is not what this code does anyway: `calc_hit_chance`
+uses SKL (`+0x26`) for both sides, plus Bucket and the Hazy Rune, and never
+Repeated on `FogOfDeception.State` (early game, McDohl on the Water Rune, 5
+party members vs 5 ordinary enemies, not a boss; 462-frame cast): the same
+result, `+0x34..+0x42` is 0 on all 10 combatants and nothing in
+`+0x26..+0x43` changes on any frame. `aPad_0xb94a`, the pointer the decompile
+uses, is struct offset 0xb94 = combatant record #1, so the field watched is the
+one scaled. The block being 0 is therefore not a boss or immunity quirk.
+Not checked: any other reader of that slot, or a state where it is nonzero.
 
 ### Rain of Kindness (Water Lv4)
 

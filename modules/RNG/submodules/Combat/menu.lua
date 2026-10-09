@@ -8,6 +8,7 @@ local ActionEditMenu = require "modules.RNG.submodules.Combat.ActionEditMenu"
 local OPTIONS = {
   "Show HP section",
   "Edit Party Actions",
+  "Log battle events",
 }
 
 local Menu = BaseMenu:new({
@@ -23,6 +24,7 @@ function Menu:draw()
   local draw_table = {
     string.format("%s Show HP section", Worker.ShowHPExperimental and "[X]" or "[ ]"),
     "Edit Party Actions",
+    string.format("%s Log battle events", Worker.LogEnabled and "[X]" or "[ ]"),
   }
   draw_table[self.pos] = "> " .. draw_table[self.pos]
 
@@ -56,6 +58,8 @@ function Menu:run()
       Worker.ShowHPExperimental = not Worker.ShowHPExperimental
     elseif self.pos == 2 then
       self:openMenu(ActionEditMenu)
+    elseif self.pos == 3 then
+      Worker.LogEnabled = not Worker.LogEnabled
     end
   end
   return false
