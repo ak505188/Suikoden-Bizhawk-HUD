@@ -6,7 +6,7 @@ local Toolbox_Module = {
   Menu = Menu,
   Worker = Worker,
   Settings = {
-    RunInBackground = false
+    RunInBackground = true
   }
 }
 

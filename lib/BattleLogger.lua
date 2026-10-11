@@ -50,7 +50,8 @@ local UNITE_ATTACK_TABLE = 0x16d18c
 
 local CONTINUATION_OFFSET = 0x0c -- BattleState+0xc: an enemy AI returning non-(-1)/0 installs its move here
 local PHASE_OFFSET = 0x3428 -- BattleState battle phase, see Battle_Damage_Formula.md
-local DRIVER_PHASE_MIN, DRIVER_PHASE_MAX = 4, 6 -- phases 4-6 only exist while a round is being executed
+local DRIVER_PHASE_MIN, DRIVER_PHASE_MAX = 4, 5 -- phases 4-5 only exist while a round is being executed
+local VICTORY_PHASE = 6 -- a won battle goes 5 -> 6 (and stays there through the results) instead of 5 -> 0
 local MAX_SANE_ROUND = 999 -- the struct reads garbage (e.g. round 21247) on the first frames of a battle
 
 local RNG_FRAMES_MAX = 216000 -- RNGByFrame is reset past this (one hour of frames)
@@ -323,7 +324,7 @@ function BattleLogger:log(state, text, tickOverride)
     tick and tostring(tick) or "?", self.RNGCount, text))
 end
 
--- True while the round driver is running a round (phases 4-6). Garbage or out-of-range phase values,
+-- True while the round driver is running a round (phases 4-5). Garbage or out-of-range phase values,
 -- and round 0 (the setup state before round 1), never count.
 local function inDriverPhase(state)
   local phase = memory.read_u32_le(state.Base + PHASE_OFFSET)
@@ -428,11 +429,12 @@ function BattleLogger:process()
     end
   end
 
-  -- Round end: the battle phase drops back to 0 after having been in a driver phase this round.
+  -- Round end: the battle phase drops back to 0 after having been in a driver phase this round, or
+  -- (battle won) moves on to phase 6.
   local driving, phase = inDriverPhase(state)
   if driving then
     self.RoundArmed = true
-  elseif phase == 0 and self.RoundArmed then
+  elseif (phase == 0 or phase == VICTORY_PHASE) and self.RoundArmed then
     self.RoundArmed = false
     self:log(state, string.format("--- Round %d ends ---", state.RoundNumber))
   end

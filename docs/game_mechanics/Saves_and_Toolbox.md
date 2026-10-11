@@ -125,3 +125,21 @@ The 108-byte ordering is **not** alphabetical or in `Names`-enum order — it
 appears to loosely follow in-game recruitment order at the low offsets
 (GREMIO, EILEEN, CLEO, CAMILLE, KIRKIS, ...), but this is unverified against
 disassembly.
+
+## Party Members
+
+`modules/Toolbox/Tools/PartyMembers.lua` adds and removes party members
+without the in-game Admit/Eject menu. It lists every combat character that
+is in the party or has a non-zero recruitment state (`[P]` marks the current
+party). X queues an add or remove (X again cancels it); the hero (id 8) can't
+be removed, the party can't exceed 6 or drop below 1.
+
+Menus run while the emulator is paused, and the game only runs the change
+from inside its own frame, so changes are *queued* and applied by the
+Toolbox worker (`RunInBackground = true`, one step per emulated frame) once
+you unpause. Progress and results show at the bottom left.
+
+The mechanism (a stub in free RAM wrapping the main-loop scene handler, so
+Lua can call `main.exe`'s party add/remove functions) is `lib/PartyChange.lua`;
+`scripts/PartyChange.lua` is a standalone runner with an `ADD`/`REMOVE`
+list. See `notes/Party_Change.md` for the reverse-engineering.

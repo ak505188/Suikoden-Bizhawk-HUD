@@ -267,7 +267,7 @@ end
 -- battle_process_round_end_status_and_formation runs (the round's actions are over). Garbage reads
 -- on the first frames of a battle (round like 21247, phase anything) never count.
 local PHASE_OFFSET = 0x3428
-local DRIVER_PHASE_MIN, DRIVER_PHASE_MAX = 4, 6
+local DRIVER_PHASE_MIN, DRIVER_PHASE_MAX = 4, 5 -- phase 6 = battle won (see BattleLogger)
 local MAX_SANE_ROUND = 999
 
 local VISITED_TICKS_MAX = 216000 -- one hour of frames; the table is reset past this
@@ -320,7 +320,7 @@ function Worker:updateTick(state)
     local phase = memory.read_u32_le(state.Base + PHASE_OFFSET)
     if phase >= DRIVER_PHASE_MIN and phase <= DRIVER_PHASE_MAX then
       self.RoundDriving = true
-    elseif phase == 0 and self.RoundDriving then
+    elseif (phase == 0 or phase == 6) and self.RoundDriving then
       self.RoundDriving = false
       if self.RoundStartIGT then self.RoundEndIGT = igt end
     end
