@@ -7,7 +7,9 @@ local ZoneInfo = require "lib.ZoneInfoComplete"
 local StateMonitor = require "monitors.State_Monitor"
 
 local function readNameFromMemory()
-  return Charmap.readStringFromMemory(Address.Names.HERO_2, 8)
+  local name = Charmap.readStringFromMemory(Address.HERO_NAME, 8)
+  if name == nil or #name == 0 then return "Unknown" end -- no name yet (title screen / before the naming screen)
+  return name
 end
 
 local function areaDataToStr(wm, area, gamestate)

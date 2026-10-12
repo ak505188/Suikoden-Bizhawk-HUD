@@ -115,58 +115,92 @@ other being updated.
 actor/NPC structs for the current room/screen. Struct size is `0x18` (24)
 bytes:
 
-`modules/RoomInfo/worker.lua` reads this into a Lua array
-(`mainmemory.read_bytes_as_array`, 1-indexed: `buffer[1]` is the first byte)
-and indexes it directly (`buffer[1]`, `buffer[6]`, `Utils.readFromByteTable(buffer, 7, 2)`,
-etc.) without correcting for Lua's 1-based indexing. The **true memory
-offsets** (buffer index − 1) are:
+The builder is `room_build_actor_table` (`0x8012ed84`); `modules/RoomInfo/
+worker.lua` reads the result. Memory offsets (Lua buffer index = offset + 1):
 
-- **0** — X: u8 position
-- **1** — Y: u8 position
-- **2** — SubpixelX: u8, sub-tile interpolation
-- **3** — SubpixelY: u8
-- **4** — *(unlabeled)*: Comment: "This isn't actually direction, has
-  some correlation though" — a prior assumption it was facing-direction
-  was disproven
-- **5** — Moves: Comment: "This seems constant, might actually be flag
-  for movement" — uncertain
-- **6–7** — Unknown1: u16 LE
-- **8–11** — MemAddress1: u32 LE pointer, purpose undocumented
-- **12–15** — MemAddress2: u32 LE pointer; dereferencing it (sanitized,
-  then read u8) gives the slot's `Direction` (0–3, matching
-  `lib/Enums/Directions.lua`) — mirrors exactly how the hero's own
-  direction is resolved, implying a shared "character struct" format
-  where the true facing byte lives in a separate, non-contiguous
-  per-character state block
-- **16–19** — MemAddress3: u32 LE pointer, purpose undocumented
-- **20–21** — Unknown2: u16 LE
-- **22–23** — Unknown3: u16 LE
+`+0` X, `+1` Y
+: u8 tile position.
 
-`MemAddress1`/`MemAddress3` have no documented purpose at all; a
-commented-out `MemoryViewer.memoryToStrTbl` call on `MemAddress1` in
-`modules/RoomInfo/menu.lua` suggests an abandoned attempt to dig into it.
+`+2`, `+3`
+: SubpixelX/Y. Zero at build, updated while the actor walks.
 
-### Slot count — unverified heuristic
+`+4` FacingRow
+: sprite row for the facing (direction 0->0, 1->1, 2->0, 3->2). Not the
+  direction itself (the old "isn't actually direction" comment).
 
-The number of actor slots (`NUM_SLOTS`) is **not** read from a clean,
-documented header field. `monitors/Room_Monitor.lua` uses two undocumented,
-hardcoded pointer addresses not present in `lib/Address.lua`:
-`CANDIDATE_POINTER_1 = 0x199f68`, `CANDIDATE_POINTER_2 = 0x199f94`. Current
-formula:
+`+5` Moves
+: copy of descriptor flag bit 2. Exact use unverified.
+
+`+6` ZoneLayer, `+7` ZoneIndex
+: layer byte and index-1 of the walk-zone rectangle the actor stands in
+  (`FUN_8012e308` over the zone table `DAT_8017C038`, 12-byte entries); 0
+  when none. (RoomInfo's old `Unknown1`.)
+
+`+8`, `+0xC`, `+0x10` MemAddress1/2/3
+: three 2D-sprite objects (`FUN_801346a8`). The first byte of each is the
+  facing direction (0 DOWN, 1 UP, 2 LEFT, 3 RIGHT). All three are null for a
+  hidden slot.
+
+`+0x14` ActorId
+: slot index; **`0xFF` = hidden placeholder**.
+
+`+0x15`
+: copy of ZoneLayer.
+
+`+0x16` SortPriority
+: draw order; `-Y` for free-roaming actors, else the zone's value.
+
+`+0x17`
+: never written by the builder (stale heap data in every slot).
+
+(RoomInfo's old `Unknown2` = `+0x14/+0x15`, `Unknown3` = `+0x16/+0x17`.)
+
+A second table, `heap_alloc(count * 8)`, sits just below the actor table
+(`Room_Monitor`'s `CANDIDATE_POINTER_2`, = `*(DAT_8017BE20 + 0x484)`): one
+record per slot: `{u8 slotIndex (0xFF hidden), u8 flags, u16, u32 slotPtr}`.
+
+### Hidden slots
+
+Each room descriptor (`DAT_8017BF98`, `0x18` bytes, count at
+`*(DAT_8017BFC0)+4`) has an appearance condition (bytecode at descriptor
+`+0xC`, run by `FUN_8013D8E0`). A condition result of `2` allocates a slot but
+only writes `+0x14 = 0xFF` and nulls the three pointers, leaving X, Y and the
+other fields as stale heap bytes. That is the root of the invisible-actor
+glitch: see [Invisible_Actor_Glitch.md](./Invisible_Actor_Glitch.md).
+
+### Slot count
+
+`NUM_SLOTS` is the u8 at `Address.ROOM_SLOT_COUNT` (`0x17DBFC`,
+`DAT_8017DBFC`), written by the builder. It matched in all seven saved rooms
+tested. The old formula `(ROOM_ADDRESS - CANDIDATE_POINTER_2 - 8) // 8` gives
+the same value (it is the size of the `count * 8` table); the byte at
+`ROOM_ADDRESS - 0x10` (`NUM_SLOTS_OLD`) is `count - 1`. Both are kept only as
+cross-checks.
+
+## Event scripts and screen changes
+
+Each room descriptor's `+0x14` is a pointer to an event script (bytecode in the
+area overlay). `FUN_8013E17C` points the interpreter at it and `FUN_8013E028`
+runs it (handler table at `PTR_LAB_80171718`; opcode lengths are not tabulated,
+the handlers consume their own arguments). Opcode `03` is "change screen"
+(`FUN_8013BF94`), usually followed by `fd` (end):
 
 ```
-NUM_SLOTS = (ROOM_ADDRESS - CANDIDATE_POINTER_2 - 8) // 8
+03 S X Y              same area, screen S      (returns 2)
+03 fc A S X Y         area A of this WM        (returns 3)
+03 fa W A S X Y       WM W, area A             (returns 3)
+03 fd B S X Y         WM 1, area = table 0x801716D8 + B
+03 fe/ff/fb ...       exits to the world map
 ```
 
-(discarded/set to `nil` if negative or non-integer). A commented-out prior
-formula used `CANDIDATE_POINTER_1` instead:
-`(CANDIDATE_POINTER_1 - 0x8 - ROOM_ADDRESS) / 0x18`, with a comment
-*"Didn't work in Grady's Mansion, trying calculation with
-CANDIDATE_POINTER_2."* A second, independent value, `NUM_SLOTS_OLD`, is read
-as a plain byte at `ROOM_ADDRESS - 0x10` and displayed side-by-side (`N:` vs
-`O:` in the RoomInfo worker) — kept for cross-checking, since the two
-methods can disagree. **Treat this entire mechanism as an unverified
-heuristic, not confirmed memory layout.**
+X/Y are the hero's arrival tile; they are stored at `gamestate+4/+6` (u16,
+`0x1B8004/6`), which `field_loader_idle` copies to the hero. These door
+destinations are the only per-screen "entry points" in the data. A screen
+record whose descriptor list is empty (count 0) is still a real screen (the
+spreadsheet lists them, for example 0/0/12 and 11/0/12). Screens that no door
+leads to, mainly area entrances from the world map, have no door-script entry
+tile. `scripts/BuildScreenList.py` extracts all of this into
+`lib/ScreenList.lua`.
 
 ## Hero position/direction
 
@@ -185,22 +219,27 @@ pointer-indirection pattern is used for NPC direction via room-slot
 The RoomInfo menu's "move NPC in front of hero" feature
 (`modules/RoomInfo/menu.lua:moveNPCInFrontOfHero`) uses asymmetric offsets
 depending on facing direction (`y+2` for DOWN, `y-1` for UP, `x-2` for LEFT,
-`x+2` for RIGHT) rather than a uniform ±1 — possibly reflecting anisotropic
-tile/sprite-anchor geometry, but unexplained in any comment.
+`x+2` for RIGHT). These are exactly the actor-interaction offsets in the
+game's own talk check (`FUN_8013D3CC`, tables `DAT_801716F4/FC`), so the
+moved actor lands on the tile the game tests. The check also tolerates the
+perpendicular axis (UP/DOWN: |dx| <= 1; LEFT/RIGHT: slotY in [heroY,
+heroY+1]), which is why the asymmetry exists. Verified live; see
+[Invisible_Actor_Glitch.md](./Invisible_Actor_Glitch.md).
 
 ## RoomInfo module
 
 `modules/RoomInfo/worker.lua` polls `Room_Monitor` and re-derives the full
 room actor array each tick, always drawing the hero's X/Y/Direction, the raw
-`ROOM_ADDRESS`, and both `NUM_SLOTS`/`NUM_SLOTS_OLD` candidate values
-(diagnostic view for the slot-count heuristic above), plus a list of every
-slot's index/X/Y/address.
+`ROOM_ADDRESS`, `NUM_SLOTS` (exact, from `0x17DBFC`) and `NUM_SLOTS_OLD`
+(`count - 1`, kept as a cross-check), plus a list of every slot's
+index/X/Y/address. Hidden placeholder slots are tagged `HIDDEN`.
 
 `modules/RoomInfo/menu.lua` is the interactive layer: shows the currently
 selected slot with detailed fields (X/Y/Moves, SubpixelX/Y/Direction, all
-three raw `MemAddress` pointers, and the "Unknown" fields, all in hex).
-Square repositions the selected actor to right in front of the hero; Up/Down
-step one slot; Left/Right jump ±10; Circle exits.
+three raw `MemAddress` pointers, the actor id with a `HIDDEN(X/Y stale)`
+flag, FacingRow, the zone bytes, sort priority and the unused byte, all in
+hex). Square repositions the selected actor to right in front of the hero;
+Up/Down step one slot; Left/Right jump ±10; Circle exits.
 
 In short: RoomInfo is a live memory-inspection/debug tool for the current
 room's actor table, useful for identifying which pointer/byte governs what

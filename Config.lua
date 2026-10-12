@@ -32,7 +32,7 @@ Config.ChinchironinGenerator = {
 
 Config.Saves = {
   SAVE_DIRECTORY = bizhawk_dir .. "PSX/State/Suikoden/Saves", -- Will make/use a folder names saves in this folder.
-  CATEGORY_DIRECTORY = "Glitchless", -- If blank will use Hero name
+  CATEGORY_DIRECTORY = "", -- If blank will use Hero name
   AUTOSAVE_ENABLED = true,
   AUTOSAVE_DIRECTORY = bizhawk_dir .. "PSX/State/Suikoden/Autosaves",
   AUTOSAVE_INTERVAL = 300 -- In seconds. Save at every IGT interval

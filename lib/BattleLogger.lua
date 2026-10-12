@@ -35,6 +35,7 @@
 --     an HPMax change or a 0 -> nonzero HPMax is treated as population, not damage.
 
 local Address = require "lib.Address"
+local Tables = require "lib.AddressTables"
 local Charmap = require "lib.Charmap"
 local RNGLib = require "lib.RNG"
 local Battle = require "lib.Battle"
@@ -42,11 +43,7 @@ local CharAddresses = require "lib.Characters.Addresses"
 local CharNames = require "lib.Characters.NamesList"
 local Worker = require "modules.RNG.submodules.Combat.worker"
 
--- Static main.exe tables, same ones lib/ActionEnumerator.lua indexes.
-local RUNE_ABILITY_SET_TABLE = 0x16a0e0
-local SPELL_DEFINITION_TABLE = 0x16d33c
-local ALT_ABILITY_TABLE = 0x16a630
-local UNITE_ATTACK_TABLE = 0x16d18c
+-- Static main.exe tables (same ones lib/ActionEnumerator.lua indexes): addresses in lib/AddressTables.lua.
 
 local CONTINUATION_OFFSET = 0x0c -- BattleState+0xc: an enemy AI returning non-(-1)/0 installs its move here
 local PHASE_OFFSET = 0x3428 -- BattleState battle phase, see Battle_Damage_Formula.md
@@ -132,10 +129,10 @@ local function spellDefinition(state, idx, slot)
   local st = statsAddr(state, idx)
   if not st then return nil end
   local runeId = memory.read_u8(st + 0x4c)
-  local setPtr = memory.read_u32_le(RUNE_ABILITY_SET_TABLE + runeId * 4)
+  local setPtr = memory.read_u32_le(Tables.RUNE_ABILITY_SET_TABLE + runeId * 4)
   if runeId == 0 or not Address.isValidPointer(setPtr) then return nil end
   setPtr = Address.sanitize(setPtr)
-  local table = memory.read_u8(setPtr + 0x16) == 1 and ALT_ABILITY_TABLE or SPELL_DEFINITION_TABLE
+  local table = memory.read_u8(setPtr + 0x16) == 1 and Tables.ALT_ABILITY_TABLE or Tables.SPELL_DEFINITION_TABLE
   local spellId = memory.read_u8(setPtr + 0x1a + slot)
   return memory.read_u32_le(table + spellId * 4)
 end
@@ -145,7 +142,7 @@ local function spellId(state, idx, slot)
   local st = statsAddr(state, idx)
   if not st then return nil end
   local runeId = memory.read_u8(st + 0x4c)
-  local setPtr = memory.read_u32_le(RUNE_ABILITY_SET_TABLE + runeId * 4)
+  local setPtr = memory.read_u32_le(Tables.RUNE_ABILITY_SET_TABLE + runeId * 4)
   if runeId == 0 or not Address.isValidPointer(setPtr) then return nil end
   setPtr = Address.sanitize(setPtr)
   if memory.read_u8(setPtr + 0x16) == 1 then return nil end
@@ -186,7 +183,7 @@ local function itemName(state, idx, slot)
 end
 
 local function uniteName(slot)
-  return ptrString(memory.read_u32_le(UNITE_ATTACK_TABLE + slot * 4))
+  return ptrString(memory.read_u32_le(Tables.UNITE_ATTACK_TABLE + slot * 4))
 end
 
 -- The initiator of a Magic Unite is whoever rolled first; the partner is the first other ally with

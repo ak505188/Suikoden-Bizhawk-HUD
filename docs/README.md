@@ -29,8 +29,17 @@ verified or current understanding.
   roll algorithm and RNG modifier.
 - [Duels](./game_mechanics/Duels.md) — the 1v1 duel overlays: enemy move
   roll, dialogue selection, outcome/hit table and damage formula.
+- [War Battles](./game_mechanics/War_Battles.md) — the army-vs-army overlays
+  (`data/16_war`): unit and soldier tables, the Charge/Bow/Magic matchup
+  and damage rules, the Others commands, enemy action scripts per scenario,
+  and the soldier animation that eats most of the `rand()` stream.
+  `scripts/WarSim.py` is a validated reference implementation.
+- [Invisible Actor Glitch](./game_mechanics/Invisible_Actor_Glitch.md) — why
+  a hidden room NPC slot can become talk-able: stale heap bytes from the last
+  party member's sprite sheet, per-character values, and when a room is prone.
 - [Saves and Toolbox](./game_mechanics/Saves_and_Toolbox.md) — savestate/
-  autosave handling, the Character Editor, and the Recruitment Editor.
+  autosave handling, the Character Editor, the Recruitment Editor, Party
+  Members, and Screen Teleport (with arrival tiles).
 - [Gregminster Birds](./game_mechanics/Gregminster_Birds.md) — a standalone
   NPC-like structure outside the normal room data.
 - [Battle Damage Formula](./game_mechanics/Battle_Damage_Formula.md) — the

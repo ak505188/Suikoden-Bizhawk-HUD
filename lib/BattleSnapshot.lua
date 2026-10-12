@@ -53,14 +53,11 @@
 -- be extracted ONCE as a separate static reference dump, not re-captured in every snapshot.
 
 local Address = require "lib.Address"
+local Tables = require "lib.AddressTables"
 local CharAddresses = require "lib.Characters.Addresses"
 local Names = require "lib.Characters.NamesList"
 
 local BattleSnapshot = {}
-
-local WEAPON_CLASS_TABLE = 0x165890    -- DAT_80165890, pointer table indexed by WeaponType*4
-local WEAPON_POWER_TABLE = 0x1659cc    -- PTR_DAT_801659cc, used as a raw i16 table base directly
-                                       -- (not dereferenced) - see FUN_800d4ec0's own decompile.
 
 local function toS8(v) if v >= 0x80 then return v - 0x100 else return v end end
 local function toS16(v) if v >= 0x8000 then return v - 0x10000 else return v end end
@@ -140,11 +137,11 @@ local function computeAllyATKDEF(statsAddr)
 
   local weaponType = memory.read_u8(statsAddr + 0x44)
   local weaponLevel = memory.read_u8(statsAddr + 0x45)
-  local classPtrRaw = memory.read_u32_le(WEAPON_CLASS_TABLE + weaponType * 4)
+  local classPtrRaw = memory.read_u32_le(Tables.WEAPON_CLASS_TABLE + weaponType * 4)
   if Address.isValidPointer(classPtrRaw) then
     local classPtr = Address.sanitize(classPtrRaw)
     local classByte = memory.read_u8(classPtr + 0x54)
-    local powerAddr = WEAPON_POWER_TABLE + weaponLevel * 2 + classByte * 0x20 + 2
+    local powerAddr = Tables.WEAPON_POWER_TABLE + weaponLevel * 2 + classByte * 0x20 + 2
     atk = atk + toS16(memory.read_u16_le(powerAddr))
   end
 

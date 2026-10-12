@@ -67,7 +67,9 @@ function Menu:generateSlotDrawTable(pos)
   table.insert(draw_tbl, string.format("M1:0x%08x", slot.MemAddress1))
   table.insert(draw_tbl, string.format("M2:0x%08x", slot.MemAddress2))
   table.insert(draw_tbl, string.format("M3:0x%08x", slot.MemAddress3))
-  table.insert(draw_tbl, string.format("U1:%04x U2:%04x U3:%04x", slot.Unknown1, slot.Unknown2, slot.Unknown3))
+  table.insert(draw_tbl, string.format("id:%02x%s FR:%d", slot.ActorId, slot.Hidden and " HIDDEN(X/Y stale)" or "", slot.FacingRow))
+  table.insert(draw_tbl, string.format("Zone L:%02x I:%02x Cp:%02x", slot.ZoneLayer, slot.ZoneIndex, slot.ZoneLayerCopy))
+  table.insert(draw_tbl, string.format("Sort:%02x Unused:%02x", slot.SortPriority, slot.Unused))
   return draw_tbl
 end
 

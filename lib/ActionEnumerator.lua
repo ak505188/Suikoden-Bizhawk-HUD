@@ -37,16 +37,11 @@
 --   both pools as an earlier version incorrectly did.
 
 local Address = require "lib.Address"
+local Tables = require "lib.AddressTables"
 
 local ActionEnumerator = {}
 
--- All KUSEG-stripped (see Address.lua's own convention, e.g. BATTLE_STATE_PTR=0x17be3c for
--- Ghidra's DAT_8017be3c) - these are static main.exe data tables, resident in live PSX RAM
--- from boot, readable the same way as any other fixed global.
-local RUNE_ABILITY_SET_TABLE = 0x16a0e0 -- DAT_8016a0e0, indexed by Rune.Id (0-33)
-local SPELL_DEFINITION_TABLE = 0x16d33c -- DAT_8016d33c, indexed by resolved spell id (normal casters)
-local ALT_ABILITY_TABLE = 0x16a630      -- DAT_8016a630, indexed the same way, for ability-set+0x16==1
-local UNITE_ATTACK_TABLE = 0x16d18c     -- DAT_8016d18c, indexed by AbilitySlot (1-32)
+-- Static main.exe data tables (lib/AddressTables.lua holds their addresses per build); read them where they are used.
 
 local ActionType = { ATTACK = 0, DEFEND = 1, RUNE = 2, ITEM = 3, UNITE = 4 }
 ActionEnumerator.ActionType = ActionType
@@ -170,18 +165,18 @@ function ActionEnumerator:enumerateRune(ctx, actorIdx, lockedLevels)
   local runeId = getRuneId(ctx, actorIdx)
   if runeId == 0 then return actions end -- no rune equipped, Rune unavailable
 
-  local abilitySetPtr = memory.read_u32_le(RUNE_ABILITY_SET_TABLE + runeId * 4)
+  local abilitySetPtr = memory.read_u32_le(Tables.RUNE_ABILITY_SET_TABLE + runeId * 4)
   if not Address.isValidPointer(abilitySetPtr) then return actions end
   abilitySetPtr = Address.sanitize(abilitySetPtr)
 
   -- Mirrors battle_select_special_ability's own branch exactly: +0x16==0 is a normal
-  -- spellcaster (SPELL_DEFINITION_TABLE); ==1 uses the alternate ALT_ABILITY_TABLE; any other
+  -- spellcaster (Tables.SPELL_DEFINITION_TABLE); ==1 uses the alternate Tables.ALT_ABILITY_TABLE; any other
   -- value (e.g. Holy Rune reads 2 - it has no spell list at all, confirmed against the
   -- external Runes reference) means Rune isn't selectable at all with this rune equipped, so
   -- report zero actions deliberately rather than by the coincidence of an invalid pointer.
   local casterFlag = memory.read_u8(abilitySetPtr + 0x16)
   if casterFlag ~= 0 and casterFlag ~= 1 then return actions end
-  local spellTable = (casterFlag == 0) and SPELL_DEFINITION_TABLE or ALT_ABILITY_TABLE
+  local spellTable = (casterFlag == 0) and Tables.SPELL_DEFINITION_TABLE or Tables.ALT_ABILITY_TABLE
 
   for slot = 1, 4 do
     -- MP gating (confirmed) plus an optional story/scenario-progress lock: some runes (Soul
@@ -245,7 +240,7 @@ function ActionEnumerator:enumerateUnite(ctx, actorIdx)
   local selfId = ctx.Combatants[actorIdx] and ctx.Combatants[actorIdx].Id
 
   for slot = 1, 32 do
-    local defPtr = memory.read_u32_le(UNITE_ATTACK_TABLE + slot * 4)
+    local defPtr = memory.read_u32_le(Tables.UNITE_ATTACK_TABLE + slot * 4)
     if Address.isValidPointer(defPtr) then
       defPtr = Address.sanitize(defPtr)
       local count = memory.read_u8(defPtr + 0x18)

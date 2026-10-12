@@ -36,12 +36,10 @@ function RoomMonitor:run()
 
   local num_slots = nil
   local num_slots_old = nil
-  if Address.isValidPointer(RoomMonitor.ROOM_ADDRESS.current) and Address.isValidPointer(RoomMonitor.CANDIDATE_POINTER_1.current) then
-    -- Didn't work in Grady's Mansion, trying calculation with CANDIDATE_POINTER_2
-    -- num_slots = (RoomMonitor.CANDIDATE_POINTER_1.current - 0x8 - RoomMonitor.ROOM_ADDRESS.current) / 0x18
-    num_slots = (RoomMonitor.ROOM_ADDRESS.current - RoomMonitor.CANDIDATE_POINTER_2.current - 8) // 8
-    num_slots = num_slots >= 0 and num_slots or nil
-    num_slots = num_slots % 1 == 0 and num_slots or nil
+  if Address.isValidPointer(RoomMonitor.ROOM_ADDRESS.current) then
+    -- Exact count, written by room_build_actor_table (Ghidra 0x8012ed84) when the room is built.
+    num_slots = memory.read_u8(Address.ROOM_SLOT_COUNT)
+    -- Byte at ROOM_ADDRESS - 0x10 is the last record of the (count * 8) slot-index table, i.e. count - 1.
     num_slots_old = memory.read_u8(Address.sanitize(RoomMonitor.ROOM_ADDRESS.current - 0x10))
   end
   self:updateState("NUM_SLOTS", num_slots)

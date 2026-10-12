@@ -16,7 +16,9 @@ being parsed here; the whole machine state is snapshotted.
 
 - `SAVE_DIRECTORY` / `AUTOSAVE_DIRECTORY` — configurable base folders.
 - `CATEGORY_DIRECTORY` — subfolder name; if blank, falls back to the in-game
-  hero name read from memory.
+  hero name read from memory (`Address.HERO_NAME`, `0x1B9B74`: 8 charmap
+  bytes plus a terminator; the castle name follows at `Address.CASTLE_NAME`,
+  `0x1B9B84`). An empty name gives the folder `Unknown`.
 - Final path shape: `SAVE_DIRECTORY/<category>/<save_name>.State`.
 - `setupSaveDirectories()` lazily creates these directories if missing.
 
@@ -143,3 +145,44 @@ The mechanism (a stub in free RAM wrapping the main-loop scene handler, so
 Lua can call `main.exe`'s party add/remove functions) is `lib/PartyChange.lua`;
 `scripts/PartyChange.lua` is a standalone runner with an `ADD`/`REMOVE`
 list. See `notes/Party_Change.md` for the reverse-engineering.
+
+## Screen Teleport
+
+`modules/Toolbox/Tools/ScreenTeleport.lua` loads any field screen by
+WM / Area / Screen (Up/Down picks the field, Left/Right step through the
+screens that exist, L1/R1 jump 10, X teleports). Each field shows its name
+(WM, area and screen info from the zone spreadsheet, WM 0-3 only; other areas
+are unlabeled). Only real screens are offered: `lib/ScreenList.lua`, generated
+by `scripts/BuildScreenList.py` from the static overlay scan, with the zone
+sheet (`outputs/ZoneSheet.tsv`) for labels. Screens with no actors are included (their scan record has an empty actor list).
+Screens that failed the teleport test are still listed, labeled
+`BROKEN (reason)`. A fourth field, Entry, picks
+where the hero arrives (the destination tile of one of the game's own doors,
+with the screen it comes from). The first entry is the most-used door from
+another screen. Screens with no known entry (105, mostly area entrances from the
+world map and cutscene screens) can't be teleported to. It only works while a
+field screen is idle. The request is queued and run by the Toolbox worker
+once you unpause; the result shows at the bottom left.
+
+The mechanism is `lib/ScreenTeleport.lua`: it sets the field context's
+"change screen" request (`+0x34`, with `+0x35 = 2`, `+0x37 = 0` so the area
+overlay is reloaded), waits one frame, then writes the zone bytes and the
+arrival tile (`gs+4`/`gs+6`, u16 X/Y, copied to the hero by the loader). Writing
+the zones in the same frame as the request hung the game on about 17% of
+screens. Not every listed screen was test-loaded (the sweep covered the 303 with actor slots). See
+`docs/game_mechanics/Invisible_Actor_Glitch.md`.
+
+Entry tiles come from the area overlays' event scripts: opcode `03` is
+"change screen" (`03 S X Y fd` same area, `03 fc A S X Y fd` other area,
+`03 fa W A S X Y fd` other WM). `scripts/BuildScreenList.py` searches each
+descriptor's script (`+0x14`) for these. Checked against the Outside Room door
+(`03 02 25 0a` = screen 2, tile 37,10, which is what the in-room save shows).
+Opcode lengths are not tabulated, so scripts are searched rather than parsed;
+a coincidental match also needs a real destination screen.
+
+Headless test (`scripts/TestScreenTeleport.lua`, every screen with an entry,
+first entry, from the Outside Room save): 832 of 845 put the hero on the
+requested tile with the right zones. The 13 that don't are labeled BROKEN:
+never loads (1/4/1, 9/4/1, 1/6/0, 9/6/0); arrival event moves the hero
+(0/0/0, 11/0/0, 0/3/0, 1/41/0, 9/41/0, the last three off-screen); hero walks
+in 3 tiles (1/5/6, 2/6/6); redirect to screen 0 (1/33/2, 9/33/2).

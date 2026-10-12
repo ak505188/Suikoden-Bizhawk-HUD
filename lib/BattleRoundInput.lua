@@ -18,6 +18,7 @@
 -- control, not just all-or-nothing.
 
 local Address = require "lib.Address"
+local Functions = require "lib.AddressFunctions"
 local Buttons = require "lib.Buttons"
 local Gamestate = require "lib.Enums.Gamestate"
 
@@ -28,13 +29,12 @@ local BattleRoundInput = {}
 -- only a one-tick transient on the way there and isn't safe to write through (this function's
 -- own 1->2 transition unconditionally resets the choice field to 0, so a write timed during
 -- that transient gets silently clobbered - confirmed by testing).
-local FIGHT_MENU_HANDLER = 0x800ea2a8
+-- (address: Functions.FIGHT_MENU_HANDLER in lib/AddressFunctions.lua)
 local FIGHT_MENU_STABLE_PHASE = 2
 
-local MENU_STATE_PTR_ADDR = 0x179fe8 -- DAT_80179fe8, the menu system's own persistent context
-local MENU_COROUTINE_SLOT_ADDR = 0x17da9c -- DAT_8017da90 slot 3 - the menu system's own
-                                           -- scheduler slot, separate from
-                                           -- battle_advance_turn/battle_dispatch_current_actor_action
+-- Address.MENU_STATE_PTR: DAT_80179fe8, the menu system's own persistent context.
+-- Address.SCENE_HANDLER_MENU: DAT_8017da90 slot 3 - the menu system's own scheduler slot, separate from
+-- battle_advance_turn/battle_dispatch_current_actor_action.
 
 -- Values for DAT_80179fe8+8 at the Fight/Run/Bribe/Free Will prompt.
 BattleRoundInput.Choice = {
@@ -67,11 +67,11 @@ end
 -- Returns (menuBase, phase, activeHandler) for the shared menu-system context, or nil if it
 -- isn't allocated yet.
 local function readMenuState()
-  local raw = memory.read_u32_le(MENU_STATE_PTR_ADDR)
+  local raw = memory.read_u32_le(Address.MENU_STATE_PTR)
   if not Address.isValidPointer(raw) then return nil end
   local base = Address.sanitize(raw)
   local phase = memory.read_u32_le(base + 0x4)
-  local activeHandler = memory.read_u32_le(MENU_COROUTINE_SLOT_ADDR)
+  local activeHandler = memory.read_u32_le(Address.SCENE_HANDLER_MENU)
   return base, phase, activeHandler
 end
 
@@ -101,7 +101,7 @@ end
 -- confirms it. Returns the sanitized battle-state base address (Address.BATTLE_STATE_PTR) on
 -- success, or nil if the prompt never became ready within the frame budget.
 function BattleRoundInput:chooseRoundOption(choice)
-  local menuBase = self:waitForMenuReady(FIGHT_MENU_HANDLER, FIGHT_MENU_STABLE_PHASE)
+  local menuBase = self:waitForMenuReady(Functions.FIGHT_MENU_HANDLER, FIGHT_MENU_STABLE_PHASE)
   if not menuBase then return nil end
   memory.write_u32_le(menuBase + 8, choice)
   tap(Buttons.Cross)
@@ -184,7 +184,7 @@ function BattleRoundInput:waitForRoundComplete(maxFrames)
   for i = 1, maxFrames do
     if not isInBattle() then return "battle_ended" end
     local base, phase, activeHandler = readMenuState()
-    if base and activeHandler == FIGHT_MENU_HANDLER and phase == FIGHT_MENU_STABLE_PHASE then
+    if base and activeHandler == Functions.FIGHT_MENU_HANDLER and phase == FIGHT_MENU_STABLE_PHASE then
       stableCount = stableCount + 1
       if stableCount >= 3 then return "round_complete" end
     else

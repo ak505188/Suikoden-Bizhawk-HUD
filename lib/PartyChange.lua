@@ -21,10 +21,11 @@
 --   * queued    - queueAdd / queueRemove, then call PartyChange.tick() once per frame. Never
 --                 blocks; progress only happens while the emulator is actually running.
 local Address = require "lib.Address"
+local Functions = require "lib.AddressFunctions"
 
 local PartyChange = {}
 
-local HANDLER_PTR = 0x17da90 -- DAT_8017da90 (main-loop scene handler pointer)
+-- The main-loop scene handler pointer is Address.SCENE_HANDLER_MAIN_LOOP (DAT_8017da90 in v1.1).
 -- Candidate homes for the stub (+0x100 mailbox). Each must be all zero, or already hold our stub.
 local CANDIDATES = { 0x181000, 0x181400, 0x1fb000, 0x1a3800, 0x19e500 }
 local BLOCK = 0x140
@@ -61,19 +62,21 @@ local function allZero(base, len)
   return true
 end
 
-PartyChange.FN = {
-  claimSlot = 0x800c48d4,
-  cdSync = 0x800c2fa4,
-  appendToFormation = 0x800c49b8,
-  removeSlot = 0x800c4afc,
+-- main.exe function addresses for PartyChange.call; resolved on each read (lib/AddressFunctions.lua has the per-build values).
+local FN_KEYS = {
+  claimSlot = "PARTY_CLAIM_SLOT",
+  cdSync = "PARTY_CD_SYNC",
+  appendToFormation = "PARTY_APPEND_TO_FORMATION",
+  removeSlot = "PARTY_REMOVE_SLOT",
 }
+PartyChange.FN = setmetatable({}, { __index = function(_, name) return Functions[FN_KEYS[name]] end })
 
 local function validHandler(p) return p >= 0x80010000 and p < 0x80200000 and (p & 3) == 0 end
 
 -- Make the main-loop handler point at our stub. Returns true, or false + reason. Never points the
 -- main loop at memory it hasn't verified. Safe to call every frame: it's a no-op once installed.
 function PartyChange.install()
-  local cur = memory.read_u32_le(HANDLER_PTR)
+  local cur = memory.read_u32_le(Address.SCENE_HANDLER_MAIN_LOOP)
   if stubAddr and cur == k(stubAddr) then return true end
   if not validHandler(cur) then return false, string.format("scene handler %08x not valid (game not running yet?)", cur) end
   -- Our stub already sitting in RAM (earlier run, or a savestate taken while installed)? Reuse it.
@@ -82,7 +85,7 @@ function PartyChange.install()
       stubAddr, mail = base, base + 0x100
       if cur ~= k(base) then
         memory.write_u32_le(mail + M.ORIG, cur)
-        memory.write_u32_le(HANDLER_PTR, k(base))
+        memory.write_u32_le(Address.SCENE_HANDLER_MAIN_LOOP, k(base))
       end
       return true
     end
@@ -92,7 +95,7 @@ function PartyChange.install()
       stubAddr, mail = base, base + 0x100
       memory.write_bytes_as_array(stubAddr, stubBytes(mail))
       memory.write_u32_le(mail + M.ORIG, cur)
-      memory.write_u32_le(HANDLER_PTR, k(stubAddr))
+      memory.write_u32_le(Address.SCENE_HANDLER_MAIN_LOOP, k(stubAddr))
       return true
     end
   end

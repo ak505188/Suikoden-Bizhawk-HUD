@@ -41,7 +41,7 @@ function Worker:draw()
     for i = 1, RoomMonitor.NUM_SLOTS.current do
       local slot = self.RoomData[i]
       -- local str = string.format("%d X:%d Y:%d", slot.Slot, slot.X, slot.Y)
-      local str = string.format("%d X:%d Y:%d 0x%x", slot.Slot, slot.X, slot.Y, slot.Address)
+      local str = string.format("%d X:%d Y:%d 0x%x%s", slot.Slot, slot.X, slot.Y, slot.Address, slot.Hidden and " HIDDEN" or "")
       table.insert(textToDraw, str)
     end
   end
@@ -58,23 +58,30 @@ function Worker:getRoomData()
   for i = 1, RoomMonitor.NUM_SLOTS.current, 1 do
     local address = room_address + ((i - 1) * CHARACTER_STRUCT_SIZE)
     local buffer = mainmemory.read_bytes_as_array(address, 0x18)
+    -- Layout from room_build_actor_table / FUN_8012ea40 (see docs/game_mechanics/Zones_Areas_and_Rooms.md).
+    -- Lua buffer index = memory offset + 1.
     local slot_data = {
       Slot = i,
       Address = address,
       X = buffer[1],
       Y = buffer[2],
-      SubpixelX = buffer[3],
+      SubpixelX = buffer[3], -- 0 at build, updated while walking
       SubpixelY = buffer[4],
-      -- Direction = buffer[5], -- This isn't actually direction, has some correlation though
-      Moves = buffer[6], -- This seems constant, might actually be flag for movement
-      Unknown1 = Utils.readFromByteTable(buffer, 7, 2),
-      MemAddress1 = Utils.readFromByteTable(buffer, 9, 4),
+      FacingRow = buffer[5], -- sprite row for the facing (dir 0->0, 1->1, 2->0, 3->2); not the direction itself
+      Moves = buffer[6], -- descriptor flag bit 2 copied at build; exact use unverified
+      ZoneLayer = buffer[7], -- layer byte of the walk-zone the actor stands in (0 = none)
+      ZoneIndex = buffer[8], -- that zone's index - 1
+      MemAddress1 = Utils.readFromByteTable(buffer, 9, 4), -- three 2D-sprite objects; first byte of each is the facing direction
       MemAddress2 = Utils.readFromByteTable(buffer, 13, 4),
       MemAddress3 = Utils.readFromByteTable(buffer, 17, 4),
-      Unknown2 = Utils.readFromByteTable(buffer, 21, 2),
-      Unknown3 = Utils.readFromByteTable(buffer, 23, 2),
+      ActorId = buffer[21], -- slot index; 0xFF = hidden placeholder (NPC whose appearance condition failed)
+      ZoneLayerCopy = buffer[22], -- copy of ZoneLayer
+      SortPriority = buffer[23], -- draw order; -Y for free-roaming actors
+      Unused = buffer[24], -- never written by the builder
     }
-    slot_data.Direction = memory.read_u8(Address.sanitize(slot_data.MemAddress2))
+    slot_data.Hidden = slot_data.ActorId == 0xff
+    -- Hidden slots have null sprite pointers; dereferencing would read address 0 and show garbage
+    slot_data.Direction = slot_data.MemAddress2 ~= 0 and memory.read_u8(Address.sanitize(slot_data.MemAddress2)) or -1
     room_data[i] = slot_data
   end
   return room_data

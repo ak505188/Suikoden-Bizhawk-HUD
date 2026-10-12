@@ -19,6 +19,7 @@
 -- into.
 
 local Address = require "lib.Address"
+local Functions = require "lib.AddressFunctions"
 
 local M = {}
 
@@ -82,7 +83,7 @@ end
 -- unnecessary, in that case.
 M.RECIPES = {
   BlackShadow = {
-    handler = 0x80114ca8,
+    handlerKey = "SOUL_EATER_BLACK_SHADOW_HANDLER", -- 0x80114ca8 in v1.1; see lib/AddressFunctions.lua
     caseFieldOffset = 0x2b6 * 4,   -- ctx + 0xad8
     caseValue = 2,
     tickFieldOffset = 0x2b7 * 4,   -- ctx + 0xadc
@@ -95,7 +96,7 @@ M.RECIPES = {
     magicFn = "simulateBlackShadow", -- takes (startSeed, scale, residual, scaleAccumInit)
   },
   Hell = {
-    handler = 0x80115a7c,
+    handlerKey = "SOUL_EATER_HELL_HANDLER", -- 0x80115a7c in v1.1
     caseFieldOffset = 0x14,        -- ctx + 0x14
     caseValue = 2,
     tickFieldOffset = 0x18,        -- ctx + 0x18
@@ -109,5 +110,12 @@ M.RECIPES = {
                                -- constant already embedded in lib/Magic.lua, not per-savestate
   },
 }
+
+-- recipe.handler is resolved when read (the address depends on the game build, see lib/AddressFunctions.lua).
+for _, recipe in pairs(M.RECIPES) do
+  setmetatable(recipe, { __index = function(_, key)
+    if key == "handler" then return Functions[recipe.handlerKey] end
+  end })
+end
 
 return M
