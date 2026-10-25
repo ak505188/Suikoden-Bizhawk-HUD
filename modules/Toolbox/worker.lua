@@ -1,6 +1,7 @@
 local Drawer = require "controllers.drawer"
 local PartyChange = require "lib.PartyChange"
 local ScreenTeleport = require "lib.ScreenTeleport"
+local ForceBattle = require "lib.ForceBattle"
 
 local MESSAGE_FRAMES = 240
 
@@ -10,6 +11,7 @@ local Worker = {}
 function Worker:run()
   PartyChange.tick()
   ScreenTeleport.tick()
+  ForceBattle.tick()
 end
 
 function Worker:onChange() end
@@ -28,6 +30,11 @@ function Worker:draw()
     table.insert(lines, "Teleport: loading...")
   elseif ScreenTeleport.lastMessage and ScreenTeleport.lastMessageAge() < MESSAGE_FRAMES then
     table.insert(lines, "Teleport: " .. ScreenTeleport.lastMessage)
+  end
+  if ForceBattle.busy() then
+    table.insert(lines, "Battle: starting...")
+  elseif ForceBattle.lastMessage and ForceBattle.lastMessageAge() < MESSAGE_FRAMES then
+    table.insert(lines, "Battle: " .. ForceBattle.lastMessage)
   end
   if #lines > 0 then Drawer:draw(lines, Drawer.anchors.BOTTOM_LEFT) end
 end

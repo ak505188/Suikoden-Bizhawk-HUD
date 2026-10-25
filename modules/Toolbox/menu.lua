@@ -5,6 +5,7 @@ local CharacterEditor = require "modules.Toolbox.Tools.CharacterEditor.Character
 local PartyJson = require "modules.Toolbox.Tools.PartyJson"
 local PartyMembers = require "modules.Toolbox.Tools.PartyMembers"
 local ScreenTeleport = require "modules.Toolbox.Tools.ScreenTeleport"
+local ForceBattle = require "modules.Toolbox.Tools.ForceBattle"
 
 local ToolsList = {
   "Recruitment Editor",
@@ -12,6 +13,7 @@ local ToolsList = {
   "Party JSON",
   "Party Members",
   "Screen Teleport",
+  "Force Battle",
 }
 
 local ToolsMenus = {
@@ -20,6 +22,7 @@ local ToolsMenus = {
   [ToolsList[3]] = PartyJson,
   [ToolsList[4]] = PartyMembers,
   [ToolsList[5]] = ScreenTeleport,
+  [ToolsList[6]] = ForceBattle,
 }
 
 local Menu = ListSelectionMenuBuilder:new(ToolsList, { name = "Tool Selection Menu" })

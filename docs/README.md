@@ -16,7 +16,8 @@ verified or current understanding.
   reset values, and the lookahead buffer everything else builds on.
 - [Battles and Random Encounters](./game_mechanics/Battles_and_Encounters.md)
   — encounter rolls, the Champion Rune/"Champ Val" mechanic, enemy-group and
-  encounter-table memory layout.
+  encounter-table memory layout, and forcing a chosen battle from Lua
+  (`lib/ForceBattle.lua`).
 - [Characters, Stats, and Growth](./game_mechanics/Characters_and_Stats.md)
   — the character struct layout, stat level-up algorithm, party tracking.
 - [Zones, Areas, and Rooms](./game_mechanics/Zones_Areas_and_Rooms.md) — the

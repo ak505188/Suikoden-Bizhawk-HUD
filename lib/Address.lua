@@ -52,6 +52,10 @@ local V11 = {
   SCENE_HANDLER_FIELD_LOADER = 0x17da98,
   SCENE_HANDLER_MENU = 0x17da9c,
   FIELD_CTX_PTR = 0x17be20, -- pointer to the field's context struct (+0x34 "change screen" request byte; lib/ScreenTeleport.lua)
+  -- lib/ForceBattle.lua. The v1.0 values are in V10 below (derived from the two main.exe files; confirmed working on v1.0 by the user).
+  ROOM_RECORD_PTR = 0x17aae4, -- DAT_8017aae4: pointer to the current room record (+0x1c/+0x20 scripted-table list, +0x38 encounter block). Area overlay, so the pointer can be below 0x80100000
+  ENCOUNTER_ARMED = 0x17159a, -- DAT_8017159a: field_check_random_encounter's armed flag (3 bytes before ENCOUNTER_RATE)
+  WM_CTX_PTR = 0x17a0b8, -- DAT_8017a0b8: world-map context; *(ctx+0x2c)+0xc -> pointer to the region's encounter table pointer
 }
 
 -- Only the entries that differ in v1.0 (value = v1.0 address). The comment is the v1.1 address.
@@ -74,6 +78,9 @@ local V10 = {
   SCENE_HANDLER_FIELD_LOADER = 0x181a90, -- 0x17da98
   SCENE_HANDLER_MENU = 0x181a94,        -- 0x17da9c
   FIELD_CTX_PTR = 0x180d60,         -- 0x17be20
+  ROOM_RECORD_PTR = 0x180248,       -- 0x17aae4 (field_check_random_encounter, v1.0 at 0x8012c6d8: lw ...,0x248 under lui 0x8018)
+  ENCOUNTER_ARMED = 0x175b0e,       -- 0x17159a (same function: lbu ...,0x5b0e under lui 0x8017)
+  WM_CTX_PTR = 0x17d604,            -- 0x17a0b8 (wm_battle_start, v1.0 at 0x80128754: lw ...,-0x29fc under lui 0x8018)
 }
 
 local Address = AddressBuild.wrap(V11, V10)

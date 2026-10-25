@@ -186,3 +186,23 @@ requested tile with the right zones. The 13 that don't are labeled BROKEN:
 never loads (1/4/1, 9/4/1, 1/6/0, 9/6/0); arrival event moves the hero
 (0/0/0, 11/0/0, 0/3/0, 1/41/0, 9/41/0, the last three off-screen); hero walks
 in 3 tiles (1/5/6, 2/6/6); redirect to screen 0 (1/33/2, 9/33/2).
+
+## Force Battle
+
+`modules/Toolbox/Tools/ForceBattle.lua` (the entry under Screen Teleport) lists every
+battle the loaded screen can start and starts the selected one. Rows are the room's
+random-encounter groups (`Random N`, the same index as the digit strings in
+`lib/EncounterTable.lua`) and any scripted tables (`Scripted B`, e.g. the Queen Ant
+fight and the story battle in Mt. Seifu's Queen Ant room), each with its enemies and
+levels. The footer shows the room's random rate and grace. Up/Down picks, L1/R1 jump 10,
+X starts. It works only on an idle field screen, and like Screen Teleport the request
+runs from the Toolbox worker once you unpause; the result shows at the bottom left.
+To fight something from another area, load that area first with Screen Teleport. On the
+world map the list is that region's random table (no scripted fights, no teleport).
+
+The list is per screen, not per area: rate, grace and tables come from the room record,
+so a screen with no random block shows none. Enemy names are the game's own, so the
+Bandit variants (R/Y/G) all read "Bandit"; the level is shown to tell them apart, and
+two groups can still read the same. The mechanism and the list code are
+`lib/ForceBattle.lua` (`list()`, `request()`); see
+[Battles and Encounters](./Battles_and_Encounters.md#forcing-a-battle-from-lua-libforcebattlelua).

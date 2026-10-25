@@ -18,6 +18,10 @@ local V11 = {
   -- lib/ScreenTeleport.lua: the field main handler (field_main_running) and the loader's idle handler
   FIELD_MAIN_RUNNING = 0x801319c4,
   FIELD_LOADER_IDLE = 0x80132790,
+  -- lib/ForceBattle.lua: the world-map main handler (scene slot 1 while the map is idle) and the handler that
+  -- starts a battle from it (sets GAMESTATE 3 and the table pointer; the WM roll installs it with the group index written)
+  WM_MAIN_RUNNING = 0x801280c4,
+  WM_BATTLE_START = 0x801285a4,
 }
 
 local V10 = {
@@ -30,6 +34,8 @@ local V10 = {
   PARTY_REMOVE_SLOT = 0x800c4ce8,               -- 0x800c4afc
   FIELD_MAIN_RUNNING = 0x80131464,              -- 0x801319c4
   FIELD_LOADER_IDLE = 0x80132230,               -- 0x80132790
+  WM_MAIN_RUNNING = 0x80128274,                 -- 0x801280c4
+  WM_BATTLE_START = 0x80128754,                 -- 0x801285a4
 }
 
 return AddressBuild.wrap(V11, V10)

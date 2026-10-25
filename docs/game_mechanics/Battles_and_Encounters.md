@@ -145,6 +145,53 @@ level-sum ceiling for `encounters[i]`).
 3. If the Champion Rune is **not** equipped, this level check is skipped
    entirely — any rolled group is accepted.
 
+## Forcing a battle from Lua (`lib/ForceBattle.lua`)
+
+Starts a chosen battle from an idle field screen, no roll and no RNG used by the check.
+Queued like Screen Teleport: `request(opts)`, then `tick()` once per emulated frame.
+`opts.group` is the 1-based index into the table (the digit strings in
+`EncounterTable.lua`). `wm/area/screen/x/y` teleport first through
+[Screen Teleport](./Saves_and_Toolbox.md#screen-teleport); leave them out to stay on the
+current screen. `opts.scripted = B` picks a scripted table instead of the room's random one.
+Verified headless on v1.1 and live on v1.0 (field, world map and the Toolbox tool). The
+globals and handlers it needs have V10 addresses in `lib/Address.lua` and
+`lib/AddressFunctions.lua`, derived from both `main.exe` files; the save-struct offsets and
+the field context flags are identical in both builds.
+`ForceBattle.list()` returns every battle the loaded screen offers (random groups plus
+scripted tables) with enemy names and levels; the Toolbox's Force Battle tool is built on it.
+
+How it works: `field_check_random_encounter` skips every roll when the field context's
+`+0x37` bit 2 is set (the script "start battle" opcode at `0x801394d0` sets it via
+`FUN_8012cbbc`). The battle loader (`0x800ddf98`) then reads two save-struct words:
+
+- `0x1B9BB4` (`GAMESTATE_BASE+0x1bb4`): pointer to the encounter table. Random: room record
+  `+0x38` block, `+4`. Scripted: `list[B + u32(room+0x1c)]` with `list = u32(room+0x20)`.
+- `0x1B9BC0` (`+0x1bc0`): the group index, falling back to 1 if above the table's group
+  count. This is the same address as `EVENT_ID`; `field_pick_encounter_group` writes the
+  rolled index there.
+
+The three flags written are `ctx+0x37 |= 4`, `ENCOUNTER_ARMED` (`0x17159A`) and `ctx+0x36 = 1`
+(`ctx` = pointer at `FIELD_CTX_PTR`). The battle starts 3 frames later.
+
+The area overlay must be loaded: tables, groups and enemy records are in it, and each enemy
+record holds three pointers into it (`+0x28`, `+0x2c`, `+0x30`). A relocated copy of the
+tables in free RAM works only while that overlay is loaded; with another area loaded the
+loader freezes at `0x800de61c` (gamestate 3, field still on screen).
+
+World map: a different scene. The idle WM main handler (scene slot 1 = `0x801280c4`) rolls
+the encounter itself and, on a hit, writes the group index to `0x1B9BC0` and installs
+`wm_battle_start` (`0x801285a4`) as slot 1. That handler copies the table pointer
+(`**(u32(*(WM_CTX_PTR)+0x2c)+0xc)`, the region's table) to `0x1B9BB4`, sets `PREV_GAMESTATE` to 1
+and `GAMESTATE` to 3, and the scene dispatcher enters the battle loader. So on the map the
+trigger is two writes while it is idle: the group index, and slot 1 = `wm_battle_start`.
+There is no teleport there, and no scripted list (the game has no scripted world-map fights). Traced by walking into a real encounter
+(group 6, 1441 -> 1442 frames) and reproduced for all 13 groups of the Gregminster-region
+table.
+
+Verified headless (`scripts/TestForceBattle.lua`): all five Mt. Seifu random groups, and
+the Queen Ant room (0/6/9) scripted tables B=0 (Queen Ant plus three Soldier Ants) and B=1
+(the self-playing story battle). Not played to the end, and other scripted fights untested.
+
 ## Data structures
 
 ### `EncounterTable.lua` (per area)
