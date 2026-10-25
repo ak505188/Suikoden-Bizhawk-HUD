@@ -16,7 +16,7 @@ local Address = require "lib.Address"
 local BattleRoundInput = require "lib.BattleRoundInput"
 local json = require "lib.json"
 
-local BASE_SAVE = "/home/alex/Projects/Suikoden-Bizhawk-HUD/QueenAnt.State"
+local BASE_SAVE = "/home/alex/Projects/Suikoden-Bizhawk-HUD/savestates/QueenAnt.State"
 local OUT = "/home/alex/Local/BizHawk-2.10-linux-x64/Lua/Output/RetestCommandAntsRngCost.json"
 
 local COMMAND_ANTS_GATE = 0x8001107c

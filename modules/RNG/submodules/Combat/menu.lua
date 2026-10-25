@@ -3,13 +3,16 @@ local BaseMenu = require "menus.Base"
 local Buttons = require "lib.Buttons"
 local MenuProperties = require "menus.Properties"
 local Worker = require "modules.RNG.submodules.Combat.worker"
+local BattleLogger = require "lib.BattleLogger"
 local ActionEditMenu = require "modules.RNG.submodules.Combat.ActionEditMenu"
 
 local OPTIONS = {
   "Show HP section",
   "Edit Party Actions",
   "Log battle events",
+  "Log level",
 }
+local MAX_LOG_LEVEL = 2
 
 local Menu = BaseMenu:new({
   properties = {
@@ -25,6 +28,7 @@ function Menu:draw()
     string.format("%s Show HP section", Worker.ShowHPExperimental and "[X]" or "[ ]"),
     "Edit Party Actions",
     string.format("%s Log battle events", Worker.LogEnabled and "[X]" or "[ ]"),
+    string.format("Log level: %d", BattleLogger.Level),
   }
   draw_table[self.pos] = "> " .. draw_table[self.pos]
 
@@ -60,6 +64,8 @@ function Menu:run()
       self:openMenu(ActionEditMenu)
     elseif self.pos == 3 then
       Worker.LogEnabled = not Worker.LogEnabled
+    elseif self.pos == 4 then
+      BattleLogger.Level = BattleLogger.Level % MAX_LOG_LEVEL + 1
     end
   end
   return false

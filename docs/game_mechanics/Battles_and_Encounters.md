@@ -57,6 +57,75 @@ A candidate battle is only valid if `battle.encounter_roll < game_state.Encounte
   Since `res` only ranges 0–3, a rate of `1` means only `res==0` triggers a
   fight, `2` allows `res<2`, etc. (values seen in `EncounterTable.lua`: 2, 3, or 4).
 
+## Field encounter check, step counter and grace period
+
+Static analysis of `main.exe` (2026-10-14). Applies to the field engine
+(towns/dungeons). The world-map roll is a separate routine and is **not**
+covered here. Per-frame check: `field_check_random_encounter` (`0x8012cc38`),
+called from the field main-state handler at `0x8013295c`.
+
+Tests run in this order and short-circuit, so `rand()` is only called when
+every earlier test passes (this is why no RNG is consumed during grace):
+
+1. Armed flag (`0x8017159a`) set. Set at room load when the room's rate
+   is nonzero and save flag `0x19` is clear.
+2. Re-arm flag (field struct `+0x36`) set. Set when a d-pad bit is held,
+   cleared by any failed check.
+3. `0x8017bd7a == 0`.
+4. **Step counter (field struct `+0x30`) > grace** (`0x8017159c`).
+   Strict: a counter equal to grace never rolls.
+5. Room has an encounter block.
+6. Roll: `rand() / 0x7f < rate` (`0x8017159d`). First `rand()` call.
+7. Group pick, `field_pick_encounter_group` (`0x80126228`). Second
+   `rand()` call. A Champion Rune rejection still spent both calls.
+
+### Step counter
+
+- `+1` when a tile move **starts successfully** (handler at `0x80132ae0`).
+  Wall bumps and blocked moves do not count.
+- Zeroed on: encounter start, field/room init (`0x80131480`), and screen
+  change (`0x8012cb10`, `0x801326cc`). So grace restarts after every battle
+  and every room load.
+- The same increment also drives a per-3-steps routine
+  (`0x80126408`, likely status damage; unverified).
+- Roll timing (read from code, not yet watched live): the check is skipped
+  while a move vector is in progress, so while walking one roll happens
+  as each tile move finishes. Holding a d-pad direction into a wall past
+  grace should roll on every standing frame, since the counter does not
+  need to change. Verify before relying on it.
+
+### Encounter block (room record `+0x38`)
+
+```
++0  u8   rate    roll hits when rand()/0x7f < rate (0 = no encounters)
++1  u8   (unused so far)
++2  u8   grace   steps that must be exceeded before any roll
++3  u8   (unused so far)
++4  ptr  encounter table; table+8 -> {count, group ptrs}
+```
+
+No block, or a null `+0x38`, means armed stays 0 (defaults rate 5, grace
+`0x23` are loaded but never used).
+
+Grace and rate are **per room**, not per area. Area files are loaded at
+`0x80010000` (descriptors via `main.exe 0x8016f67c[region][area]`).
+Extractor: `scripts/python/dump_encounter_blocks.py`.
+
+Grace by area (region, area = `WM_ZONE`, `AREA_ZONE`):
+
+- 30: Kalekka (6,1) and (6,3), rate 4.
+- 50: Magician's Island (0,3) rate 4; Scarleticia (3,4) rooms 1-3 and 8
+  rate 3; Moravia (7,0) rate 3.
+- 60: everything else with an encounter block.
+
+Rate exceptions inside an area: Mt. Tigerwolf rooms 2, 4, 7 use rate 3
+and the rest rate 2; Scarleticia room 0 has rate 0 (no encounters) and
+still lists grace 60. `EncounterTable.lua` holds one rate per area, so
+these rooms are approximated there.
+
+Group counts from the disc match `EncounterTable.lua` for every area
+that has a field block.
+
 ## Which enemy group spawns — the Champion Rune / "Champ Val" mechanic
 
 Each area entry in `lib/EncounterTable.lua` has parallel arrays `champVals`

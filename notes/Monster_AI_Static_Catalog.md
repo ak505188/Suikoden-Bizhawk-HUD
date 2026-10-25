@@ -5,7 +5,7 @@ This is the history behind
 
 ## Cross-referencing the disc scan against live memory
 
-The disc-file `MonsterRecord` scan (`scripts/ScanMonsterRecords.py`) and the live-memory
+The disc-file `MonsterRecord` scan (`scripts/python/ScanMonsterRecords.py`) and the live-memory
 enemy-struct work were originally two separate threads (see `feedback-charmap-text-search.md`
 and the battle-system RE progress notes) before being cross-referenced into one area map.
 

@@ -1,5 +1,5 @@
 local RNG = 0x9010
-local SAVESTATE = "/home/alex/Projects/Suikoden-Bizhawk-HUD/TurnOrderRNGCall.State"
+local SAVESTATE = "/home/alex/Projects/Suikoden-Bizhawk-HUD/savestates/TurnOrderRNGCall.State"
 local OUTPUT_DIR = '/tmp/claude-1000/-home-alex-Projects-Suikoden-Bizhawk-HUD/2d239eb6-5108-43f2-9462-38fdcd17de5a/scratchpad/'
 
 local log = {}

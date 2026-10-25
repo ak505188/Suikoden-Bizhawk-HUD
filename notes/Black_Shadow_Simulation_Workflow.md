@@ -128,7 +128,7 @@ directly for automated work, and never touch your own live/running EmuHawk sessi
   and audio disabled) via `--config=`, so a spawned instance can't pick up your real keyboard
   or controller input, and doesn't make noise. Your own `config.ini` is never touched.
 - Prevents the spawned window from ever taking focus, via a KWin window rule
-  (`scripts/kwin-headless-rule.py`) that forces Focus Stealing Prevention to Extreme for any
+  (`scripts/python/kwin-headless-rule.py`) that forces Focus Stealing Prevention to Extreme for any
   window titled "BizHawk" or "Lua Console", added right before launch and removed right after
   (with `xdotool` window-minimizing kept as a redundant second layer). This is scoped **in
   time**, not by any property of your own usage - the rule doesn't exist except during a

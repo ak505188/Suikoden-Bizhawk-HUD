@@ -246,7 +246,7 @@ end
 
 TestYell = {}
 
--- Fixed 33: 11 sparkle activations x 3 rand(). Live: 20 injected seeds all gave 33 (scripts/CaptureYellSeeds.lua,
+-- Fixed 33: 11 sparkle activations x 3 rand(). Live: 20 injected seeds all gave 33 (a one-off capture script (since removed),
 -- aimed at a live ally); the first seed's activations were at counter 10,20,29,30,34,39,40,41,44,46,47.
 function TestYell:testFixedTotal()
   luaunit.assertEquals(Magic.simulateYell(), 33)
@@ -255,7 +255,7 @@ end
 TestScream = {}
 
 -- Fixed 162: 54 sparkle activations x 3 rand(). Live: 20 injected seeds all gave 162
--- (scripts/CaptureScreamSeeds.lua) and the first seed's per-tick counts matched the model.
+-- (a one-off capture script (since removed)) and the first seed's per-tick counts matched the model.
 function TestScream:testFixedTotal()
   luaunit.assertEquals(Magic.simulateScream(), 162)
 end
@@ -263,7 +263,7 @@ end
 TestBlazingCamp = {}
 
 -- Fixed 54: 10 meteors x (2 + 1 impact) + 12 sparkles x 2. Live: 20 injected seeds all gave 54
--- (scripts/CaptureBlazingCampSeeds.lua) and the first seed's per-tick counts matched.
+-- (a one-off capture script (since removed)) and the first seed's per-tick counts matched.
 function TestBlazingCamp:testFixedTotal()
   luaunit.assertEquals(Magic.simulateBlazingCamp(), 54)
 end
@@ -271,7 +271,7 @@ end
 TestThor = {}
 
 -- McDohl Lightning + Luc Water (Magic Unite Thor, id 37) on SpellDuration.State, aimed at the first enemy. 20
--- injected seeds (scripts/CaptureThorSeeds.lua): the real rand() count from spell_thor_vfx_setup (0x8011a81c) to
+-- injected seeds (a one-off capture script (since removed)): the real rand() count from spell_thor_vfx_setup (0x8011a81c) to
 -- the end handler (0x8011bc3c). Each case is { RNG at setup, calls }. The first seed's per-tick counts matched too
 -- (6 at setup, 8 at the bolt tick, 83 when the 20 arcs first spawn, ...).
 function TestThor:testKnownSeed()
@@ -309,7 +309,7 @@ end
 TestScorchedEarth = {}
 
 -- Fixed 282: 48 setup + 154 (F) + 32 (A) + 48 (E). Live: 20 injected seeds all gave 282
--- (scripts/CaptureScorchedEarthSeeds.lua) and the first seed's per-tick counts matched.
+-- (a one-off capture script (since removed)) and the first seed's per-tick counts matched.
 function TestScorchedEarth:testFixedTotal()
   luaunit.assertEquals(Magic.simulateScorchedEarth(), 282)
 end
@@ -317,7 +317,7 @@ end
 TestWaterDragon = {}
 
 -- McDohl Water + Luc Wind (Magic Unite Water Dragon, id 38) on SpellDuration.State, aimed at the first enemy. 20
--- injected seeds (scripts/CaptureWaterDragonSeeds.lua): the real rand() count from spell_waterdragon_vfx_setup
+-- injected seeds (a one-off capture script (since removed)): the real rand() count from spell_waterdragon_vfx_setup
 -- (0x8011be0c) to the end handler (0x8011cd48). Each case is { RNG at setup, calls }. The first seed's per-tick
 -- counts matched too (302 at setup, 440 on the first gated pass).
 function TestWaterDragon:testKnownSeed()
@@ -355,7 +355,7 @@ end
 TestDeadlyFingertips = {}
 
 -- McDohl's own Soul Eater Rune slot 1 (Deadly Fingertips, id 25) on SpellDuration.State, aimed at the first
--- enemy. 20 injected seeds (scripts/CaptureDeadlyFingertipsSeeds.lua): the real rand() count from
+-- enemy. 20 injected seeds (a one-off capture script (since removed)): the real rand() count from
 -- spell_deadlyfingertips_vfx_setup (0x80113a90) to the cleanup (0x801147d4). Each case is { RNG at setup, calls }.
 -- The first seed's per-tick counts matched too (150 on the first pass, then 5 per spark respawn).
 function TestDeadlyFingertips:testKnownSeed()
@@ -393,7 +393,7 @@ end
 TestAngryBlow = {}
 
 -- 6 rand() calls at the native target depth (z=0); live-measured at forced target z of
--- 0/500/900 -> 6, 1000 -> 5, 1500 -> 4 (scripts/CaptureAngryBlowDepth.lua).
+-- 0/500/900 -> 6, 1000 -> 5, 1500 -> 4 (a one-off capture script (since removed)).
 function TestAngryBlow:testFixedTotal()
   luaunit.assertEquals(Magic.simulateAngryBlow(), 6)
 end
@@ -421,7 +421,7 @@ end
 TestClayGuardian = {}
 
 -- McDohl's Earth Lv1 (Clay Guardian, id 21) on SpellDuration.State, aimed at himself. 20 injected seeds
--- (scripts/CaptureClayGuardianSeeds.lua): the real rand() count from spell_clayguardian_vfx_setup to the
+-- (a one-off capture script (since removed)): the real rand() count from spell_clayguardian_vfx_setup to the
 -- tick machine's end handler (0x80110c38) is LCG-step-counted between the real RNG values. Each case is
 -- { RNG at setup, calls }. The first seed's per-tick counts also matched exactly (30 at tick 0, then
 -- 3 per sparkle respawn, 6 at ticks 51 and 58).
@@ -468,7 +468,7 @@ end
 TestGuardianOfEarth = {}
 
 -- McDohl's Mother Earth Rune (id 30, slot 4 = Guardian of Earth, id 33) on SpellDuration.State, party-wide.
--- 20 injected seeds (scripts/CaptureGuardianOfEarthSeeds.lua): the real rand() count from
+-- 20 injected seeds (a one-off capture script (since removed)): the real rand() count from
 -- spell_guardianofearth_vfx_setup (0x80112070) to the end handler (0x801129ec). Each case is
 -- { RNG at setup, calls }. The first seed's per-tick counts matched too (40 at setup, 2 per sparkle
 -- activation, 2 at phase 3's last tick).
@@ -695,7 +695,7 @@ end
 TestJudgment = {}
 
 -- McDohl's Judgment (Soul Eater Lv4) on SpellDuration.State, start seed read in-game on the
--- frame battle+0x14 held spell_judgment_vfx_setup (scripts/CaptureJudgment.lua). Expected is the
+-- frame battle+0x14 held spell_judgment_vfx_setup (a one-off capture script (since removed)). Expected is the
 -- real number of rand() calls from that frame through the end of the tick machine, summed from the
 -- live per-frame capture (setup's 30 + phase 5's calls), not taken from the simulator. Each seed
 -- gave a different setup roll, so these also cover the 161 / 167 spread.
@@ -705,7 +705,7 @@ function TestJudgment:testKnownCapturedSeeds()
   luaunit.assertEquals(Magic.simulateJudgment(0x72bc8dbc), 167)
 end
 
--- 20 more seeds, injected into SpellDuration.State (scripts/CaptureJudgmentSeeds.lua); the start
+-- 20 more seeds, injected into SpellDuration.State (a one-off capture script (since removed)); the start
 -- value is what the RNG held when setup ran (ambient calls before the cast shift it away from the
 -- injected one), and the count is the LCG-step distance from it to the RNG value on the first frame
 -- of spell_judgment_cleanup. All matched the simulator exactly (0 discrepancies).
@@ -743,7 +743,7 @@ TestDropsOfKindness = {}
 
 -- Like Dancing Flames, a fixed total: McDohl's Water Lv1 (Drops of Kindness, on himself) gave exactly 18
 -- rand() calls from spell_drops_of_kindness_vfx_setup to the tick machine's end on all 20 injected seeds
--- (scripts/CaptureDropsSeeds.lua, LCG-step distance between the real RNG values), so one case to pin.
+-- (a one-off capture script (since removed), LCG-step distance between the real RNG values), so one case to pin.
 function TestDropsOfKindness:testFixedTotal()
   luaunit.assertEquals(Magic.simulateDropsOfKindness(), 18)
 end
@@ -752,7 +752,7 @@ TestFogOfDeception = {}
 
 -- McDohl's Water Lv2 (Fog of Deception, on the lone enemy of SpellDuration.State) cost exactly 0
 -- rand() calls from spell_fog_of_deception_vfx_setup through the tick machine's end handler on all 20
--- injected seeds (scripts/CaptureFogSeeds.lua, LCG-step distance between the real RNG values). The 6
+-- injected seeds (a one-off capture script (since removed), LCG-step distance between the real RNG values). The 6
 -- calls seen after it come right before the next actor is picked, not from the spell.
 function TestFogOfDeception:testFixedTotal()
   luaunit.assertEquals(Magic.simulateFogOfDeception(), 0)
@@ -764,7 +764,7 @@ TestRainOfKindness = {}
 -- party of 6. Start seed = the RNG value read in-game on the frame battle+0x14 held
 -- spell_rain_of_kindness_vfx_setup (ambient calls before the cast shift it away from the injected
 -- seed); expected = LCG-step distance from it to the RNG value on the first frame of the end handler
--- (0x80107ea4), from scripts/CaptureRainSeeds.lua - not the simulator's output. All 20 matched
+-- (0x80107ea4), from a one-off capture script (since removed) - not the simulator's output. All 20 matched
 -- exactly. Every total is 72 (setup) + 5 per rain-line spawn, and ranges 1527-1572.
 function TestRainOfKindness:testValidatedSeeds()
   local cases = {
@@ -797,7 +797,7 @@ function TestRainOfKindness:testValidatedSeeds()
 end
 
 -- Same spell with a party of 5 (RainOfKindness.State: McDohl slot 1, Water rune, Lv4 available, nothing
--- edited), same method (scripts/CaptureRainSeeds5.lua). Setup drops to 60 and the totals to 1515-1570,
+-- edited), same method (a one-off capture script (since removed)). Setup drops to 60 and the totals to 1515-1570,
 -- each 60 + 5 per rain-line spawn; 0 mismatches.
 function TestRainOfKindness:testValidatedSeedsPartyOfFive()
   local cases = {
@@ -833,7 +833,7 @@ TestWaterOfKindness = {}
 
 -- McDohl's Water Lv3 (Water of Kindness, id 11) on SpellDuration.State, a party of 6: exactly 72 rand()
 -- calls from spell_water_of_kindness_vfx_setup to the tick machine's end handler (0x801071b4) on all 20
--- injected seeds (scripts/CaptureWaterOfKindnessSeeds.lua, LCG-step distance between the real RNG
+-- injected seeds (a one-off capture script (since removed), LCG-step distance between the real RNG
 -- values). The cost is 12 per party member, independent of the seed.
 function TestWaterOfKindness:testFixedTotalPartyOfSix()
   luaunit.assertEquals(Magic.simulateWaterOfKindness(6), 72)
@@ -892,7 +892,7 @@ end
 -- Same spell against SpellDuration.State's lone enemy, Ain Gide: his attack data (battle+0x1344 table,
 -- enemy id * 4) has u16 +0x26 = 0x4003, so the 0x4000 (immune to Sleep) bit is set and the case-3 loop
 -- never runs the hit script on him: no Sleep roll. Native-seed per-frame capture
--- (scripts/CaptureWindOfSleepAinGide.lua): 100 setup + 200 on the first spawn tick and nothing else = 300.
+-- (a one-off capture script (since removed)): 100 setup + 200 on the first spawn tick and nothing else = 300.
 function TestWindOfSleep:testImmuneEnemyKnownCapturedSeed()
   luaunit.assertEquals(Magic.simulateWindOfSleep(0xfd5ecce9, 0), 300)
 end

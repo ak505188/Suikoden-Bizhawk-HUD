@@ -16,7 +16,7 @@ local ActionEnumerator = require "lib.ActionEnumerator"
 local CharAddresses = require "lib.Characters.Addresses"
 local Names = require "lib.Characters.NamesList"
 
-local BASE_SAVE = "/home/alex/Projects/Suikoden-Bizhawk-HUD/ZombieDragonStart.State"
+local BASE_SAVE = "/home/alex/Projects/Suikoden-Bizhawk-HUD/savestates/ZombieDragonStart.State"
 local OUT = "/home/alex/Local/BizHawk-2.10-linux-x64/Lua/Output/EnumerateCharacterActions.txt"
 
 local lines = {}

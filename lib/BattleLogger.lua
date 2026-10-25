@@ -8,6 +8,15 @@
 --   R1 t  96 rng 12  Cleo deals 26 to Golem #1 (HP 274)
 --   R1 t 303 rng 40  --- Round 1 ends ---
 --
+-- Debug levels (BattleLogger.Level, default 1):
+--   1  the lines above (rounds, turns, actions, HP changes). Unchanged.
+--   2  adds per-combatant state changes, tagged "[state]":
+--        busy      EnemyData+5 changed (0 idle/dead, 1 acting, 8/9 being hit; see worker.lua)
+--        primed    EnemyData+0x40 bit 0x2 (impact) gained / lost. Left set by an earlier dodge, it
+--                  primes the combatant's next counter (see Battle_Damage_Formula.md "The chains");
+--                  any other flag change is shown as a raw "flags" line.
+--        finished  ActionTag changed (0 -> 1 = finished/executing, 1 -> 0 = cleared)
+--
 -- State reading and the round tick come from the RNG > Combat worker (Worker:run ->
 -- readBattleState / currentTick), so the offsets and tick rules live in one place.
 --
@@ -75,6 +84,9 @@ local BattleLogger = {
   StartOrder = 0,
   Area = {},          -- idx -> true when the action is an enemy continuation special (hits several targets)
   TurnLogged = {},    -- idx -> true once "X's turn" was printed this round
+  Level = 1,          -- debug level, see the header
+  LastBusy = nil,     -- idx -> Busy byte
+  LastFlags = nil,    -- idx -> EnemyData+0x40 effect flags
   RoundArmed = false, -- a driver phase was seen this round, so phase 0 now means "round ended"
 }
 
@@ -331,6 +343,7 @@ end
 function BattleLogger:reset()
   self.InBattle = false
   self.LastRound, self.LastActor, self.LastHP, self.LastRNG, self.LastTag = nil, nil, nil, nil, nil
+  self.LastBusy, self.LastFlags = nil, nil
   self.RNGCount = 0
   self.Started, self.StartOrder = {}, 0
   self.RoundArmed, self.Area, self.TurnLogged = false, {}, {}
@@ -356,6 +369,51 @@ function BattleLogger:resync(state, frame)
     end
   end
   self:snapshotHP(state)
+  self:snapshotState(state)
+end
+
+local PRIMED_FLAG = 0x2
+
+-- Baselines for the level 2 state-change lines.
+function BattleLogger:snapshotState(state)
+  self.LastBusy, self.LastFlags = {}, {}
+  for idx = 1, state.TotalCombatants do
+    local c = state.Combatants[idx]
+    self.LastBusy[idx] = c.Busy
+    self.LastFlags[idx] = c.EffectFlags
+  end
+end
+
+-- Level 2: busy / primed / finished transitions for every combatant. Enemy records can be junk
+-- until their first turn, so combatants with HPMax 0 are skipped (baseline still advances).
+function BattleLogger:logStateChanges(state, lastTag)
+  local lastBusy, lastFlags = self.LastBusy, self.LastFlags
+  self:snapshotState(state)
+  if not lastBusy then return end
+  for idx = 1, state.TotalCombatants do
+    local c = state.Combatants[idx]
+    if c.HPMax ~= 0 then
+      local who = self:label(state, idx)
+      if lastBusy[idx] ~= c.Busy then
+        self:log(state, string.format("[state] %s busy %d -> %d", who, lastBusy[idx], c.Busy))
+      end
+      local was, now = lastFlags[idx], c.EffectFlags
+      if was ~= now then
+        local note = ""
+        if (was & PRIMED_FLAG) == 0 and (now & PRIMED_FLAG) ~= 0 then
+          note = " - primed"
+        elseif (was & PRIMED_FLAG) ~= 0 and (now & PRIMED_FLAG) == 0 then
+          note = " - primed cleared"
+        end
+        self:log(state, string.format("[state] %s flags 0x%02x -> 0x%02x%s", who, was, now, note))
+      end
+      local prevTag = lastTag[idx]
+      if prevTag ~= nil and prevTag ~= c.ActionTag then
+        self:log(state, string.format("[state] %s %s", who,
+          c.ActionTag == 1 and "finished (ActionTag 0 -> 1)" or "ActionTag cleared (1 -> 0)"))
+      end
+    end
+  end
 end
 
 function BattleLogger:snapshotHP(state)
@@ -448,6 +506,7 @@ function BattleLogger:process()
   -- jump / carried over from the previous round aren't reported as new actions).
   local cont = memory.read_u32_le(state.Base + CONTINUATION_OFFSET)
   local lastTag = self.LastTag or {}
+  local prevTags = lastTag
   self.LastTag = {}
   for idx = 1, state.TotalCombatants do
     local c = state.Combatants[idx]
@@ -469,6 +528,7 @@ function BattleLogger:process()
       self:log(state, string.format("%s %s", self:label(state, idx), self:describeAction(state, idx, cont)))
     end
   end
+  if self.Level >= 2 then self:logStateChanges(state, prevTags) end
   -- HP changes.
   if self.LastHP then
     for idx = 1, state.TotalCombatants do

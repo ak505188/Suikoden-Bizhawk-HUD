@@ -16,7 +16,7 @@ package.path = "/home/alex/Projects/Suikoden-Bizhawk-HUD/?.lua;" .. package.path
 local Address = require "lib.Address"
 local BattleRoundInput = require "lib.BattleRoundInput"
 
-local BASE_SAVE = "/home/alex/Projects/Suikoden-Bizhawk-HUD/ZombieDragonStart.State"
+local BASE_SAVE = "/home/alex/Projects/Suikoden-Bizhawk-HUD/savestates/ZombieDragonStart.State"
 local PARTY_COUNT = 6
 local DRAGON_ACTOR = 7
 

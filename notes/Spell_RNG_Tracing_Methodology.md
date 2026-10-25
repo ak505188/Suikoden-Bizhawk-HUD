@@ -42,6 +42,8 @@ brand new `FUN_xxxxxxxx` needing `create_function` first, per
 
 ## 2. Capture a live per-frame RNG trace
 
+Template: `scripts/CaptureWindOfSleep.lua` (savestate load, per-frame RNG log, headless spawn).
+
 Spawn a separate EmuHawk instance (never touch the user's live session —
 see [[feedback-live-emulator-sessions]]), load the savestate, and step
 frame-by-frame for the estimated duration (+ generous padding), logging
@@ -108,14 +110,24 @@ for all of them up front rather than rediscovering them one at a time:
   `field = field & 0xfff | (new_high_bits << 12)`) **preserves whatever was
   already in the untouched bits.** If that field is memory the game reused
   from some earlier, unrelated purpose (a shared VFX particle pool, etc.),
-  those preserved bits are stale garbage specific to *this savestate*, not
-  derived from the RNG stream at all — the simulator needs to seed with the
-  real residual value, or it'll silently diverge many ticks later, once
+  those preserved bits *can be* stale garbage specific to this savestate,
+  not derived from the RNG stream at all — the simulator needs to seed with
+  the real residual value, or it'll silently diverge many ticks later, once
   the residue has accumulated through repeated arithmetic on the field.
-  Dump the *raw* pre-cast memory (before any tick runs) for every relevant
-  object/particle to check for this before assuming a clean-zero start —
-  cheap to check, expensive to debug around blindly (this is exactly what
-  happened with Flaming Arrow's `trail_x` field).
+  Black Shadow's `posX`/`scale` fields are the confirmed real case (see
+  `lib/Magic.lua`'s `HellInitialResidualLow12`/Black Shadow comments) — but
+  don't stop at dumping *one* savestate's raw pre-cast memory and calling a
+  nonzero low-bit pattern "confirmed residue": Flaming Arrow's `trail_x`
+  field looked identical in kind (same partial-word write, same nonzero
+  low-12 pattern in a few slots) and was documented as residue on exactly
+  that evidence, but turned out — once checked against a second and third
+  savestate differing by what ran before the cast — to be a fixed,
+  spell-wide constant sitting at a fixed address, unchanged in every
+  savestate tested. Dump the *raw* pre-cast memory for every relevant
+  object/particle across at least two genuinely different savestates
+  before concluding it's real per-savestate residue rather than a constant
+  that merely looks reused — cheap to check, expensive to debug around
+  blindly, and easy to mistake one for the other from a single sample.
 - **A matching aggregate total does not prove per-tick correctness.**
   Always validate exact per-tick call counts against the live trace, not
   just the grand total — a coincidentally-correct total can be hiding a
@@ -287,9 +299,20 @@ two passes:
 
 ## 6. Read off the animation duration (free byproduct)
 
-Sum the per-phase tick-count immediates you already noted in §3, divide by
-60 (NTSC frames/sec) for seconds. No live data needed for this number — it
-comes straight out of the decompile. Record it in
+**Corrected 2026-10-06: the tick sum is only a prediction, not the duration.**
+Summing the per-phase tick-count immediates from §3 was right for Earthquake
+(320) and Charm Arrow (224 vs 226 live) but wrong for Explosion (320 vs 831
+live), Final Flame (584 vs 681), Shining Wind (384 vs 535-539), and Hell and
+Black Shadow, whose last phases were never resolved (their old "≥224"/"≥176"
+were really 843 and 463). Measure live with `scripts/MeasureSpellTiming.lua`
+(marker definitions and the full table: Battle_Damage_Formula.md,
+"Measured cast durations"); keep the static sum as a cross-check and to flag
+phases that don't run one tick per frame.
+
+(Original text, kept for the history: sum the per-phase tick-count
+immediates you already noted in §3, divide by 60 (NTSC frames/sec) for
+seconds. No live data needed for this number — it comes straight out of the
+decompile.) Record it in
 [Battle_Damage_Formula.md](../docs/game_mechanics/Battle_Damage_Formula.md#how-spells-call-rng-the-cast-state-machine)'s
 per-spell table (the canonical copy of confirmed durations — don't
 duplicate it here). Note any phase whose exit condition has an extra
@@ -306,7 +329,9 @@ Two real gotchas to watch for while measuring this:
   runs its (seed-independent, fixed-length) RNG phase at a real-frame
   duration that varies by battle context (260 frames in a scripted fight
   vs. 318 in a random encounter, for byte-identical mechanism/constants) —
-  a rendering-load effect, not a mechanism difference. Dump phase+tick+
+  a rendering-load effect, not a mechanism difference.
+  (2026-10-06: that 260-318 is Hell's RNG phase only; the whole spell is
+  843 frames, measured live.) Dump phase+tick+
   frame together (not just RNG value) and confirm the ratio before
   assuming it's 1:1.
 - **A user's own visual frame-count estimate is a genuine cross-check, not

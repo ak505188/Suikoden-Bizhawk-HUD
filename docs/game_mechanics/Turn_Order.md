@@ -289,11 +289,12 @@ executes each action afterward, it just isn't the whole story.
 
 ## Item turns
 
-Live-confirmed 2026-09-27 (`scripts/TraceItemDoneTick.lua`,
+Live-confirmed 2026-09-27 (one-off script, since removed,
 `ZombieDragon.State`, McDohl uses Medicine, 3 seeds per setup). Frames
-count from R, the frame the item resolves. Every item has the same timing
-(user), and the item path makes no `rand()` calls: the seed didn't move
-from R until the next turn-order roll in any run.
+count from R, the frame the item resolves. The item path makes no `rand()`
+calls: the seed didn't move from R until the next turn-order roll in any
+run. The timings below are McDohl's; they vary per user, see
+[Per-user timing](#per-user-timing).
 
 1. **Wait for idle.** `battle_try_special_attack` (`0x800f5050`) starts
    with `battle_check_all_combatants_idle()`. While anyone is busy it
@@ -329,6 +330,45 @@ from R until the next turn-order roll in any run.
 | target busy clears | R+83 |
 | user busy clears, self-targeted | R+83 |
 | user busy clears, ally targeted | R+88 |
+
+### Per-user timing
+
+Only the user matters for Medicine (checked live on McDohl, Pahn, Gremio, Ted
+and Cleo, and statically for all 78 characters with
+`scripts/python/ItemUseTimings.py`, results in
+`outputs/CharacterItemTimings.json`).
+
+- **done** (target busy 0->1) is the length of the user's own anim 13 plus
+  anim 14 in the shared item-use script `0x8016c194`, which then sets flag
+  `0x8`. It comes from the character's `04_play` sprite sheet: 3 (Clive) to
+  106 (Kirke), 19 for McDohl.
+- **Target free** is always done + 64, and **HP change** done + 32 (the HP
+  commits a tick after `apply_hp_damage_display`). Both come from the
+  Medicine effect chain, which has no per-character input: `0x800f215c`
+  (setup) -> `0x800f24e0` (30-frame countdown) -> `0x800f26cc` (HP, then
+  brightness 255 down by 4 per frame to `0x80`, 32 frames, then phase 99).
+- **User free, self-targeted** is done + 64 for everyone: the target script
+  replaces the user's script.
+- **User free, ally-targeted** is done + 61 + the length of the user's anim
+  15 (`0x8016c1c0`: busy, delay 60, anim 15, wait, anim 0, clear busy). McDohl
+  +69, Pahn +78, Gremio +79, Cleo +80, Ted +81. It doesn't depend on the target.
+
+The other battle items (effect handler at `itemDef+0x20`) differ:
+
+Medicine
+: handler `0x800f0708`, target script `0x8016c2f0`. As above.
+
+Mega Medicine
+: `0x800f07ac`, `0x8016c314`. Same timing; effect variant 1 (-500 HP,
+  8 sparkles).
+
+Antitoxin, Needle and Dragon Seal Incense are in
+[Items.md](./Items.md#battle-use-timing). In short: Antitoxin frees the
+target at done + 33 (poisoned target only), Needle at done + 14 (a Balloon
+stage only), and with no matching status both play nothing, so the user is
+free at the ally value even on a self-use. Incense waits for every living
+party member, the user included, to be idle, fires one tick after the user's
+ally-free time, and frees every member 65 frames later.
 
 **The target always misses the next roll.** Its busy byte is 1 at R+20,
 so the roll skips it (see "Tie-breaking and edge cases"). The skip doesn't
@@ -380,7 +420,7 @@ own move-choice threshold(s), with zero prior knowledge of which function
 or overlay it lives in.
 
 Validated against `QueenAnt.State`
-(`scripts/CheckPerEnemyThresholdPointerChain.lua`): resolved all 4 enemies
+(one-off script, since removed): resolved all 4 enemies
 in that fight purely through this chain, with zero Ghidra involvement, and
 every result matched the already-known static values exactly:
 
@@ -397,7 +437,7 @@ by decoding the charmap name field (offset `+0`) at the live-resolved
 `speciesRow` address (reads `"Soldier Ant"`/`"Queen Ant"` correctly), and
 Soldier Ant's resolved address (`0x8006500c`) matches exactly what an
 independent charmap search finds for that monster.
-`scripts/ScanMonsterRecords.py`'s own `MonsterRecord` layout (used to
+`scripts/python/ScanMonsterRecords.py`'s own `MonsterRecord` layout (used to
 generate that catalog by scanning raw overlay bytes, no emulator needed) is
 therefore the complete struct for `speciesRow`:
 

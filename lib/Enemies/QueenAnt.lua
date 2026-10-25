@@ -85,7 +85,7 @@ end
 -- per living target: attacker=Queen Ant, element=3 (Earth/Mother Earth -
 -- EnemyElementalAttack.RUNE_CATEGORY category 3), target=that slot's own MGC/DEF/RuneId.
 --
--- Live-confirmed via scripts/CaptureQueenAntRounds.lua against QueenAnt.State: one round showed
+-- Live-confirmed via a one-off capture script (since removed) against QueenAnt.State: one round showed
 -- all 5 living party members taking independent, differing damage simultaneously - the "hits all
 -- characters" signature. RNG-cost formula (one roll per living target) bit-exact live-validated
 -- 2026-09-07 via scripts/TraceQueenAntMoveSelection.lua: with party slot 2 already dead, exactly
@@ -150,7 +150,7 @@ end
 -- chance for jitter to change that. By the time her turn starts, every ant that's still alive
 -- already has ActionTag=1 - failing queen_ant_command_all_ants_attack's own eligibility check
 -- (`ActionTag==0`) for every one of them. Live-verified directly
--- (scripts/VerifyAntCommandAttribution.lua against QueenAnt.State's round 1): all 3 ants showed
+-- (a one-off verify script (since removed) against QueenAnt.State's round 1): all 3 ants showed
 -- ActionTag=1 at the exact frame `queen_ant_command_all_ants_attack` executed, and each ant's own
 -- `combatant_rec+0x50` continuation pointer was `apply_uncovered_attack_damage`
 -- (`main.exe 0x800f5960` - a GENERIC single-calc_damage-roll physical attack resolver used by

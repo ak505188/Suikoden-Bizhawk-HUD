@@ -41,8 +41,9 @@ throughout `main.exe`). Known offsets:
   both the manual target-cursor screen and Free Will's auto-targeting
   read identically; a target-type-`1` Rune spell (AOE, no explicit
   target) is blocked outright when this is `0`. Not the per-combatant
-  `+0x2c` MGC stat — this is a fixed base-struct offset. Where the
-  candidate list itself gets built each round is not yet located.
+  `+0x2c` MGC stat — this is a fixed base-struct offset. The list is
+  built each round by `battle_menu_init_context` (`0x800e9e90`), see
+  [Free Will](./Scripted_Battle_Actions.md#free-will-targeting).
 - **`+0x30`** — sync-signal array: Base-struct-relative array, gated on
   "am I the current actor" — plausibly Unite-attack pairing.
 - **`+0x34`** — `SyncSignals+4`: A general "force a full round-state
@@ -198,7 +199,7 @@ Both physical-attack functions resolve a miss, each differently:
   (no RNG). Enemies never roll a crit.
 
   **First-slot rule live-confirmed 2026-09-25**
-  (`scripts/VerifyFirstEnemyCounter.lua`, `Seifu6Ant.State`, 30 seeds,
+  (a one-off verify script (since removed), `Seifu6Ant.State`, 30 seeds,
   every party member Defending): the first Soldier Ant missed 7 times and
   was never countered, while slots 2-6 missed 37 times and were countered
   every time. That script meant to equip Hazy for more misses but wrote
@@ -249,7 +250,7 @@ Both physical-attack functions resolve a miss, each differently:
   "reach-category hypothesis DISPROVEN" conclusion drawn from her was
   wrong: range is the gate.
 
-  **Live-confirmed 2026-09-25** (`scripts/VerifyKasumiCounter.lua`,
+  **Live-confirmed 2026-09-25** (a one-off verify script (since removed),
   `KasumiMoraviaSoldiersCounterTest.State`, 30 seeds, every party member
   forced to Attack the same soldier with flags `0x0003`, SKL pinned to 1
   so the hit chance sits at its 60% floor):
@@ -395,7 +396,7 @@ script pointer, one slot per action type.
 
 Traced 2026-09-27 from `main.exe` decompiles. Handler and helper names are
 the ones given in Ghidra that day. **Live-confirmed the same day** on
-Talisman Attack (`scripts/VerifyTalismanUnite.lua`,
+Talisman Attack (a one-off verify script (since removed),
 `VarkasSydoniaUniteTest.State`, 10 rounds over 6 seeds):
 
 - The first participant to reach its turn runs the Unite. It waits, with
@@ -938,7 +939,7 @@ whitelist for character-restricted unique runes).
 #### Falcon Rune (Valeria, Rune.Id 10)
 
 Traced 2026-09-27 from `main.exe`, **live-confirmed the same day**
-(`scripts/VerifyFalconRune.lua`, `Dragon.State`, 4 seeds × 3 rounds: 12 of
+(a one-off verify script (since removed), `Dragon.State`, 4 seeds × 3 rounds: 12 of
 12 hits matched `3 × calc_damage` using the first `rand()` of the damage
 frame, none matched ×1, no misses). Falcon's rune
 record (`DAT_8016a0e0[10]`, flag `1`) maps slot 0 to ability id 3.
@@ -978,7 +979,7 @@ since it walked slot 14 with Valeria's sprite rather than the target's.
 #### Boar Rune (Rune.Id 8)
 
 Traced 2026-09-29 from `main.exe`, **live-confirmed the same day**
-(`scripts/VerifyBoarRune.lua`, `Seifu6Ant.State`, Pahn, 6 seeds × 2
+(a one-off verify script (since removed), `Seifu6Ant.State`, Pahn, 6 seeds × 2
 casts: 12 of 12 hits matched `2 × calc_damage` using the `rand()` of the
 damage frame, none matched ×1, no misses, and all 12 casts Unbalanced
 Pahn). Boar's rune record (`DAT_8016a0e0[8]`, flag `1`, roster whitelist
@@ -1205,7 +1206,7 @@ protect against).
   gone missing.
 
   **Source and root-cause, fully traced 2026-09-19** (`BeastCommander.State`,
-  static Ghidra + live capture, see `scripts/CheckBeastCommanderAI.lua`):
+  static Ghidra + live capture, see a since-removed one-off script):
   Beast Commander's `MonsterRecord.pAttackScriptTable` (`0x800a2248`,
   `b_data.bin`) `+0x08` "hit script" (`0x800a229c`) contains, at relative
   `+0xba`, `anim_op_roll_status_effect_chance(status_id=5, chance_arg=30)`
@@ -1368,7 +1369,8 @@ expired=0`, with no counter anywhere:
 
 So Poison lasts until something calls `clear_status_effect(idx, 0)`:
 - the death routine `FUN_800e2c90`, which clears every status
-- cure fragments `0x800f2d24` / `0x800f3140` (not yet mapped to items)
+- the Antitoxin (`0x800f2c54`, call at `0x800f2d24`) and Needle (`0x800f3084`,
+  call at `0x800f3140`) cure effects, see [Items.md](./Items.md#battle-use-timing)
 - `FUN_801204ec`, which clears ids 0–6 together
 
 It also carries over between battles via the save-data Status byte.
@@ -1479,7 +1481,7 @@ When an attack is about to land on `target_idx`:
      "classData+10" byte *differs* from `target_idx`'s — a gender byte.
 
    **Exact conditions** (decompile re-read and live-checked 2026-09-30,
-   `scripts/VerifyCover.lua` + `VerifyCoverCompare.py`, 85/85 predictions
+   `scripts/verify/VerifyCover.lua` + `VerifyCoverCompare.py`, 85/85 predictions
    plus 42 cover timelines exact; pseudocode and JS in
    [TickBasedAlgorithm.md](../../TickBasedAlgorithm.md#find_cover-find_cover_target-0x800f79e0)):
    - **Trigger:** `(short)combatant_rec+0x12 < (short)+0x10 >> 2`. That's
@@ -1499,6 +1501,38 @@ When an attack is about to land on `target_idx`:
      enemy) before the wrap.
    - **Nothing else disables cover:** no check for Sleep, Unbalanced,
      Poison, Defend or a queued action (decompile only).
+
+   **Cover target wait and chained covers.** The covered target's wait is
+   a per-frame poll in the animation script, not in either C function:
+   `battle_check_counter_attack` and `apply_covered_attack_damage` only call
+   `play_attack_animation`.
+   - The target plays `0x8016c2b4` (COVER_AFTER) at the damage frame. It
+     opens with opcode 44 (`44, arg1=1, mask=9`): wait until
+     `(mask & ally.busy) == 0`, re-read on every actor tick, no one-shot
+     timer. Then a short move timer (opcode 33, 3 and 10), a short
+     animation, and opcode 16 clears the target's own busy bit.
+   - The ally's `0x8016c270` sets busy bit 8 on the ally at dispatch
+     (opcode 15). The poll mask 9 is bits 1 and 8.
+   - The target frees at the ally's *final* free + 11
+     (`coverTargetAfterAlly`).
+   - `find_cover_target` checks only the partner (`check_combatant_alive`),
+     never whether the target is busy or waiting. So a cover ally can be
+     attacked and covered herself while an earlier target still waits on
+     her, and that earlier target follows her busy byte to her final free,
+     wherever the second cover puts it.
+   - Live (5 Bandits, RNG count 18248, McDohl/Pahn/Cleo/Gremio/Ted):
+     t380 enemy 7 hits McDohl (9 HP), Cleo covers (McDohl and Cleo busy
+     0 to 8). t443 Cleo takes 19 (HP 11, under 25%). t488 Cleo free. t489
+     enemy 6 hits Cleo, Pahn covers (Pahn and Cleo 0 to 8, McDohl stays
+     8). t597 Pahn free, t607 Cleo free, t618 McDohl free (607 + 11).
+     Round ends t824.
+   - Same-frame order: the actor pass walks indexes in order, so an ally
+     at a higher index frees the target one tick later than one at a lower
+     index. Cleo is index 3 and McDohl index 1 here. Verified on this one
+     chain only, not every ordering.
+   - **Open:** which opcode clears the ally's bit 8 and when (needs the
+     ally's slot-2 reaction script traced), and whether the game has any
+     round-end timeout (not found).
 
    **The gender byte** (`classData+10`). `classData` is the member's
    loaded `data/04_play/<code>.bin` header (byte 0 roster id, bytes 1-9
@@ -1574,14 +1608,14 @@ is at least `0x20` bytes (offset `0x1c` is a 4-byte pointer, ending at
 
 Decoded and live-validated 2026-09-25. How a basic Attack plays out after
 the executor, for every outcome, and what happens when someone dies. The
-static simulator is `walk_path()` in `scripts/AttackTimingWalker.py` (CLI:
+static simulator is `walk_path()` in `scripts/python/AttackTimingWalker.py` (CLI:
 `--path <hit|crit|miss|counter|cover|all> <attacker> <target> [ally]`).
 
 **Validation.** `scripts/CaptureAttackPaths.lua` logged every combatant's
 continuation, busy byte, effect flags, anim target and HP on three setups
 (Moravia Elite Soldiers with party SKL pinned low; the same with the party
 Defending under Hazy and McDohl at low HP for cover; Seifu Soldier Ants).
-`scripts/ComparePathTimings.py` matched all 200 basic Attacks frame for
+`scripts/python/ComparePathTimings.py` matched all 200 basic Attacks frame for
 frame: 148 hits, 5 crits, 35 misses, 11 counters (both directions), 1 cover,
 7 of them kills. Chain steps, damage rolls and every busy set/clear agree.
 The comparison feeds each actor's live flags at dispatch and stops each
@@ -1591,7 +1625,7 @@ actor's comparison at its next involvement in another attack.
 per-combatant values, so the lib carries it as per-combatant fields
 (`dodgePoint`, `recover`, `dodge`, `counter`, `death`, `missFree` in
 `CharacterAttackTimings.js` / `EnemyAttackTimings.js`) plus the formulas and
-constants in `AttackTimingConstants.js`. `scripts/DerivePathTimings.py`
+constants in `AttackTimingConstants.js`. `scripts/python/DerivePathTimings.py`
 derives them from a full `walk_path` sweep (~90k simulations, every party x
 enemy pair) and re-verifies every formula against every pair: all exact
 except two primed-counter corners (Clive as the countered attacker, which
@@ -1676,6 +1710,17 @@ Long-range ones.
 
 Only opcode 26 sets flag bits; 27 clears, 28 / 29 wait for set / clear.
 
+**Primed counter.** Bit `0x2` is the impact bit, so a combatant whose last
+script set it (a dodge, or any attack of its own, hit or miss: all 78 party
+Attack scripts set `0x2`, 60 also `0x1`) still holds it when it later
+counters. `counter_attack_reprisal_continue` (`0x800f5f98`) and
+`counter_attack_apply_damage` (`0x800f6030`) both wait on the retaliator's
+`0x2` and clear the whole word, so a primed retaliator's strike step fires
+the frame after the counter script starts. Nothing on the miss path
+(`ordinary_miss_continue`, `battle_enemy_attack_multitarget_continue`) clears
+the attacker's flags, so a missed attack primes its attacker. Enemy attack
+scripts weren't checked.
+
 ### Death
 
 `FUN_800e09bc`, right after each combatant's own sprite update
@@ -1736,7 +1781,7 @@ The heal is `apply_hp_damage_display(idx, -(HPMax / 2))` (truncated), so it
 goes through the pending accumulator and is committed on the next tick.
 
 Frames from X, the frame the hit reaction clears busy (all live-confirmed,
-6 of 6 revives, `scripts/VerifySacrificialBuddha.lua` on `Seifu6Ant.State`
+6 of 6 revives, a one-off verify script (since removed) on `Seifu6Ant.State`
 with McDohl at 1 HP and a Buddha added):
 
 | Frame | Event |
@@ -1851,7 +1896,7 @@ Consequences:
   sprite stays where it was drawn. Found in the decompile, not yet
   checked live.
 
-**Timing, live-confirmed 2026-09-25** (`scripts/VerifyFormationBackfill.lua`,
+**Timing, live-confirmed 2026-09-25** (a one-off verify script (since removed),
 `Seifu6Ant.State`, 6 seeds, front ants at 1 HP, Pahn at 1 HP in 3 runs):
 
 - Nothing moves mid-round, on either side. The only `+0x44` writers in
@@ -2758,7 +2803,7 @@ target.
 
 #### Fire Breath timing (live-measured 2026-09-26)
 
-`scripts/CaptureFireBreath.lua`, `ZombieDragonStart.State` (round 1, so
+a since-removed one-off script, `ZombieDragonStart.State` (round 1, so
 Fire Breath is guaranteed), 3 seeds, no memory edits. The chain:
 
 1. `zombie_dragon_ai_await_target_then_fire_breath` (`0x80012b64`) waits
@@ -2909,7 +2954,7 @@ Corrected 2026-09-27 from the `va7.bin` decompile and the static walker.
 Earlier notes called the special's follow-up an unreachable
 "counterattack". It isn't: it's where the special deals its damage.
 
-**Live-confirmed the same day** (`scripts/VerifySydoniaSpecial.lua`,
+**Live-confirmed the same day** (a one-off verify script (since removed),
 `VarkasSydoniaUniteTest.State`, 4 seeds × 3 rounds):
 
 - All 11 special hits (front-row targets) matched
@@ -3081,7 +3126,7 @@ comment (`dragon_overlay.bin @ 0x80013690`) has the full derivation;
 
 #### Dragon's move timing
 
-Live-measured 2026-09-28 (`scripts/TraceDragonTiming.lua`,
+Live-measured 2026-09-28 (one-off script, since removed,
 `Dragon.State`, two runs of 5 seeds × 3 rounds: 15 Fire Breaths, 15
 Lightnings). In the second run Gremio's AGL was pinned to 1 so he acted
 after her every time. Party Defending and idle when her turn starts. T0 = the first frame she's the
@@ -3177,7 +3222,7 @@ Level 60, HP 8000, PWR 500, MGC 410, SPD 130; lone enemy of
 `AinGide.State`. The AI function is `0x80013b1c` (the `+0x30` pointer of
 his record at file offset `0x644fc`). It is the shared front-row template
 with one move roll and no round-counter gate. Live-validated 2026-10-07
-(`scripts/TraceAinGide.lua`, `scripts/CheckAinGideTrace.py`): 40 injected
+(`scripts/TraceAinGide.lua`, `scripts/python/CheckAinGideTrace.py`): 40 injected
 seeds x 2 rounds, 80 of 80 exact on move, target and `rand()` count.
 
 ```
@@ -3256,7 +3301,7 @@ Tick machine, phase 0 runs 160 ticks, phase 1 runs 31:
   Nothing else rolls until the next turn-order roll.
 
 **Damage and element** (live-validated 2026-10-07,
-`scripts/TestAinGideRunes.lua`, `scripts/CheckAinGideRunes.py`: 7 seeds x
+`scripts/TestAinGideRunes.lua`, `scripts/python/CheckAinGideRunes.py`: 7 seeds x
 8 rune configs, 56 rounds, every member exact). The damage loop at
 `vac.bin @ 0x800143b4` calls `calc_rune_element_attack_damage(attacker,
 slot, 1)` for slots 1 to N, so:
@@ -3475,7 +3520,7 @@ writeup above/below this table; everything else is one row.
   target. Walker: impact f28, damage f29, target free f63 (reaction 34),
   attacker's script clears its own busy at f145 (no slot-4 return).
   Live check (`3Mosquito1Ant.State`, 8 seeds × 4 rounds, party
-  Defending; `scripts/VerifyMosquitoRedAnt.lua` +
+  Defending; `scripts/verify/VerifyMosquitoRedAnt.lua` +
   `VerifyMosquitoRedAntCompare.py`): all 128 enemy turns matched — 96
   Mosquito, 20 Red Ant Attack, 12 DoubleStrike. Target and move replay
   exactly from the LCG, and so does the per-tick `rand()` count: basic
@@ -3897,7 +3942,7 @@ still involve a target *scan* (just an unrestricted one); this is direct assignm
 scan and no roll at all.
 
 **Live confirmation** (`WhipMasterHellhounds.State`, run via
-`scripts/TraceWhipMasterHellHoundCommand.lua`): the savestate's enemy side is 3 Hell Hounds in
+a since-removed one-off script): the savestate's enemy side is 3 Hell Hounds in
 formation slots 1–3, Whip Master in slot 4, and 2 more Hell Hounds in slots 5–6 (so Whip
 Master itself sits at back-row-adjacent position 4, and the party occupies formation slots
 1–6, one per party member). Confirming the round with Free Will (letting the AI decide every
@@ -4298,8 +4343,8 @@ wherever the two differ.
 
 ### Cast timing (live-measured 2026-09-26)
 
-`scripts/CaptureCleoSpells.lua` (slots 1 and 2) and
-`scripts/CaptureDancingFlames.lua` (slot 3): `ZombieDragonStart.State`
+a since-removed one-off script (slots 1 and 2) and
+a since-removed one-off script (slot 3): `ZombieDragonStart.State`
 (round 1), Cleo (Fire Rune, MP 5/3/2/0, so every cast is legal) set to
 Rune / that slot on Zombie Dragon, everyone else on Free Will's pick, 3
 seeds each, no other memory edits. All three spells gave identical frames
@@ -4336,7 +4381,7 @@ its tick machine finishes**.
 From everyone free (F), the damage lands at F + 311 (Flaming Arrows),
 F + 386 (Firestorm) and F + 510 (Dancing Flames).
 
-**Rage Rune spells** (`scripts/CaptureCleoSpells.lua` with `SET_RUNE = 27`,
+**Rage Rune spells** (one-off script, since removed) with `SET_RUNE = 27`,
 `SET_MP4 = 1`; same save and setup, 3 seeds each). The game's own Rage
 ability set (`DAT_8016a0e0[27]` `+0x1a..+0x1e`) is slot 1 Firestorm, 2
 Dancing Flames, 3 **Explosion** (spell 4), 4 **Final Flame** (spell 29).
@@ -4597,7 +4642,7 @@ at (48+t)/2 when that is a whole tick:
 
 11 activations x 3 = **33**, independent of the seed. Live (McDohl,
 Resurrection Rune id 7, slot 2, aimed at a live ally since Yell can target
-one; `scripts/CaptureYellSeeds.lua`, 20 injected seeds): 33 every time, and
+one; a one-off capture script (since removed), 20 injected seeds): 33 every time, and
 the first seed's rolls landed on counters 10, 20, 29, 30, 34, 39, 40, 41, 44,
 46, 47. `simulateYell()` returns 33. My first static pass said 24: I read
 the field as a fixed `0x30` re-fire tick and missed the countdown in
@@ -4608,7 +4653,7 @@ the field as a fixed `0x30` re-fire tick and missed the countdown in
 Static decompile plus a live check, 2026-10-06 (`spell_scream_*` at
 `0x80104468/10490/104808/104ff4`, context `DAT_8017a038`; McDohl with the
 Resurrection Rune id 7, slot 3, party-wide; 20 injected seeds,
-`scripts/CaptureScreamSeeds.lua`). Phases 64+32+80+60+64+64 = 364, inside
+a one-off capture script (since removed)). Phases 64+32+80+60+64+64 = 364, inside
 the 364-366 live range in the duration table. Setup, the hit script
 (`0x8016f234`, no opcode 40), the party-wide heal (phase 5's last tick,
 `apply_hp_damage_display(member, -300)` for every member not flagged
@@ -4686,7 +4731,7 @@ Decoded 2026-09-26 (`spell_finalflame_cast_entry` `0x80101e88`,
 `spell_finalflame_vfx_setup` `0x80101eb0`,
 `spell_finalflame_tick_state_machine` `0x80102280`, all created in Ghidra
 this pass). Validated against 30 live seeds, **every tick exact**
-(`scripts/CaptureFinalFlame.lua` 10 seeds, `CaptureFinalFlameSeeds.lua` 20
+(one-off script, since removed) 10 seeds, a since-removed one-off script 20
 fresh ones; Cleo with the Rage Rune vs Zombie Dragon).
 `simulateFinalFlame(seed)` in `lib/Magic.lua` takes the RNG state the frame
 before setup runs.
@@ -4759,7 +4804,7 @@ Static decompile plus a live check, 2026-10-06 (`spell_blazingcamp_*` at
 `0x80119584/195ac/19970/1a660`, context `DAT_8017a068`; `SpellDuration.State`
 with McDohl on the Fire Rune and Luc on the Lightning Rune, both queueing
 Rune slot 4 at the first enemy, which makes the faster one trigger the combo;
-20 injected seeds, `scripts/CaptureBlazingCampSeeds.lua`). Phases
+20 injected seeds, a one-off capture script (since removed)). Phases
 64+32+150+64+64 = 374, equal to the live length in the duration table.
 Setup, the two enemy hit scripts (`0x8016f150`, `0x8016f0d0`; their native
 handler 13, `0x800f3aa0`, only cycles a palette), the damage
@@ -4789,7 +4834,7 @@ Static decompile plus a live check, 2026-10-07 (`spell_thor_*` at
 `0x8011a7f4/1a81c/1abd4/1bc3c`, context `DAT_8017a068`; `SpellDuration.State`
 with McDohl on the Lightning Rune and Luc on the Water Rune, both queueing
 Rune slot 4 at the first enemy; 20 injected seeds,
-`scripts/CaptureThorSeeds.lua`). Phases 64+48+128+80+64 = 384 ticks, but the
+a one-off capture script (since removed)). Phases 64+48+128+80+64 = 384 ticks, but the
 machine ran 570-572 frames live (your 571), so ticks are not one per frame
 here: probably the same frame pacing as other heavy spells, unverified. The
 damage (`calc_dual_element_spell_damage(1, 3, ...)`, 2000), the two hit
@@ -4832,7 +4877,7 @@ Static decompile plus a live check, 2026-10-07 (`spell_scorchedearth_*` at
 `0x801179bc/179e4/17d5c/187fc`, context `DAT_8017a068`; `SpellDuration.State`
 with McDohl on the Earth Rune and Luc on the Fire Rune, both queueing Rune
 slot 4 at the first enemy; 20 injected seeds,
-`scripts/CaptureScorchedEarthSeeds.lua`). Phases 64+64+64+164, then phase 4
+a one-off capture script (since removed)). Phases 64+64+64+164, then phase 4
 (waits until the meteors and impacts are all gone), then 64+64. The
 machine ran 563 frames live (your table has 562). If the other phases run
 one tick per frame, phase 4 is about 79; not measured. Damage is
@@ -4868,7 +4913,7 @@ Static decompile plus a live check, 2026-10-07 (`spell_waterdragon_*` at
 `0x8011bde4/1be0c/1c24c/1cd48`, context `DAT_8017a068`; `SpellDuration.State`
 with McDohl on the Water Rune and Luc on the Wind Rune, both queueing Rune
 slot 4 at the first enemy; 20 injected seeds,
-`scripts/CaptureWaterDragonSeeds.lua`). Phases 64+64+128+64+64 = 384
+a one-off capture script (since removed)). Phases 64+64+128+64+64 = 384
 ticks, but the machine ran 672-682 frames live (your 671-681), so as with
 Thor ticks are not one per frame (cause not investigated). Damage is
 `calc_dual_element_spell_damage(1, 4, ..., 800)` on phase 4's last tick, then
@@ -4914,7 +4959,7 @@ and `simulateVoiceOfEarth()` return `0`.
 Static decompile plus a live check, 2026-10-07 (`spell_deadlyfingertips_*` at
 `0x80113a68/13a90/13e98/147d4`, context `DAT_8017a060`; `SpellDuration.State`,
 McDohl's own Soul Eater Rune slot 1 at the first enemy; 20 injected seeds,
-`scripts/CaptureDeadlyFingertipsSeeds.lua`). Phases 64+32+80+60+10+60+60 =
+a one-off capture script (since removed)). Phases 64+32+80+60+10+60+60 =
 366 ticks; the machine ran 576 frames live (your 575), so ticks are not one
 per frame here either. The instant-death step (phase 5's last tick,
 `apply_elemental_multiplier(1, 7, target, caster, 2)`, then the immunity
@@ -4937,7 +4982,7 @@ seeds matched and the first seed's 129 per-tick entries matched.
 ### Angry Blow (fixed 6, unless the target is absurdly deep)
 
 Static decompile plus a live check, 2026-10-06 (`SpellDuration.State`, McDohl
-with the Lightning rune, slot 1; `scripts/CaptureAngryBlowDepth.lua`).
+with the Lightning rune, slot 1; a one-off capture script (since removed)).
 The strike is phase 3 (64 ticks). Two "bolt" particles activate at its
 ticks 0 and 12, and each activation is
 `vfx_activate_and_position_particle`, which calls `rand()` twice: 4 calls.
@@ -4991,7 +5036,7 @@ timing". `simulateRagingBlow()` and `simulateBallOfLightning()` return `0`.
 ### Thunder God (fixed 472)
 
 Static decompile, 2026-10-06, then live-validated the same day
-(`scripts/CaptureThunderGod.lua`, `SpellDuration.State`, McDohl with the
+(a one-off capture script (since removed), `SpellDuration.State`, McDohl with the
 Thunder Rune, slot 4, 4 seeds): the per-tick counts below matched exactly
 and the machine ran 484 frames. Three sources, none of them seed- or
 enemy-dependent:
@@ -5022,7 +5067,7 @@ before the next pick, the next turn's roll, not the spell.
 
 Static decompile plus a live check, 2026-10-06 (`SpellDuration.State`,
 McDohl with the Earth Rune, slot 1, aimed at himself; 20 injected seeds,
-`scripts/CaptureClayGuardianSeeds.lua`). Setup and phases 0-2 (64+32+80
+a one-off capture script (since removed)). Setup and phases 0-2 (64+32+80
 ticks) have no RNG, and neither does the buff: phase 3's first tick runs
 the target's reaction script (`0x8016f234`, no RNG opcodes) and multiplies a
 16-bit stat of the target's record (`+0x34`+0xe) by 3/2; the script replays
@@ -5103,7 +5148,7 @@ The effect, start to finish:
 Static decompile plus a live check, 2026-10-06 (`SpellDuration.State`,
 McDohl with the **Mother Earth Rune** (rune id 30, spell 33 in slot 4; the
 plain Earth Rune only holds ids 21-24), whole party; 20 injected seeds,
-`scripts/CaptureGuardianOfEarthSeeds.lua`). Functions
+a one-off capture script (since removed)). Functions
 `spell_guardianofearth_*` at `0x80112048/12070/122f8/129ec`, context at
 `DAT_8017a058`. Phases 0-4 are 64+32+64+128+64 ticks (352). The buff
 (phase 4's first tick, rec `+0x42` x3/2 for every living party member), the
@@ -5209,8 +5254,8 @@ the end of the last phase, with no RNG.
 - **Total** = 80 + 3 x (22 + k), where k is the number of bolts 4-14 whose
   first tick is 27 or less, so 152-176.
 
-Validated against 3 per-frame captures (`scripts/CaptureJudgment.lua`) and 20
-injected seeds (`scripts/CaptureJudgmentSeeds.lua`), 0 mismatches.
+Validated against 3 per-frame captures (a one-off capture script (since removed)) and 20
+injected seeds (a one-off capture script (since removed)), 0 mismatches.
 `simulateJudgment` in `lib/Magic.lua`, `TestJudgment` in
 `tests/test_Magic.lua` (expected values are the in-game counts, not simulator
 output). The 6 `rand()` calls a few frames after the machine ends belong to
@@ -5225,7 +5270,7 @@ the next actor, not the spell.
 machine length. Setup rolls 3 values for each of 6 droplets (scale,
 `rand()%100` depth, rotation) = 18 calls in one frame; the tick machine
 has no `rand()`. Fixed 18 on all 20 live seeds
-(`scripts/CaptureDropsSeeds.lua`). `simulateDropsOfKindness`,
+(a one-off capture script (since removed)). `simulateDropsOfKindness`,
 `TestDropsOfKindness`.
 
 ### Fog of Deception (Water Lv2)
@@ -5239,17 +5284,17 @@ cases, 411 frames live. Neither setup, the machine nor its helpers call
 `play_attack_animation` on each living enemy, and one enemy field scaled
 by 4/5), so it has no roll of its own either.
 
-Live, 20 injected seeds (`scripts/CaptureFogSeeds.lua`, Water Lv2 on
+Live, 20 injected seeds (a one-off capture script (since removed), Water Lv2 on
 `SpellDuration.State`): 0 `rand()` calls from setup to the end handler,
 always. The 6 calls in the 3 frames after it come just before the next actor
 is picked (Judgment shows the same 6, and the following actors show 5 and
 4), so they belong to the turn order, not the spell. I could not pin down
 which byte the 4/5 scale lands on from the combatant-record diff
-(`scripts/CaptureFogDiff.lua`), so the effect landing is not verified, only
+(one-off script, since removed), so the effect landing is not verified, only
 that no `rand()` happens around it. `simulateFogOfDeception`,
 `TestFogOfDeception`.
 
-**What the 4/5 scale lands on (live, 2026-10-07, `scripts/CaptureFogRec36.lua`,
+**What the 4/5 scale lands on (live, 2026-10-07, a since-removed one-off script,
 `SpellDuration.State`).** Case 6 sets `rec+0x36 = (short)(rec+0x36 * 4 / 5)`
 for each living enemy, no immunity check. `rec+0x36` is the second u16 of the
 unnamed `aUnk_0x34` block. Dumping `+0x26..+0x43` for all 7 combatants before
@@ -5293,8 +5338,8 @@ about 1450-1500 more.
   field `+0x5c` and never read.
 
 Validated on 20 injected seeds with a party of 6
-(`scripts/CaptureRainSeeds.lua`, 1527-1572) and 20 with a party of 5
-(`RainOfKindness.State`, `scripts/CaptureRainSeeds5.lua`, 1515-1570), exact
+(a one-off capture script (since removed), 1527-1572) and 20 with a party of 5
+(`RainOfKindness.State`, a one-off capture script (since removed), 1515-1570), exact
 totals, 0 mismatches. The check is total-only; no per-tick capture was
 made. `simulateRainOfKindness(startSeed, partyCount)`,
 `TestRainOfKindness`.
@@ -5313,7 +5358,7 @@ Setup rolls 3 values for each of 4 droplets per party member (scale,
 helpers call no `rand()`: unlike Rain of Kindness it has no rain-line
 spawn, and every function it calls is one Rain's machine also calls. A
 party of 6 gives a flat 72 on all 20 live seeds
-(`scripts/CaptureWaterOfKindnessSeeds.lua`); a party of 5 gave 60 (observed
+(a one-off capture script (since removed)); a party of 5 gave 60 (observed
 in-game by the user), confirming the 12-per-member scaling. `simulateWaterOfKindness(partyCount)`, `TestWaterOfKindness`.
 
 ### Mother Ocean (Flowing Lv4)
@@ -5376,7 +5421,7 @@ capture and 20 injected seeds on `WindOfSleep.State`
 the immune-to-Sleep flag. Ain Gide, the lone enemy of `SpellDuration.State`,
 has `+0x26 = 0x4003`, so he gets no hit script and no roll: that state gave
 100 + 200 = 300 on the native seed and 300-304 across the same 20 seeds
-(`scripts/CaptureWindOfSleepAinGide.lua`), exactly `simulateWindOfSleep(seed,
+(a one-off capture script (since removed)), exactly `simulateWindOfSleep(seed,
 0)`. So both 5 eligible and 0 eligible are validated; a mix of the two was
 not tested, nor were other enemy counts.
 

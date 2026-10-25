@@ -15,7 +15,7 @@
 package.path = "/home/alex/Projects/Suikoden-Bizhawk-HUD/?.lua;" .. package.path
 local Address = require "lib.Address"
 
-local BASE_SAVE = "/home/alex/Projects/Suikoden-Bizhawk-HUD/Dragon.State"
+local BASE_SAVE = "/home/alex/Projects/Suikoden-Bizhawk-HUD/savestates/Dragon.State"
 local OUTPUT_FILE = "/home/alex/Local/BizHawk-2.10-linux-x64/Lua/Output/CheckDragonStats.txt"
 local COMBATANT_BASE = 0xb94
 

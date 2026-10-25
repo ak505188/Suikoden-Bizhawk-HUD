@@ -2,7 +2,7 @@
 -- enemy of AinGide.State / SpellDuration.State). Seed-exact simulated here, same rand()-call-
 -- counting convention as lib/Enemies/ZombieDragon.lua / Dragon.lua. See
 -- docs/game_mechanics/Battle_Damage_Formula.md's "Ain Gide" section for the derivation and
--- the 2026-10-07 live validation (scripts/TraceAinGide.lua + scripts/CheckAinGideTrace.py: 80
+-- the 2026-10-07 live validation (scripts/TraceAinGide.lua + scripts/python/CheckAinGideTrace.py: 80
 -- of 80 rounds exact on move, target and rand() count).
 --
 -- Move selection: the shared front-row template (alive + formation pos < 4 + not busy get a
@@ -90,7 +90,7 @@ end
 -- The Special's damage: calc_rune_element_attack_damage(attacker, slot, element = 1 = Fire), looped
 -- over party slots 1..N with the loop counter in $s1 (vac.bin 0x800143b4), one roll per living
 -- member. No AOE halving (unlike Dragon's Fire Breath). Live-validated 2026-10-07: 56 rounds x 6
--- members exact (scripts/TestAinGideRunes.lua, scripts/CheckAinGideRunes.py), with every member's
+-- members exact (scripts/TestAinGideRunes.lua, scripts/python/CheckAinGideRunes.py), with every member's
 -- Rune.Id edited through persistent stats.
 --   base = 410 - target MGC, variance, then halved if the target's rune category is 1 (Fire/Rage -
 --   a real resist) or 7 (Soul Eater), or - the compiled $s1 bug - if the Rune.Id is not in the

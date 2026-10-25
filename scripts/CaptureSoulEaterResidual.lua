@@ -48,7 +48,7 @@ local SPELL = "BlackShadow"
 -- The savestate to capture from - must already be positioned right before SPELL's cast
 -- begins (i.e. the RNG-consuming phase starts within a few dozen frames of loading this, not
 -- after navigating menus/turns - see the module-level comment above).
-local BASE_SAVE = "/home/alex/Projects/Suikoden-Bizhawk-HUD/BlackShadowWind.State"
+local BASE_SAVE = "/home/alex/Projects/Suikoden-Bizhawk-HUD/savestates/BlackShadowWind.State"
 
 -- Raw 32-bit RNG seeds to test (the value that would be written to Address.RNG right after
 -- loading BASE_SAVE) - NOT RNGTable indices. If you're working from an index into this

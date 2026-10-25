@@ -170,6 +170,49 @@ local KNOWN_AI = {
                                                                  -- TurnOrderRNGCall.State, not
                                                                  -- the name-search)
   [0x8001789c] = assassinProbabilities,                         -- Assassin
+
+  -- STATIC-ONLY entries (2026-10-12): decompiled once (scripts/AIStaticChecks/), never checked live.
+  -- Keyed by address alone, so an address reused across overlays with different code would be
+  -- mispredicted; the one known case (0x80080038: Ivy/Mad Ivy vs Rabbit Bird) is left out.
+  -- Also left out: monsters that are NOT plain front-row-scan + attack/split (commander AIs, Slot Man
+  -- and the other "always special" ones, Holly Spirit/Fairy, Black/Red Elemental's back-row reach).
+  [0x80010020] = makeFrontRowAttackOnlyTemplate(),                -- HellHoundEliteSoldier
+  [0x80010028] = makeFrontRowAttackOnlyTemplate(),                -- KillerSlime
+  [0x80010048] = makeFrontRowAttackOnlyTemplate(),                -- KoboldVb6
+  [0x80010050] = makeFrontRowAttackOnlyTemplate(),                -- EmpireSoldierVb3
+  [0x800102fc] = makeFrontRowAttackOnlyTemplate(),                -- GoldenHydra
+  [0x80010360] = makeFrontRowAttackOnlyTemplate(),                -- DeathMachine
+  [0x8001037c] = makeFrontRowAttackOnlyTemplate(),                -- RobotSoldier
+  [0x800107ac] = makeFrontRowAttackOnlyTemplate(),                -- VeteranSoldierVc6
+  [0x800108f0] = makeFrontRowAttackOnlyTemplate(),                -- BlackWildBoar
+  [0x80010918] = makeFrontRowAttackOnlyTemplate(),                -- ImperialGuards
+  [0x8001131c] = makeFrontRowAttackOnlyTemplate(),                -- GiantSlug
+  [0x80012ebc] = makeFrontRowAttackOnlyTemplate(),                -- RedSlimeDelf
+  [0x80012f10] = makeFrontRowAttackOnlyTemplate(),                -- Larvae
+  [0x8001301c] = makeFrontRowAttackOnlyTemplate(),                -- HawkManDemonHound
+  [0x80016498] = makeFrontRowAttackOnlyTemplate(),                -- EliteSoldierVs1
+  [0x80080004] = makeFrontRowAttackOnlyTemplate(),                -- FurFurBonBonMosquito/SimurghOrc
+  [0x80080014] = makeFrontRowAttackOnlyTemplate(),                -- GrizzlyBear
+  [0x80080018] = makeFrontRowAttackOnlyTemplate(),                -- StrongArm
+  [0x80080020] = makeFrontRowAttackOnlyTemplate(),                -- HellHoundGraveMaster
+  [0x8008006c] = makeFrontRowAttackOnlyTemplate(),                -- FlyingSquirrelRoc
+  [0x80080604] = makeFrontRowAttackOnlyTemplate(),                -- Crow
+  [0x80080760] = makeFrontRowAttackOnlyTemplate(),                -- WildBoar
+  [0x8001067c] = makeFrontRowSplitTemplate(0x33, "Special"),      -- Ninja
+  [0x800116ac] = makeFrontRowSplitTemplate(0x33, "Special"),      -- Magus
+  [0x8001317c] = makeFrontRowSplitTemplate(0x33, "Special"),      -- MagicShield
+  [0x8001320c] = makeFrontRowSplitTemplate(0x33, "Special"),      -- HellUnicorn
+  [0x8001331c] = makeFrontRowSplitTemplate(0x33, "Special"),      -- Ekidonna
+  [0x80014ce8] = makeFrontRowSplitTemplate(0x33, "Special"),      -- DemonSorcerer
+  [0x80016810] = makeFrontRowSplitTemplate(0x33, "Special"),      -- SirenVs1
+  [0x80080178] = makeFrontRowSplitTemplate(0x33, "Special"),      -- NinjaMaster
+  [0x80080490] = makeFrontRowSplitTemplate(0x33, "Special"),      -- KoboldCData
+  [0x800807b0] = makeFrontRowSplitTemplate(0x33, "Special"),      -- SirenGData
+  [0x800812b4] = makeFrontRowSplitTemplate(0x33, "Special"),      -- Sorcerer
+  [0x80081fa8] = makeFrontRowSplitTemplate(0x33, "Special"),      -- Creeper
+  [0x80014298] = makeFrontRowSplitTemplate(0x47, "Special"),      -- ClayDoll
+  [0x80014960] = makeFrontRowSplitTemplate(0x47, "Special"),      -- RockBuster
+  [0x80082c18] = makeFrontRowSplitTemplate(0x47, "Special"),      -- EarthGolem
 }
 
 -- Returns a list of { EnemyActorIdx, TargetProbs, MoveProbs } for every LIVING enemy whose AI

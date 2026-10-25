@@ -9,6 +9,9 @@ independent boss (Dragon - move selection, Lightning-attack RNG cost, and damage
 section 6 below for what that second pass confirmed generalizes versus what was Zombie-Dragon-
 specific.
 
+> For the complete per-enemy process (static decode, live trace, rune/damage sweep, lib,
+> tests, docs, hand-off brief), see [Enemy_Fight_Workflow.md](./Enemy_Fight_Workflow.md).
+
 **Goal of the exercise**: a validated, exact formula for a monster's move/target selection (RNG
 consumption included), confirmed against real captured game behavior - not just a
 plausible-looking read of the decompile. The decompile alone is a hypothesis; only a live
@@ -203,3 +206,24 @@ worth doubting:
 - [ ] Result written up in `Battle_Damage_Formula.md`'s "AI/enemy move selection" section
       (a compact pseudocode block plus the addresses) and cross-linked from `Turn_Order.md`.
 - [ ] Project memory updated with the new monster's confirmed formula.
+
+## Addendum 2026-10-07 (Ain Gide, second validated template boss)
+
+- The static catalog's address for a boss (e.g. `0x80013b1c`) is the AI **function** pointer
+  read from the record's `+0x30`, not the record itself; the record is found by the stat
+  signature (level, HP) in the overlay file. Ghidra `create_function` at the pointer works.
+- A fully rejected scan retries on the NEXT tick, so one decision's rolls can span several
+  frames: sum `rand()` counts up to the frame the move commits (Special: continuation set,
+  Attack: script start), not just the first frame.
+- A basic Attack's executor adds one hit roll on the commit frame; a gate reset to 10 gives a
+  turn-order roll 10 frames later. Neither belongs to the AI.
+- For a handler-driven special, read the tick machine's spawn ticks (`+0x24` of each particle)
+  and slot `0xcc` calls: 24 particles x 2 rolls fell on `S+32+4i` exactly as the static read said.
+- `scripts/TraceAinGide.lua` + `scripts/python/CheckAinGideTrace.py` are the reusable template for
+  "trace a lone-enemy turn, check move/target/roll count/timings offline" (80/80 first pass).
+- Ain Gide's `$s1` bug row went from "structurally plausible" to confirmed with one rune-edit
+  sweep (`scripts/TestAinGideRunes.lua`): edit every member's Rune.Id via persistent stats, give
+  everyone 999 HP/HPMax so a hit never clips, and compare against a from-scratch predictor
+  (`scripts/python/CheckAinGideRunes.py`). The same recipe works for any other "untested" row in the
+  bug table with a known caller and a roll order.
+

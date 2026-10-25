@@ -33,7 +33,7 @@ verified or current understanding.
   (`data/16_war`): unit and soldier tables, the Charge/Bow/Magic matchup
   and damage rules, the Others commands, enemy action scripts per scenario,
   and the soldier animation that eats most of the `rand()` stream.
-  `scripts/WarSim.py` is a validated reference implementation.
+  `scripts/python/WarSim.py` is a validated reference implementation.
 - [Invisible Actor Glitch](./game_mechanics/Invisible_Actor_Glitch.md) — why
   a hidden room NPC slot can become talk-able: stale heap bytes from the last
   party member's sprite sheet, per-character values, and when a room is prone.
@@ -62,7 +62,7 @@ verified or current understanding.
   walkthrough for implementing a pure-code battle simulator against.
 - [Monster/Boss AI Static Catalog](./game_mechanics/Monster_AI_Static_Catalog.md)
   — a disc-wide, no-emulator-needed index of every monster/boss record found
-  (file, offset, stats, AI function pointer) via `scripts/ScanMonsterRecords.py`,
+  (file, offset, stats, AI function pointer) via `scripts/python/ScanMonsterRecords.py`,
   cross-referenced against `EncounterTable.lua`'s area rosters to flag which
   extra records per file are scripted bosses.
 

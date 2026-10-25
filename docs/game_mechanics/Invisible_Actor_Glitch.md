@@ -133,7 +133,7 @@ Mace, Moose `00 00 07`; Sylvina `05 05 05`; Kuromimi, Gon `06 06 06`;
 Blackman `0a 0a 0a`; Griffith `1b 18 18`.
 
 A different table offset gives a different table: run
-`scripts/InvisActorPredict.py offset <hex>`.
+`scripts/python/InvisActorPredict.py offset <hex>`.
 
 ## Every slot, not just one
 
@@ -162,7 +162,7 @@ the buffer). `table-all --csv FILE` writes the long format for the first 110 swe
 slots whose NPC can be hidden) plus `index.csv` and a README. 950 screen
 records: 428 CSVs (every record that has an actor table and could be
 loaded), 519 with no actor slots at all, and 3 that could not be entered
-(Great Forest screen 1). Built by `scripts/BuildStaleSlotTables.py` from a
+(Great Forest screen 1). Built by `scripts/python/BuildStaleSlotTables.py` from a
 live sweep of all 303 distinct (overlay, screen) pairs that have slots; the
 table offset depends only on the screen: 25 of 25 screens loaded from a second,
 unrelated start save gave the same offset.
@@ -298,22 +298,21 @@ three natural saves exactly (Invis `0x8018B400`, Counter `0x8018B0D0`, Teo
 
 ## Tools
 
-`scripts/InvisActorPredict.py`
+`scripts/python/InvisActorPredict.py`
 : `offset`, `where X Y`, `room` (every slot of a room at once: per last
   member, a hidden slot's X/Y/`+2..+7`/`+0x15..+0x17`, a present slot's
   `+0x17`) and `state FILE.State` modes; decompresses every
   character's sheet from `data/04_play/*.bin` (byte 0 = character id). It
   reproduced all 75 sweep results and your three saves.
 
-`scripts/ScanRoomDescriptors.py`
+`scripts/python/ScanRoomDescriptors.py`
 : the static scan above.
 
-`scripts/SweepScreens.lua` + `scripts/AnalyzeScreenSweep.py`
+`scripts/SweepScreens.lua` + `scripts/python/AnalyzeScreenSweep.py`
 : the live sweep and its analysis (headless only).
 
-`scripts/SweepInvisViki.lua`, `TraceInvisViki.lua`, `SnapInvisViki.lua`,
-`TestInvisInteract.lua`
-: headless captures (they load `InvisViki*.State`; never run them in your
+`scripts/TestInvisInteract.lua`
+: headless capture (it loads `InvisViki*.State`; never run them in your
   live session).
 
 RoomInfo module
@@ -322,7 +321,7 @@ RoomInfo module
 
 ## Static scan of every screen
 
-`scripts/ScanRoomDescriptors.py` reads the room data straight from the disc
+`scripts/python/ScanRoomDescriptors.py` reads the room data straight from the disc
 (no emulator): `main.exe`'s `PTR_PTR_8016F67C[WM][area]` gives a
 `{size, LBA}` record for the area overlay; the overlay's header (u32 at file
 offset 0 -> header, header `+8` -> screen-record array, one `0x10` record per

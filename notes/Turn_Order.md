@@ -230,8 +230,8 @@ doc.
 **`p1` (`MonsterRecord+0x28`) is `EnemyData.pActionScriptTable`** — this
 was confirmed live after the user asked "what's the attack script table?
 at 0x28," since it was previously only a GUESSED label in
-`scripts/ScanMonsterRecords.py`'s own comment, never verified. Confirmed
-via `scripts/CheckAttackScriptTable.lua`: three separate call sites
+`scripts/python/ScanMonsterRecords.py`'s own comment, never verified. Confirmed
+via a since-removed one-off script: three separate call sites
 (`ant_commanded_attack_damage`, `ant_commanded_attack_cleanup`, and
 `apply_uncovered_attack_damage`) independently converging on the same
 field is about as solid a confirmation as this gets. Renamed in Ghidra:
@@ -271,3 +271,70 @@ saved.
   fields (sync-signal array, per-status duration-slot table,
   animation-interpreter scratch state) remain explicit padding rather than
   guessed layouts.
+
+## 2026-09-27: Item turns
+
+The docs said Rune/Item/Unite "defer to their own wait-for-animation coroutine states" with no
+timing. a since-removed one-off script (ZombieDragon.State, Medicine) measured it; the
+decompile explained it. Surprise: `battle_try_special_attack` waits for every combatant to be
+idle before resolving (a first run showed McDohl current 99 frames before his item resolved).
+The next roll comes at R+20 because Medicine's handler (`0x800f0708`) waits for the item-use
+script's fx bit 0x8 at R+19, then starts the target script `0x8016c2f0` — which is also the
+target-busy write that an `event.onmemorywrite` hook failed to catch on 2026-09-22. My first
+summary markers were wrong (a "roll" marker caught the previous actor's damage roll); only
+count seed changes after the resolve frame. Items all share this timing per the user; only
+Medicine was watched.
+
+## 2026-09-29: COPY_ACTOR hold and victory timing
+
+From an RNG-lib sim brief (BonBon fight: Pahn held after Gremio's crit until Gremio's recover).
+COPY_ACTOR (LAB_800f3fec) waits while `+0x44` is set and `+0x30` isn't. `+0x44` = side switch at
+the roll OR party crit (`battle_check_crit_and_branch`); `+0x30` = Defend/Rune/Item/Unite done,
+round start, or anim opcode 9 signal 0 from the current actor (all recover scripts, f0). So the
+sim's two heuristics (cross-side wait, "same side never blocks") collapse into one rule, and the
+crit case is the second setter. Victory: check at P+1, 31-tick countdown, drops at P+33 (B+34);
+fits the sim's constant +32. Gotchas: `search_instructions` for `sw` misses branch-delay-slot
+stores (mnemonic `_sw`) — the crit write was only found by disassembling the function; search both.
+And I overwrote battle_advance_turn's existing Ghidra plate comment without reading it first —
+read before set_plate_comment on any already-named function.
+
+2026-10-07 Queen Ant ant respawn timing (QueenAnt2.State, Free Will round): the end-of-round
+callback is polled EVERY frame once the last actor is picked (battle_advance_turn keeps running with
+nRollGateCountdown<=0 and no eligible actor), not once per round - my earlier "once per round" read
+in Battle_Damage_Formula.md was wrong (corrected there). Kill->dead flag D varies by killer (28/36/49),
+dead->not-busy is a constant 93, revive needs the all-acted gate, spawn anim 61. Results:
+docs/game_mechanics/Queen_Ant_Ant_Respawn.md.
+
+2026-10-07 (later): follow-up respawn measurements (one-off script, since removed) batches L/D/C/G/M/R, QueenAnt2.State).
+Corrections to my own earlier numbers: Defend last-actor latency is 1 (the "4" came from a wrong "last tag"
+pick); spell kills have D=0 not 28-49; counter kills D=97/110; poll latency L depends on action (Attack 10, Item 17,
+Rune = cast length). New: the round-end path starts the SAME frame as the last revive, so a dead ant always
+respawns before the round ends (turn roll returns "wait" while any enemy is dead/busy); a dead target of a queued
+attack is re-selected; status flags survive death/respawn; AoE Earth halving matches Earth+Soul Eater only (~45 hits,
+no counterexample, rune 8 unmapped = plain). Queen MGC 55. Details: docs/game_mechanics/Queen_Ant_Ant_Respawn.md.
+Method lesson: a "last tag set" frame is unreliable when party members die (death also sets the tag) - check the
+act value of the tagging actor before trusting a latency sample.
+
+2026-10-08 Ted-vs-Queen-Ant forced Hell (QueenAntTed.State, a since-removed one-off script): the 5 rand() before Hell's
+cast are 1 + 2 + 2 = round-start camera roll (f12, gate set to 30), then TWO full turn-order rolls of 2 calls each
+(Ted + Queen both un-acted, nobody busy). Roll 1 at f42 (gate 0, pending=1): the +0x1334 hook ptr goes 0x800101c8 (arm)
+-> 0x800101e8 (delay tick) right after it. The 60-tick delay itself makes NO rolls (f43-102). Roll 2 at f103: hook ptr goes
+to 0 (commit) around it, pending stays 1, and no further roll follows, so the commit's "mark others ActionTag=1" does not
+shrink this roll (roll happens before/independently of it). Caveat: event.onmemorywrite never fired (PC/RA empty), so
+attribution is by timing + hook-pointer transitions, not caller address; my rec+0x46 tag reads were garbage (128), so tag
+state is unverified. Whether roll 2 is a reroll forced by the hook or the normal next roll is not distinguished.
+
+## 2026-10-14: item-use timing per character (static)
+
+`scripts/python/ItemUseTimings.py` -> `outputs/CharacterItemTimings.json`. Walker run of the
+item scripts (0x8016c194 / 0x8016c1c0 / 0x8016c2f0) on every 04_play sheet, plus the Medicine
+effect chain 0x800f215c -> 0x800f24e0 (30-frame countdown) -> 0x800f26cc (HP, then 32 fade
+frames). Reproduces the live McDohl / Pahn / Gremio / Ted / Cleo rows exactly. done + 64 holds
+for all 78. Outliers worth a live check: Clive (done 3), Eileen / Sarah (37), Kirke (106).
+
+2026-10-15: Antitoxin / Needle / Incense decoded (docs Turn_Order.md "Per-user
+timing"). Antitoxin cures Poison (+33), Needle one Balloon stage (+14, seq 5 =
+10 frames inferred from the shared effect sheet), Incense waits for every
+`+0x45 == 0` party slot to be idle, so it fires after the user's own script.
+Outlier characters (Clive, Eileen, Sarah, Kirke): anim 13 to 15 are well-formed
+non-looping sequences; the odd values are real data (not live-checked).

@@ -16,7 +16,7 @@ local Address = require "lib.Address"
 local BattleRoundInput = require "lib.BattleRoundInput"
 local json = require "lib.json"
 
-local BASE_SAVE = "/home/alex/Projects/Suikoden-Bizhawk-HUD/QueenAnt.State"
+local BASE_SAVE = "/home/alex/Projects/Suikoden-Bizhawk-HUD/savestates/QueenAnt.State"
 local OUT = "/home/alex/Local/BizHawk-2.10-linux-x64/Lua/Output/TraceQueenAntCommandedAnts.json"
 local COMMAND_ALL_ANTS_ATTACK = 0x80010edc
 local NUM_COMBATANTS = 9

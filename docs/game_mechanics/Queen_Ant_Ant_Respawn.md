@@ -3,10 +3,9 @@
 Frame-accurate timeline of how a Soldier Ant dies, waits, and is respawned
 in the scripted Mt. Seifu Queen Ant fight (`va7.bin`). Measured live from
 `QueenAnt2.State` (round-start, Free Will) on 2026-10-07 in headless
-BizHawk. Scripts: `scripts/CaptureAntRespawnTiming.lua` (full byte diff of
-a plain round), `scripts/CaptureAntKillMatrix.lua` (forced weapon kills) and
-`scripts/CaptureAntScenarios.lua` (batches L, D, C, G, M, R: spell, Unite,
-counter, multi-kill, last-actor and rune-loadout scenarios). Test injections
+BizHawk, using one-off capture scripts (since removed): a full byte diff of
+a plain round, forced weapon kills, and batches L, D, C, G, M, R (spell,
+Unite, counter, multi-kill, last-actor and rune-loadout scenarios). Test injections
 are in-spec: target ant HP 1, party HP at HPMax, runes/MP 4/items edited in
 the savestate's memory, RNG seed overwritten.
 

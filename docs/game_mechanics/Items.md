@@ -2,7 +2,7 @@
 
 Every item in the game (armor, consumables, rune pieces, crystals,
 antiques, key items) has one static definition record in `main.exe`.
-`scripts/DumpItemTable.py` reads them straight from the file (no
+`scripts/python/DumpItemTable.py` reads them straight from the file (no
 emulator) and writes all 179 to `outputs/Items.json`.
 
 Weapons are not items. Each character's weapon is its own Stats field
@@ -167,3 +167,94 @@ use.
 : Quantity or uses left. Menus show it when it's above 1. Using the
   item in battle takes one off, and at 0 `FUN_800ca408` removes the
   slot.
+
+## Battle use timing
+
+Frames are counted from `done`, the frame the user's flag `0x8` is seen and the
+effect scripts start (`itemDone` in `outputs/CharacterItemTimings.json`, the
+user's anim 13 + anim 14). The turn side (R, the roll after `done`) is in
+[Turn_Order.md](./Turn_Order.md#item-turns). Regenerate everything with
+`scripts/python/ItemUseTimings.py`; constants with their source are in
+`outputs/ItemEffectConstants.json`.
+
+Item ids and battle handlers (`itemDef+0x20`):
+
+```
+id  item                 handler     target script  needs
+25  Medicine             0x800f0708  0x8016c2f0     (any ally)
+26  Antitoxin            0x800f0850  0x8016c390     Poison (status bit 0x1)
+71  Needle               0x800f0920  0x8016c3b8     Balloon stage (bits 0xe)
+72  Mega medicine        0x800f07ac  0x8016c314     (any ally)
+80  Dragon seal incense  0x800f09f0  0x8016c3dc     (every living member)
+```
+
+The user runs `0x8016c194` first (all five). When the handler fires it plays
+`0x8016c1c0` on the user (not Incense) and the target script on the target.
+
+```
+item         target free  user free (ally)    user free (self)
+Medicine     done + 64    ally value           done + 64
+Mega medic.  done + 64    ally value           done + 64
+Antitoxin    done + 33    ally value           done + 33
+Needle       done + 14    ally value           done + 14
+Incense      fire + 65    fire + 65 (user is   -
+                          a member too)
+```
+
+"Ally value" is `itemUserFreeAlly` (done + 61 + the user's anim 15 length).
+With no matching status, Antitoxin and Needle play nothing: the handler
+returns 0 at `done` with no busy and no cure, and the user's own script
+`0x8016c194` runs to its end. That is the ally value for every one of the 78
+characters (checked), also when the target is the user, so a healthy-target
+use looks like an ally-targeted Medicine to the user. It is a different
+script from Medicine's `0x8016c1c0` with the same length. `fire` is below.
+
+What each effect does (read from code unless marked):
+
+- **Antitoxin** (setup `0x800f2838`, tick `0x800f297c`, fade `0x800f2c54`).
+  Gate: target `wStatusFlags & 0x1`. The setup hides the poison icon (slot
+  `+0x30a4` = 0) and borrows its sprite. 30-frame countdown, then phase 0
+  clears the Poison bit (done + 31, simulated), phase 99 calls
+  `clear_status_effect(idx, 0)` (done + 32), which sets the slot's expired flag
+  so the icon updater frees the sprite. The script then waits one more frame
+  (`op 3, 1`) before clearing busy: target free done + 33. Nothing else
+  changes: no HP, no ActionTag, no RNG, and Poison has no counter to reset (see
+  [Battle_Damage_Formula.md](./Battle_Damage_Formula.md) "Duration: none").
+  The 33 is independent of the user and of the target. Simulated, not live.
+- **Needle** (setup `0x800f2d7c`, tick `0x800f2eb8`, finish `0x800f3084`).
+  Gate: `wStatusFlags & 0xe`. The setup picks the highest Balloon stage whose
+  slot is active (id3, else id2, else id1). The tick plays sprite sequence 5
+  once and waits for it to stop; the finish clears one stage bit (`0x8`, else
+  `0x4`, else `0x2`) and calls `clear_status_effect` at phase 99. One stage per
+  use. Sequence 5 is 10 frames (inferred: the sheet is word 0 of `battle.bin`,
+  which `apply_status_effect` builds the status sprites from, but the sprite
+  actually played wasn't confirmed). Bit cleared done + 12, target free done +
+  14, simulated.
+- **Dragon Seal Incense** (handler `0x800f09f0`, effect as Medicine variant 2:
+  -50 HP, 2 sparkles). The handler returns -1 while any party slot
+  `1..dwPartyCount` has `combatant_rec+0x45 == 0` and a nonzero busy byte. The
+  user is such a slot and is still busy in its own `0x8016c194` script, so the
+  first fire is one tick after the user's busy clears: `fire` = ally value + 1.
+  It then plays `0x8016c3dc` on each slot with `+0x45 == 0` and returns 0. That
+  flag is the death-routine flag, not HP: dead members are skipped, but a
+  member at 0 HP whose death routine hasn't run yet is healed too. Busy
+  members aren't skipped, they are waited for. Each member's script is the
+  Medicine one plus a 1-frame delay: HP change fire + 32, free fire + 65.
+  Returning 0 is "done" like Medicine's: the roll is the next tick (fire + 1)
+  and the new actor fire + 2. Every member is busy until fire + 65, so the
+  roll skips them (an unacted party member becomes eligible then); enemies
+  that haven't acted are eligible at once. Simulated only.
+
+Per-character: none of this varies by user beyond `itemDone` and the anim 15
+length already in `CharacterItemTimings.json`; the cure and Incense member
+timings are constants. The four odd characters were re-read: Clive (done 3,
+anim 13 is 2 frames), Eileen and Sarah (36 + 1), Kirke (105 + 1) all have
+well-formed, non-looping sequences 13 to 15, so the numbers are real data.
+None of it is live-checked; Clive is the only recruitable one of the four.
+
+Read from code: the handlers, gates, scripts and effect constants (30, 0xff,
+-4, 0x80, the slot flags, `+0x45`). Simulated from that code: every frame
+count. Inferred: the Needle sequence length. Checked live: only the Medicine
+numbers (McDohl, Pahn, Gremio, Ted, Cleo) and the Antitoxin target busy
+clearing at done + 33 in the Cleo to Gremio log.
+

@@ -1,0 +1,130 @@
+#!/usr/bin/env python3
+"""Generate lib/ScreenList.lua (every real field screen + labels) for the Toolbox Screen Teleport tool.
+
+Existence: outputs/RoomDescriptors.json (static scan of every area overlay; screens with no actors are real too,
+and screens that don't work are labeled via BROKEN). Labels: outputs/ZoneSheet.tsv (the user's zone
+spreadsheet, WM 0-3 only: WM name, area name, screen info). Areas without a sheet entry get a generic label.
+"""
+import collections
+import importlib.util
+import json
+import os
+import re
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.join(HERE, "..", "..")
+# Screens the teleport test (scripts/TestScreenTeleport.lua, sweep for 1/4/1) found not to work; still listed, labeled.
+BROKEN = {
+    (1, 4, 1): "never loads", (9, 4, 1): "never loads", (1, 6, 0): "never loads", (9, 6, 0): "never loads",
+    (0, 0, 0): "arrival event moves hero", (0, 3, 0): "arrival event moves hero offscreen",
+    (1, 41, 0): "arrival event moves hero offscreen", (9, 41, 0): "arrival event moves hero offscreen", (11, 0, 0): "arrival event moves hero",
+    (1, 5, 6): "hero walks in on arrival", (2, 6, 6): "hero walks in on arrival",
+    (1, 33, 2): "redirects to screen 0", (9, 33, 2): "redirects to screen 0",
+}
+
+
+def load_srd():
+    spec = importlib.util.spec_from_file_location("srd", os.path.join(HERE, "ScanRoomDescriptors.py"))
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def find_entries(real):
+    """Hero entry points per target screen, read from the game's own door scripts.
+
+    Event scripts are bytecode (descriptor +0x14 points at one). Opcode 03 is "change screen"
+    (handler FUN_8013bf94), followed by fd (end): `03 S X Y` = screen S of this area, `03 fc A S X Y` = area A of this
+    WM, `03 fa W A S X Y` = WM W area A (X/Y are the hero's tile on arrival = gs+4/+6). Warps start a script or follow
+    other statements, and opcode lengths are not tabulated, so each script is searched for `03 <args> fd` over its
+    first 0x80 bytes (a stray match also needs a real destination screen and X, Y < 0x80). Returns
+    {(wm, area, screen): [(x, y, "from wm/area/screen", count)]}, best first (other screens before self, then count).
+    Opcode `03 fd` (area by WM table), `03 fe/ff/fb` (world map) are not arrivals in a field screen and are skipped.
+    """
+    srd = load_srd()
+    main = open(srd.MAIN, "rb").read()
+    iso = srd.Iso(srd.ISO)
+    found = collections.defaultdict(collections.Counter)
+    cache = {}
+    for wm, area, size, lba in srd.zone_table(main):
+        if lba not in cache:
+            ovl = iso.sector(lba, (size + 2047) // 2048)[:size]
+            cache[lba] = (ovl, srd.parse_overlay(ovl) or [])
+        ovl, screens = cache[lba]
+        for sc in screens:
+            for d in sc["descriptors"]:
+                p0 = d["ptr14"] - srd.OVL_BASE
+                if not 0 <= p0 < len(ovl) - 8:
+                    continue
+                for p in range(p0, min(len(ovl) - 8, p0 + 0x80)):
+                    if ovl[p] != 3:
+                        continue
+                    b = ovl[p + 1 : p + 8]
+                    if b[0] in (0xFD, 0xFE, 0xFF, 0xFB):
+                        continue
+                    if b[0] == 0xFC:
+                        dest, n = (wm, b[1], b[2], b[3], b[4]), 6
+                    elif b[0] == 0xFA:
+                        dest, n = (b[1], b[2], b[3], b[4], b[5]), 7
+                    else:
+                        dest, n = (wm, area, b[0], b[1], b[2]), 4
+                    if ovl[p + n] != 0xFD or dest[:3] not in real or dest[3] >= 0x80 or dest[4] >= 0x80:
+                        continue
+                    found[dest[:3]][(dest[3], dest[4], f"{wm}/{area}/{sc['screen']}")] += 1
+    out = {}
+    for k, c in found.items():
+        me = "%d/%d/%d" % k
+        out[k] = [(x, y, src, n) for (x, y, src), n in sorted(c.items(), key=lambda kv: (kv[0][2] == me, -kv[1], kv[0]))]
+    return out
+
+
+def lua_str(s):
+    return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def main():
+    scan = json.load(open(os.path.join(ROOT, "outputs", "RoomDescriptors.json")))
+    sheet = {}
+    for l in open(os.path.join(ROOT, "outputs", "ZoneSheet.tsv")):
+        if re.match(r"\d+ +\d+ +\d+ +", l):
+            f = [x.strip() for x in re.split(r" {3,}|\t", l.strip())]
+            f += [""] * (7 - len(f))
+            sheet[(int(f[0]), int(f[1]), int(f[2]))] = (f[3], f[4], f[6])
+
+    real = {(s["wm"], s["area"], s["screen"]) for s in scan}
+    entries = find_entries(real)
+    tree = {}
+    for s in scan:
+        k = (s["wm"], s["area"], s["screen"])
+        v = sheet.get(k, ("", "", ""))
+        if k in BROKEN:
+            v = (v[0], v[1], ("BROKEN (%s)" % BROKEN[k]) + (" " + v[2] if v[2] else ""))
+        tree.setdefault(s["wm"], {}).setdefault(s["area"], {})[s["screen"]] = v
+
+    out = ["-- GENERATED by scripts/python/BuildScreenList.py - do not edit.",
+           "-- Every real field screen: [wm].areas[area].screens[screen] = { label, entries }. entries = hero arrival tiles",
+           "-- { x, y, \"from wm/area/screen\" } taken from the game's door scripts (best first; empty = none known).",
+           "-- Names come from the user's zone sheet (WM 0-3 only); everything else is unlabeled.", "return {"]
+    for wm in sorted(tree):
+        wname = next((sheet[(wm, a, sc)][0] for a in tree[wm] for sc in tree[wm][a] if (wm, a, sc) in sheet), "")
+        out.append(f"  [{wm}] = {{ name = {lua_str(wname)}, areas = {{")
+        for a in sorted(tree[wm]):
+            aname = next((v[1] for v in tree[wm][a].values() if v[1]), "")
+            out.append(f"    [{a}] = {{ name = {lua_str(aname)}, screens = {{")
+            for sc in sorted(tree[wm][a]):
+                ents = "".join(f"{{{x},{y},{lua_str(src)}}}," for x, y, src, _ in entries.get((wm, a, sc), []))
+                out.append(f"      [{sc}] = {{ {lua_str(tree[wm][a][sc][2])}, {{{ents}}} }},")
+            out.append("    } },")
+        out.append("  } },")
+    out.append("}")
+    open(os.path.join(ROOT, "lib", "ScreenList.lua"), "w").write("\n".join(out) + "\n")
+    n = sum(len(sc) for w in tree.values() for sc in w.values())
+    lab = sum(1 for w in tree.values() for a in w.values() for v in a.values() if v[2])
+    no_entry = [k for k in real if k not in entries]
+    print(f"{len(real) - len(no_entry)}/{len(real)} screens have an entry point; none: {sorted(no_entry)}")
+    print(f"{n} screens in {sum(len(w) for w in tree.values())} areas; {lab} with a label")
+    missing = [k for k in sheet if k[0] not in tree or k[1] not in tree[k[0]] or k[2] not in tree[k[0]][k[1]]]
+    print("sheet rows with no real screen:", missing)
+
+
+main()

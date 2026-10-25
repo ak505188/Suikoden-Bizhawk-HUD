@@ -897,7 +897,7 @@ end
 
 -- Blazing Camp (spell 36, Fire+Lightning Magic Unite, all enemies): a fixed 54 rand() calls, independent of seed and
 -- enemy count (spell_blazingcamp_*, static decompile 2026-10-06; live-validated the same day: 20 seeds plus the
--- first seed's per-tick counts, scripts/CaptureBlazingCampSeeds.lua, McDohl Fire + Luc Lightning Lv4 on
+-- first seed's per-tick counts, a one-off capture script (since removed), McDohl Fire + Luc Lightning Lv4 on
 -- SpellDuration.State). Setup, the hit scripts, calc_dual_element_spell_damage and the end handler have none.
 --   phase 2 (150 ticks): 10 meteors, meteor k activates at tick 72+6k, 2 rand() each = 20. Each starts at z=-300
 --     and moves +25/tick (starting the tick it activates); when z>>12 passes -10 (the 12th move) it costs one more
@@ -916,7 +916,7 @@ end
 
 -- Deadly Fingertips (spell 25, Dark Lv1, one enemy): seed-dependent, 1075-1170 rand() calls
 -- (spell_deadlyfingertips_*, static decompile 2026-10-07; live-validated the same day: 20 seeds plus the first
--- seed's per-tick counts, scripts/CaptureDeadlyFingertipsSeeds.lua, McDohl's own Soul Eater Rune slot 1).
+-- seed's per-tick counts, a one-off capture script (since removed), McDohl's own Soul Eater Rune slot 1).
 -- The whole cost is the same 30-particle spark pool as the Dragon's Lightning (Dragon.simulateLightning):
 -- vfx_spawn_random_arc_particle respawns any inactive line particle for 5 rand() (the 4th is its z velocity
 -- -(r % 5 + 5), the 5th its life r % 0x46); a spark goes inactive when its life or z>>12 < -300 runs out. Here the
@@ -964,7 +964,7 @@ end
 
 -- Water Dragon (spell 38, Wind+Water Magic Unite, all enemies): seed-dependent, ~3000 rand() calls
 -- (spell_waterdragon_*, static decompile 2026-10-07; live-validated the same day: 20 seeds plus the first seed's
--- per-tick counts, scripts/CaptureWaterDragonSeeds.lua, McDohl Water + Luc Wind on SpellDuration.State).
+-- per-tick counts, a one-off capture script (since removed), McDohl Water + Luc Wind on SpellDuration.State).
 -- Phases 64+64+128+64+64 = 384 ticks. Everything below is rolled in this order inside one tick (the shared
 -- epilogue runs on every phase; only phase 2 has a body):
 --   setup: 302 = 30 x 3 + 20 x 2 + 80 x 2 + 12 x 1.
@@ -1042,7 +1042,7 @@ end
 
 -- Scorched Earth (spell 34, Fire+Earth Magic Unite, all enemies): a fixed 282 rand() calls, independent of seed and
 -- enemy count (spell_scorchedearth_*, static decompile 2026-10-07; live-validated the same day: 20 seeds plus the
--- first seed's per-tick counts, scripts/CaptureScorchedEarthSeeds.lua, McDohl Earth + Luc Fire on
+-- first seed's per-tick counts, a one-off capture script (since removed), McDohl Earth + Luc Fire on
 -- SpellDuration.State). Every roll sits inside vfx_activate_and_position_particle (2 rand), so only WHEN a particle
 -- activates matters, never the rolled values. Setup 48 (4 loops x 12 rolls), then 292 shared-epilogue passes
 -- (phase 1: 64, phase 2: 64, phase 3: 164; the tick label is already incremented, and reset to 0 on each phase's
@@ -1145,7 +1145,7 @@ end
 --       spell_flamingarrow_spawn_particle(p, 0x78) = 4 rand() (the same helper as Flaming Arrow).
 --   epilogue (every tick of all 5 phases): arcs decay (lifetime < 1, or |trail_x>>12| < 5 -> inactive, else
 --     lifetime-1 and trail_x += velocity), then bolt moves/impacts, then trail leads.
--- Live-validated (scripts/CaptureThorSeeds.lua, McDohl Lightning + Luc Water on SpellDuration.State, 20 seeds
+-- Live-validated (a one-off capture script (since removed), McDohl Lightning + Luc Water on SpellDuration.State, 20 seeds
 -- plus the first seed's per-tick counts). The arcs' trail_x low 12 bits were read live: all 0.
 local function simulateThor(startSeed)
   local SPARKS, BOLTS, ARRAYS, ARCS = 6, 4, 6, 20
@@ -1264,7 +1264,7 @@ end
 -- nRefPosZ>>12 it costs one more rand() (impact-flash life) and deactivates (2 total). Phase 3's
 -- exit clears the bolts before that tick's epilogue, so bolt k (spawn tick s) gets 63-s moves.
 -- targetZ (nRefPosZ>>12, default 0) only matters for a target so far "down" the z axis that a bolt
--- never arrives. Live-validated 2026-10-06 (scripts/CaptureAngryBlowDepth.lua, SpellDuration.State,
+-- never arrives. Live-validated 2026-10-06 (a one-off capture script (since removed), SpellDuration.State,
 -- native z=0): z forced to 0/500/900 -> 6, 1000 -> 5, 1500 -> 4. Cutoffs for z in 901..999 are
 -- from the static decompile, not measured. Machine length is 304 frames regardless of z.
 local function simulateAngryBlow(targetZ)
@@ -1390,7 +1390,7 @@ end
 
 -- Thunder God (spell 32, Lightning Lv5): a fixed 472 rand() calls, independent of seed and of
 -- the enemy count (spell_thundergod_*, static decompile 2026-10-06). Live-validated the same day
--- (scripts/CaptureThunderGod.lua, SpellDuration.State, McDohl with the Thunder Rune, 4 seeds): 96 in
+-- (a one-off capture script (since removed), SpellDuration.State, McDohl with the Thunder Rune, 4 seeds): 96 in
 -- the setup frame, 2 at each bolt tick, 72 at each of the 5 phase-4 activations; machine 484 frames.
 --   setup: 24 flicker particles x 4 rand() = 96, all in the setup frame
 --   phase 3 (180 ticks): 8 bolts, bolt k activates at tick 10k, 2 rand() each = 16 (impact has
@@ -1780,7 +1780,7 @@ end
 -- simulateJudgment(startSeed) -> totalRandCalls
 -- startSeed is the RNG's raw 32-bit state the frame battle+0x14 holds spell_judgment_vfx_setup
 -- (0x80116660), before its first rand(). Validated against 3 full per-frame live captures
--- (scripts/CaptureJudgment.lua) and 20 injected seeds (scripts/CaptureJudgmentSeeds.lua), 0 mismatches
+-- (a one-off capture script (since removed)) and 20 injected seeds (a one-off capture script (since removed)), 0 mismatches
 -- - see docs/game_mechanics/Battle_Damage_Formula.md's "Judgment" section. Mechanism (from
 -- spell_judgment_vfx_setup / spell_judgment_tick_state_machine, 0x80116b7c, 1 tick = 1 frame):
 --   setup: 15 bolt particles, each rand()%48 (its first-spawn tick, stored at +0x24) then a scale

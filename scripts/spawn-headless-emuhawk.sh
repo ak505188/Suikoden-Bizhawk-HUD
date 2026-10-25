@@ -23,7 +23,7 @@ set -u
 BIZHAWK_DIR="/home/alex/Local/BizHawk-2.10-linux-x64"
 CONFIG="/home/alex/Projects/Suikoden-Bizhawk-HUD/config-headless.ini"
 DEFAULT_ROM="/mnt/Shared/ISOs/Suikoden/Suikoden (USA) (v1.1).cue"
-KWIN_RULE_SCRIPT="/home/alex/Projects/Suikoden-Bizhawk-HUD/scripts/kwin-headless-rule.py"
+KWIN_RULE_SCRIPT="/home/alex/Projects/Suikoden-Bizhawk-HUD/scripts/python/kwin-headless-rule.py"
 
 LUA_SCRIPT="${1:?usage: spawn-headless-emuhawk.sh <lua-script-path> [rom-path] [timeout-seconds]}"
 ROM="${2:-$DEFAULT_ROM}"

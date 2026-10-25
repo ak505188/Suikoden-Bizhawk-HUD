@@ -26,7 +26,7 @@
 -- Turn_Order.md) that every living ant acts on its own independent turn before Queen's turn ever
 -- comes up - so by the time she rolls CommandAnts, every ant already has ActionTag=1 and fails
 -- queen_ant_command_all_ants_attack's own eligibility check. Verified directly
--- (scripts/VerifyAntCommandAttribution.lua): the "commanded" ants' own continuation pointer was
+-- (a one-off verify script (since removed)): the "commanded" ants' own continuation pointer was
 -- `apply_uncovered_attack_damage` (main.exe 0x800f5960, a GENERIC single-roll attack resolver),
 -- never `ant_commanded_attack_damage` (va7.bin 0x800110d8) - Queen's own command function was
 -- never actually observed firing in any tested round. See the "MAJOR CORRECTION" comment in

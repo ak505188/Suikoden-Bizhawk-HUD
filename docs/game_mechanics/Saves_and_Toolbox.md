@@ -153,7 +153,7 @@ WM / Area / Screen (Up/Down picks the field, Left/Right step through the
 screens that exist, L1/R1 jump 10, X teleports). Each field shows its name
 (WM, area and screen info from the zone spreadsheet, WM 0-3 only; other areas
 are unlabeled). Only real screens are offered: `lib/ScreenList.lua`, generated
-by `scripts/BuildScreenList.py` from the static overlay scan, with the zone
+by `scripts/python/BuildScreenList.py` from the static overlay scan, with the zone
 sheet (`outputs/ZoneSheet.tsv`) for labels. Screens with no actors are included (their scan record has an empty actor list).
 Screens that failed the teleport test are still listed, labeled
 `BROKEN (reason)`. A fourth field, Entry, picks
@@ -174,7 +174,7 @@ screens. Not every listed screen was test-loaded (the sweep covered the 303 with
 
 Entry tiles come from the area overlays' event scripts: opcode `03` is
 "change screen" (`03 S X Y fd` same area, `03 fc A S X Y fd` other area,
-`03 fa W A S X Y fd` other WM). `scripts/BuildScreenList.py` searches each
+`03 fa W A S X Y fd` other WM). `scripts/python/BuildScreenList.py` searches each
 descriptor's script (`+0x14`) for these. Checked against the Outside Room door
 (`03 02 25 0a` = screen 2, tile 37,10, which is what the in-room save shows).
 Opcode lengths are not tabulated, so scripts are searched rather than parsed;

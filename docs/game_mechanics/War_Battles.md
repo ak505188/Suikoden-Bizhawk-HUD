@@ -7,7 +7,7 @@ Each one is a flat image, byte-identical to RAM once loaded.
 
 Status: static RE in Ghidra plus live checks from savestates. For the
 kuwa battle everything is reproduced exactly, including the `rand()` stream:
-`scripts/WarSim.py` starts from the war's reset seed (`0x43`) and the
+`scripts/python/WarSim.py` starts from the war's reset seed (`0x43`) and the
 recruited characters, and its RNG, soldier counts, enemy actions and every
 soldier sprite matched the game frame by frame for 16 recorded command
 sequences (Charge, Bow, Magic, Strategists, Ninjas, Thieves, Merchants and
@@ -593,7 +593,7 @@ they do not depend on any frame timing.
 
 ## Scenario data
 
-Per-scenario values (kuwa layout; produced by `scripts/WarDataDump.py`).
+Per-scenario values (kuwa layout; produced by `scripts/python/WarDataDump.py`).
 Types: C Charge, B Bow, M Magic. A turn script entry `a-b` means "random
 action index from a to b, not used yet"; indexes start at 0.
 
@@ -706,7 +706,7 @@ ends the battle (outcome 8, no game over) because the turn counter is 1.
 Checked against `Teo2WBStart.State`/`TeoWB2T1.State` and 22 rows of a
 brute-force spreadsheet of full battles (Charge units plus Strategists;
 the sample is in `scripts/data/Teo2_bruteforce_sample.tsv`, checked by
-`scripts/WarTeo2Check.py`). Every row's enemy soldier counts after each
+`scripts/python/WarTeo2Check.py`). Every row's enemy soldier counts after each
 turn matched, and 21 of 22 matched the total `rand()` index and final seed
 exactly (the 22nd is the early-confirm case below).
 
@@ -727,8 +727,8 @@ exactly (the 22nd is the early-confirm case below).
 - The spreadsheet "Index" column is the total number of `rand()` calls since
   the seed (the RNG column is the state after that many), "Time" the real
   battle time.
-- Whole sheet (720 rows, `scripts/WarTeo2Check.py` and
-  `scripts/WarTeo2GapScan.py`): 635 rows reproduce exactly (enemy counts,
+- Whole sheet (720 rows, `scripts/python/WarTeo2Check.py`, and an
+  earlier one-off gap-scan script, since removed): 635 rows reproduce exactly (enemy counts,
   total `rand()` index, final seed) assuming everyone has arrived. 62 of
   the other 85 reproduce exactly with one constant early-confirm gap:
   276 frames (give or take a few) for most, 320 to 324 for rows that open
@@ -1115,7 +1115,7 @@ banter text waits for a button. Buttons shorten the text waits.
 
 ## Reference implementation
 
-`scripts/WarSim.py` implements all of the above (Charge, Bow, Magic and
+`scripts/python/WarSim.py` implements all of the above (Charge, Bow, Magic and
 all five Others commands) for the six regular scenarios. It is
 executable documentation: one Python file, no dependencies, reading only
 the overlay files. It starts from the seed and the recruited ids:
@@ -1133,8 +1133,8 @@ b.use_merchant(35)    # Others
 sprite frames simulated. `scripts/WarChainDump.lua` records a list of
 commands from the first kuwa menu (every frame: RNG, round globals, all
 sprites, the fx pool, the arrows and the Dragon Knights);
-`scripts/WarAnimCompare.py` replays the recording through `WarSim.py` and
-compares every simulated frame, and `scripts/WarSimCompare.py` compares at
+`scripts/python/WarAnimCompare.py` replays the recording through `WarSim.py` and
+compares every simulated frame, and `scripts/python/WarSimCompare.py` compares at
 the command menus only (RNG, soldier counts, enemy action).
 
 PSN build: the PSN release of the game (run through Adrenaline on a PSTV)
@@ -1172,7 +1172,7 @@ ten instruction immediates of the disc's `rsin` (`0x8015084c`, `0x80150878`,
 `0x8015089c`, `0x801508a8`, `0x80150854`) and `rcos` (`0x801508fc`,
 `0x80150904`, `0x8015090c`, `0x8015094c`, `0x80150954`) in RAM: the quadrant
 boundaries `<=` become `<` and the mirror constants drop by one.
-`WarPsnPatchCheck.py` runs the original and the patched routines in a MIPS
+A one-off offline check (script since removed) ran the original and the patched routines in a MIPS
 interpreter for all 8193 angles from -0x1000 to 0x1000: the original equals the
 disc routines and the patched equals the PSN routines exactly. Live check
 (`WarPsnTest.lua`, kuwa, Magic, Magic, Charge, patch applied after the state
@@ -1192,15 +1192,15 @@ check that no cheat file freezes the counts (see notes/War_Battles.md).
 
 Rules (one round at a time, seed set before the command):
 
-- `scripts/WarRoundExperiments.lua`: Charge vs Charge on 6 seeds (every loss
+- Charge vs Charge, live (one-off script, since removed): 6 seeds (every loss
   matched, the rolls are the first two `rand()` calls after the
   confirmation), all 9 matchup cells, the Magic tie roll at the boundary
   seeds (`r = 19436` wins, `19437` loses).
-- `scripts/WarOthersExperiments.lua`: Thief buckets on 8 seeds (all three
+- Other unit types, live (one-off script, since removed): Thief buckets on 8 seeds (all three
   outcomes and both boundaries), Merchant gains for three deficits and five
   seeds, Strategist buff, Ninja, Dragon Knights (a quarter of the enemy,
   and the Bow counter).
-- `scripts/WarMultiRound.lua`: enemy action picks for 3 seeds over 4 turns
+- Enemy action picks (one-off script, since removed): 3 seeds over 4 turns
   (a permutation, no repeats) and the unit used flags.
 
 Animation and RNG:

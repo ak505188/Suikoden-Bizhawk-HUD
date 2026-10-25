@@ -182,7 +182,7 @@ signal:
   It's wrong: confirmed by tracing a forced-damage round frame-by-frame that the counter moves
   at frame+1 after confirm (the instant the round *starts*), while real HP changes continued for
   900+ more frames as combat actually resolved. Using it as the completion signal, `runTurn()`'s
-  first version returned almost instantly, and the demo script (`scripts/CaptureTurnResult.lua`)
+  first version returned almost instantly, and the demo script (one-off script, since removed)
   showed zero HP change for every combatant despite the RNG seed genuinely advancing — a strong
   tell that *something* ran, just not what was expected to be waited for.
 - The correct signal was already sitting in the codebase: the same Fight/Run/Bribe/Free Will
@@ -256,3 +256,8 @@ savestate positioned near a winnable finish was available to test against this p
   directly in `DAT_8016a0e0[26]`'s (Soul Eater's) record before battle starts, making this check
   reject them "for free" — but no writer to `DAT_8016a0e0` was found (`get_xrefs_to` shows only
   unrelated non-battle UI readers in `0x800c9xxx`-`0x800d9xxx`). Genuinely open, not forced.
+
+2026-10-15: Free Will planner decoded (docs Scripted_Battle_Actions.md "Free Will
+targeting"). Cursor is a local, 0 per call, no carry-over; fallen members step like
+living ones under the same reach rule; scan never checks index c when c > 0. Engine
+(suikoden-core plan.rs) differs only in that last edge case and in not testing Sleep.

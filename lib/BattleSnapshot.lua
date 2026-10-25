@@ -48,7 +48,7 @@
 -- NOT included here (deliberately out of scope for a per-battle snapshot): static, unchanging
 -- game-data tables that are identical across every battle/savestate - the Rune ability-set table
 -- (DAT_8016a0e0), spell definitions (DAT_8016d33c), the Unite table (DAT_8016d18c), item
--- definitions (LAB_80167658, dumped to outputs/Items.json by scripts/DumpItemTable.py), and
+-- definitions (LAB_80167658, dumped to outputs/Items.json by scripts/python/DumpItemTable.py), and
 -- attack_data_table's elemental compatibility rows. A simulator needs these too, but they should
 -- be extracted ONCE as a separate static reference dump, not re-captured in every snapshot.
 

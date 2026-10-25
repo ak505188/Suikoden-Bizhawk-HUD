@@ -89,6 +89,74 @@ already set earlier); **Item** (`LAB_800ebb0c`) and **Unite** (`LAB_800ed560`) a
 stages handing off to larger state machines (`0x800ebc08` Item, `0x800ed668` Unite) that
 structurally mirror Attack's own target-select.
 
+## Free Will targeting
+
+Choosing Free Will at the round-start prompt (`DAT_80179fe8+8 = 3`) sets
+`g_nFreeWillRollGateResetValue = 10` and installs `battle_free_will_plan`
+(`0x800ee5b8`) as the coroutine. It runs once and plans every party member's
+action.
+
+Inputs. The first two are rebuilt every round by `battle_menu_init_context`
+(`0x800e9e90`), which the round-start code installs through `0x800f6b98` (at
+`0x800f6a94` and `0x800f6b68`):
+
+- **Formation list**, `DAT_80179fe8+0x1c[]`: for formation position p = 1..party
+  (`combatant_rec+0x44`), the party index at that position. Fallen members
+  are in it, at their own position. (`+0xb4[]` holds an "alive and not asleep"
+  flag per entry, used by the menu; the planner never reads it.)
+- **Candidate list**, `DAT_80179fe8+0x38[]`: enemy indexes, in slot order, with
+  `combatant_rec+0x45 == 0` (the death-routine flag, so an enemy that has
+  just died is out, one that is still in its hit reaction is not). Its length
+  is `BattleState+0x2c` (`dwUsesAvailableCounter`, decremented by the enemy
+  death routine `FUN_800e2dac`).
+- **Reach flags**, `+0x318c[]` and their count `+0x31a4`, recomputed for each
+  member by `battle_compute_target_reach` (`0x800eec20`), from the weapon range
+  class byte `DAT_80165890[weaponType]+0x56`. Class 2 (Long): every candidate.
+  Class 1 (Short) with the member in the back row (`bFormationPos > 3`): none.
+  Otherwise (class 1 in front, class 0): candidates whose own
+  `bFormationPos < 4`.
+
+The planner, with `c` a local that starts at 0 on every call:
+
+```
+for k in 0 .. party-1:                       -- formation order
+    m = formation[k]
+    reach = compute_target_reach(m)
+    action[m].type = Defend
+    if reach.count > 0 and (statusFlags(m) & 0x60) == 0:   -- not Sleep / Unbalanced
+        i = c + 1
+        loop:                                 -- scan, wrapping to 0 at the end
+            idx = i if i < count else 0
+            i = idx + 1
+            if reach.flag[idx]: action[m] = Attack candidate[idx]; break
+            if i == c: break                  -- so index c itself is never checked
+        c = c + 1; if c >= count: c = 0       -- always, whether or not a target was found
+```
+
+- **Start.** `c` is 0, so the first member scans from candidate index 1. There
+  is no stored cursor: not between fights, not between rounds, not between uses
+  of Free Will. Every plan starts the same way, which is why round 3 of the
+  live logs looks like a fresh start (it isn't special: rounds 1 and 2 are too).
+- **Fallen members.** The loop has no HP or `+0x45` test. A fallen member takes
+  exactly the step a living one would, at their formation position, and gets a
+  target that is never used. The same reach rule applies to them: a fallen
+  Short-range member in the back row has nothing in reach, so they Defend and
+  take no step. Their status word is cleared on death, so the `0x60` test
+  passes.
+- **Cursor step.** One per member that passed the test, independent of where
+  the scan found its target (so wrapping past an unreachable enemy doesn't pull
+  it back). A member with nothing in reach, or asleep / Unbalanced, doesn't
+  step.
+- **The cursor's own index.** With `c > 0` the scan checks `c+1 .. c-1` only. If
+  the one reachable candidate is index `c`, the member Defends but the cursor
+  still steps. With `c == 0` the scan wraps round and does check index 0.
+
+Read from code: all of the above, including the `i == c` exit (confirmed on the
+raw MIPS at `0x800ee6c4` / `0x800ee708`). Inferred: that `dwUsesAvailableCounter`
+always equals the candidate list length (the death routine decrements it; I
+didn't trace revives such as Queen Ant's ants). Nothing here was live-checked
+beyond matching the existing Mt. Seifu and Queen Ant logs by hand.
+
 ## Why a pure memory-only bypass doesn't work
 
 Writing `DAT_8017be4c`/`DAT_8017c000` (or the widget's own confirm bit) directly, with no real
@@ -330,7 +398,7 @@ Not yet extracted into the snapshot (needed by a simulator, but static/unchangin
 battle, so planned as a separate one-time reference dump rather than re-captured per snapshot):
 the Rune ability-set table, spell definitions, the Unite table, and `attack_data_table`'s
 elemental compatibility rows — all located during the action enumeration work above. Item
-definitions are dumped by `scripts/DumpItemTable.py` (see [Items](./Items.md)).
+definitions are dumped by `scripts/python/DumpItemTable.py` (see [Items](./Items.md)).
 
 ## The TurnResult capture (`BattleRoundInput:runTurn()`)
 

@@ -31,7 +31,7 @@ package.path = "/home/alex/Projects/Suikoden-Bizhawk-HUD/?.lua;" .. package.path
 
 local Address = require "lib.Address"
 
-local BASE_SAVE = "/home/alex/Projects/Suikoden-Bizhawk-HUD/ZombieDragonT2.State"
+local BASE_SAVE = "/home/alex/Projects/Suikoden-Bizhawk-HUD/savestates/ZombieDragonT2.State"
 
 -- This enemy's 1-indexed actor number in THIS savestate's roster (6 party members + this
 -- enemy as the 7th combatant = actor number 7). Re-derive this per savestate/battle by

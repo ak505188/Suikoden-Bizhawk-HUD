@@ -27,7 +27,7 @@ package.path = "/home/alex/Projects/Suikoden-Bizhawk-HUD/?.lua;" .. package.path
 
 local Address = require "lib.Address"
 
-local BASE_SAVE = "/home/alex/Projects/Suikoden-Bizhawk-HUD/ZombieDragonT2.State"
+local BASE_SAVE = "/home/alex/Projects/Suikoden-Bizhawk-HUD/savestates/ZombieDragonT2.State"
 local ENEMY_ACTOR_ID = 7
 
 local OVERLAY_BASE = 0x10000 -- KUSEG-stripped 0x80010000, the small/room overlay region

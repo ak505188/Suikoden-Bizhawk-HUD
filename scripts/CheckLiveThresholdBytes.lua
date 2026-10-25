@@ -16,7 +16,7 @@ local function log(s) table.insert(lines, s); console.log(s) end
 local function sanitize(addr) return addr & 0x001fffff end
 
 local ok, err = pcall(function()
-  savestate.load("/home/alex/Projects/Suikoden-Bizhawk-HUD/QueenAnt.State")
+  savestate.load("/home/alex/Projects/Suikoden-Bizhawk-HUD/savestates/QueenAnt.State")
 
   local QUEEN_ANT_SLTI = 0x80010ba0   -- slti v1,v1,0x33 (expected bytes: 33 00 63 28)
   local SOLDIER_ANT_SLTI = 0x80010888 -- slti v0,v0,0x4d (expected bytes: 4d 00 42 28)

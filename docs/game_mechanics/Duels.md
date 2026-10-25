@@ -13,13 +13,13 @@ All three have byte-identical code at the same addresses. Only the data
 differs (enemy stats and dialogue). The simulator is `lib/Duel.lua`.
 
 Status: this comes from static RE in Ghidra, and a live capture confirmed
-it on 2026-10-01 (`scripts/CaptureKwandaDuel.lua`). Over 5 rounds that
+it on 2026-10-01 (one-off script, since removed). Over 5 rounds that
 covered outcomes 3, 5, 6, 7 and 8, `lib/Duel.lua` matched every enemy move,
 dialogue row, hit order, damage value and RNG step, along with the final
-RNG state. A second capture of McDohl vs Teo (`scripts/CaptureTeoDuel.lua`)
+RNG state. A second capture of McDohl vs Teo (one-off script, since removed)
 covered 24 rounds across 6 seeds, including all 9 outcomes. All 34 of its
 hits had a base of 100 or more, so the variance term was exercised in both
-directions. Every hit matched (`scripts/CompareDuelCapture.lua`). See
+directions. Every hit matched (one-off script, since removed). See
 [notes/Duels.md](../../notes/Duels.md).
 
 ## rand() usage

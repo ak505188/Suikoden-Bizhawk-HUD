@@ -13,7 +13,7 @@ local BattleRoundInput = require "lib.BattleRoundInput"
 local Gamestate = require "lib.Enums.Gamestate"
 local json = require "lib.json"
 
-local BASE_SAVE = "/home/alex/Projects/Suikoden-Bizhawk-HUD/QueenAnt.State"
+local BASE_SAVE = "/home/alex/Projects/Suikoden-Bizhawk-HUD/savestates/QueenAnt.State"
 local OUT = "/home/alex/Local/BizHawk-2.10-linux-x64/Lua/Output/HuntSoldierAntDoubleStrikeDamage.json"
 local ROUNDS = 8
 local FRAMES_PER_ROUND = 4500

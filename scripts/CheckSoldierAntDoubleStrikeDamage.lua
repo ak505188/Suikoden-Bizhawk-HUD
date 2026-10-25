@@ -17,7 +17,7 @@ local BattleRoundInput = require "lib.BattleRoundInput"
 local Gamestate = require "lib.Enums.Gamestate"
 local json = require "lib.json"
 
-local BASE_SAVE = "/home/alex/Projects/Suikoden-Bizhawk-HUD/QueenAnt.State"
+local BASE_SAVE = "/home/alex/Projects/Suikoden-Bizhawk-HUD/savestates/QueenAnt.State"
 local OUT = "/home/alex/Local/BizHawk-2.10-linux-x64/Lua/Output/CheckSoldierAntDoubleStrikeDamage.json"
 local DOUBLE_STRIKE = 0x80010524
 local ROUNDS = 8

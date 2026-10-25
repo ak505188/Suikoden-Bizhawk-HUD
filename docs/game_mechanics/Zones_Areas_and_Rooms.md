@@ -199,7 +199,7 @@ destinations are the only per-screen "entry points" in the data. A screen
 record whose descriptor list is empty (count 0) is still a real screen (the
 spreadsheet lists them, for example 0/0/12 and 11/0/12). Screens that no door
 leads to, mainly area entrances from the world map, have no door-script entry
-tile. `scripts/BuildScreenList.py` extracts all of this into
+tile. `scripts/python/BuildScreenList.py` extracts all of this into
 `lib/ScreenList.lua`.
 
 ## Hero position/direction

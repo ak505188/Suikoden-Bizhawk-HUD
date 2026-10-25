@@ -12,7 +12,7 @@ local lines = {}
 local function log(s) table.insert(lines, s); console.log(s) end
 
 local ok, err = pcall(function()
-  savestate.load("/home/alex/Projects/Suikoden-Bizhawk-HUD/QueenAnt.State")
+  savestate.load("/home/alex/Projects/Suikoden-Bizhawk-HUD/savestates/QueenAnt.State")
   local base = Address.sanitize(mainmemory.read_u32_le(Address.BATTLE_STATE_PTR))
 
   local function dumpRecord(label, idx)

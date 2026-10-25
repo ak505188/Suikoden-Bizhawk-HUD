@@ -39,7 +39,8 @@ Config.Saves = {
 }
 
 Config.PartyJSON = {
-  FILE = bizhawk_dir .. "PSX/State/Suikoden/party.json", -- Toolbox > Party JSON exports to / imports from this file
+  DIRECTORY = bizhawk_dir .. "PSX/State/Suikoden/Parties", -- Toolbox > Party JSON imports any .json in here
+  EXPORT_NAME = "party.json", -- ...and exports to this file name inside it
 }
 
 return Config

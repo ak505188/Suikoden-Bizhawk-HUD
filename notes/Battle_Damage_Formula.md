@@ -310,6 +310,15 @@ tracing what first looked like a Varkas tag-team combo, corrected (user pushback
 script never calls the required opcode 26 on herself, so it's confirmed dead/leftover code — the
 user confirmed live it never triggers in the actual fight.
 
+**2026-09-27 — the above was wrong.** The "counterattack" is Sydonia's own special-move damage
+step (renamed `sydonia_special_apply_damage`): `calc_damage(Sydonia, target) * 4 / 3`, no hit or
+crit roll. Her special script does set the impact bit (opcode 26, mask 0x2, at f79 per the
+walker) — the 2026-09-06 hand parse of `0x800700c0` missed it. The user flagged that her damage
+didn't match expectations; a one-off verify script (since removed) then matched 11/11 special hits to
+the ×4/3 formula. The old "never triggers" read was most likely the counter interpretation (no
+reprisal was ever seen), not evidence the function doesn't run. Lesson: a continuation installed
+at `+0x50` that polls the impact bit is a damage step until shown otherwise.
+
 ## Dragon's move selection
 
 Fully solved and validated to a perfect 92/92 across three independent random-seed sweeps (12 +
@@ -532,3 +541,435 @@ of range mechanism even for a monster with confirmed long-range behavior.
   in this build, not exhaustive proof (the other 122 monsters' own custom slots weren't checked).
   See docs' "Live EnemyData fields" section for the full chain writeup; all functions renamed and
   commented in `vc3.bin`/`enemy_ai_overlay.bin`, both programs saved.
+
+## 2026-09-27 corrections
+
+- **Opcode 40 direction.** The general write-up said the roll was inverted for everyone
+  (`roll < chance` = skip). Re-read from the decompile: that's the enemy branch only; a party
+  member gets the status when `roll < chance` (so Pahn's/Kasumi's Unite Unbalanced roll, chance
+  100, always lands). The Poison section already had the party direction right.
+- **Unite menu eligibility.** "Item/Unite gated only by availability, never by status" was wrong
+  for Unite: `compute_unite_eligible_slots` checks every participant, the commanded character
+  included, for `+0x4a & 0x61` (Poison/Sleep/Unbalanced), and only searches from the commanded
+  character's menu position onward. First re-read (by me) wrongly exempted the character's own
+  status; the user corrected it (an Unbalanced character can never Unite) and confirmed the
+  command-order rule live. The `DAT_80179fe8+0xb4` flag is still untraced.
+- **Unite participant order.** Read straight from the defs in `main.exe` (`0x8016cd0c`, stride
+  `0x24`): the damage table's p0/p1 order was right; Scripted_Battle_Actions.md's table had slots
+  1, 15, 16, 17, 27 out of order and two names changed from the in-game strings.
+
+## 2026-09-28: Dragon move timing
+
+First trace (one-off script, since removed, whole party Defending) had Dragon act last in all 15
+rounds, and I read the gate write on the frame after her busy cleared as the round-end reset,
+concluding "next roll one frame after her busy clears". The user asked for a member slowed to
+AGL 1 so someone acts after her: the rerun showed that write is her turn setting the gate to 30,
+so the next roll is 31 frames after her busy clears. Lesson: a gate reset seen only at round end
+can't be told apart from an actor's own gate write; get an actor after the one being timed.
+Rerun also widened Lightning's particle-start drift to M+15..M+19.
+
+
+## 2026-09-29: Boar Rune
+
+Found by charmap-decoding `DAT_8016a0e0` (records 0x24 apart): Boar is Rune.Id 8, ability 1,
+handler `0x800f8a9c` (created + named `rune_boar_cast_entry`). It's a copy of Falcon's entry with
+the multiplier global at 20 instead of 30, so ×2 and no hit/crit roll came straight from reuse. The
+Unbalance isn't in any handler; I only found it by walking every `04_play` file's slot 13 and
+looking for a late `rand()`: Pahn, Eikei and Morgan all end slot 13 with opcode 40 (7, 100). Open
+questions for the live run: damage after the handler's done (walker says ~30 frames after), and
+whether `clear_status_effect` leaving `+0x1d58` set blocks a second cast's Unbalance.
+Live run (a one-off verify script (since removed), `Seifu6Ant.State`) settled both: first pass matched nothing
+because Pahn's ATK 46 overkilled 28-HP ants and the clamped HP drop can't match any roll. Held
+ATK at 20 and restored enemy HP each round: 12/12 = 2x on the damage-frame rand, timings exactly
+the walker's (no Falcon-style 1-frame shortfall), handler done S+292 before damage S+322, and a
+second cast re-Unbalances (`+0x1d58` gets reset to 0 somewhere before the next prompt; not
+found). Lesson: check the target's HP headroom before reading "no match" as a formula miss.
+Also: target busy after the hit is 0 if it lives, 1 until S+415 if killed; I'd first written the
+kill case up as the general one from the first run.
+I'd written "×N applies after weakness and the Rune Piece bonus" for both runes on the strength
+of the Falcon write-up alone; neither scripted run had a piece or an element, so it was
+decompile-only until the user confirmed it live the same day. Say which runs actually exercised
+a term before calling it confirmed.
+
+## 2026-09-30: Red Solider Ant DoubleStrike timing
+
+User asked for Mosquito + Red Solider Ant AI and timings. Both AIs were already in the static
+sweep; basic-attack timings come straight from outputs/AttackTimingsClean.json. New: the
+DoubleStrike continuation at a_data.bin `0x80080950` had no Ghidra function (created, named
+`red_soldier_ant_special_double_strike`). It's the Boar-rune shape: `calc_damage << 1`, no hit
+roll, no crit, own reaction script `0x800a5550`. Timed by feeding `0x800a5460` straight to
+`Sim.run` and `walk_reaction(script=0x800a5550)` — the walker CLI can't take a raw script
+address for an attack, only a table slot (it's slot 8 here, but `walk()` would still model it
+as a basic attack's generic damage poll, which happens to match). Static only, no live check.
+Same day, live-verified with the user's `3Mosquito1Ant.State` (Hero/Gremio/Pahn front, Ted/Cleo
+back; 3 Mosquito + Red Solider Ant in the back row), 8 seeds × 4 rounds, party Defending. All 128
+enemy turns matched on timing and on AI replay. Trap I fell into: my first comparison called
+every "no HP loss on the declared target" a miss. Seven of those were actually Gremio **covering**
+the low-HP Hero/Pahn (Hero cursor in `0x8016c29c`/`0x8016c2b4` = COVER_TARGET/COVER_AFTER,
+attacker continuation `0x800f5e90` apply_covered_attack_damage), and six were Hero/Pahn counters.
+Check the attacker's `+0x50` continuation, the cursor, and all party HP before labelling a miss.
+Composed paths also bit me twice: a counter that kills adds the 93-frame death fade, and a cover
+target frees at ally-free + 11 using the ally's *actual* free frame, which gets pushed later if
+the ally is hit again first.
+Then the user asked "Did you log Mosquito's ability to poison?". I hadn't. The sweep row said
+"always plain Attack" because it only read the AI function, but the poison sits in Mosquito's
+own hit-reaction script (opcode 40, status 0, arg 20). The walker's slot-1 `script_rand` is `[]`
+for Mosquito because that field only covers the attack script, not the reaction. Lesson: an
+enemy's "move" isn't only its AI. Check the slot-2 reaction for opcode 40 before calling a basic
+Attack plain (see memory: script dispatch side effects). Verified from the existing log with
+no rerun: 2 rand()s on every damage frame, and the replayed rolls matched every round-start
+tick. My first tick check compared against frame 1 after confirm, but the tick lands on frame 2.
+Correction, same day: the docs said Poison's duration is "12 (rounds)". It has no duration. The
+12 from `apply_status_effect`'s switch only feeds `build_sprite_poly_resource` (the icon), and
+the slot's `+0x30a8` is an expired flag that only `clear_status_effect` sets, not a counter
+(instruction search for 0x30a0..0x30ac: its only readers are `FUN_800e02cc`, the icon updater,
+and the apply/clear pair). This is the same mechanism the Sleep (id5) write-up already traced; I
+just hadn't generalised it. Worth a re-check: the other generic-slot ids' "durations" (id1/2/4/6)
+are probably cosmetic too.
+
+## 2026-09-30: cover mechanic pinned down
+
+Brief from the user: make find_cover_target simulable. Decompile (find_cover_target 0x800f79e0,
+battle_check_counter_attack 0x800f4d5c, check_combatant_alive 0x800f8604) plus a live capture
+(scripts/verify/VerifyCover.lua: HP poked to T and T-1, Gremio+Pahn KO'd, Phero poked onto Pahn;
+VerifyCoverCompare.py models the function and matched 85/85, 42 cover timelines exact).
+Things the old write-up had vague or missing:
+- The trigger reads committed HP (+0x12) and HPMax (+0x10), `<` strict. The Hero at 28 HPMax is
+  covered at 6, never at 7.
+- The pair path checks only check_combatant_alive: busy blocks a partner, row doesn't.
+  Back-row Cleo covered the Hero whenever Gremio and Pahn were both busy or KO'd.
+- The "gender" byte is byte 10 of the loaded 04_play header (the name is bytes 1-9). Milich = 2
+  and the kobolds = 3, so it's not strictly binary.
+- Target free = ally's *final* free + 11. A re-hit on the ally in the next tick hides the clear
+  from the target's poll (seen live twice now).
+Still decompile/walker only: Sleep/Unbalanced partners covering, the Phero last-slot quirk
+(scan starts at partyCount+1), a target with a higher index than its ally, ally death mid-cover.
+
+## Spell cast durations (2026-10-06)
+
+Live-measured every spell's cast length with `scripts/MeasureSpellTiming.lua`
+(`SpellDuration.State`, McDohl with swapped runes; Luc as the Unite partner).
+Results and marker definitions are in the doc's "Measured cast durations".
+- The static tick sums were wrong for Explosion (320 vs 831), Final Flame
+  (584 vs 681), Shining Wind (384 vs 535-539), and Hell/Black Shadow, whose
+  old "≥224"/"≥176" were really 843 and 463.
+- First end marker was wrong twice: `battle+0x14` never returns to 0, and
+  counting handler changes ended Charm Arrow at +18 (it has a mid-machine
+  hop). Voice of Earth has no end handler at all. The marker that held for
+  every spell: the machine ends 3 frames before the next actor is picked
+  (Charm Arrow is 4).
+- A `& 3` mask on the spell definition's `+0x16` hid the distinct `8` and
+  `0xA` values; the full six-value table is in the doc.
+- Open: Scream, Rain of Kindness, Shining Wind, Guardian of Earth and Water
+  Dragon vary by a few frames between seeds; cause unknown. Only one enemy
+  and a full-HP party were tested, so target-count scaling is untested.
+  Not tested: which caster triggers a Unite (McDohl did every time).
+
+## Angry Blow RNG (2026-10-06)
+
+- 6 `rand()` calls: 2 bolts x 2 (activation) + 2 x 1 (impact). Function
+  addresses and phase layout are in the Ghidra plate comments
+  (`spell_angryblow_*`, `0x8010c118/c140/c3b0`); the functions had to be
+  created first, the Lightning spells weren't boxed.
+- My first plate comment had phases 1 and 2 as 16 and 32 ticks. Wrong: 64
+  and 48. The sum is 304 and matches the live machine length.
+- The count depends on the target's `nRefPosZ>>12` only past about 975
+  (forced live: 1000 -> 5, 1500 -> 4). z is depth toward the camera, so a
+  real target never gets there. 901-999 is unmeasured.
+- Open: enemy z values across other formations weren't scanned.
+
+
+
+## Rainstorm RNG (2026-10-06)
+
+- 26 + 2 x living enemies. 12 bolts x 2, bolt 0's single respawn at tick 68
+  x 2, then 2 per living enemy in phase 4. Functions `spell_rainstorm_*` at
+  `0x8010cbd8/cc00/ce80`, created in Ghidra (not boxed before).
+- Looked like "12 bolts, impact rolls" after Angry Blow. Wrong: no rand at
+  impact here. The respawn loop (`+0x24 == 0` and flash inactive) is what
+  adds the extra 2, and it hides in a loop that only bolt 0 can satisfy.
+- Fixed impact target (-128, 0, 0), so none of Angry Blow's depth caveat.
+- User did the live check and confirmed the enemy scaling; no sim run of
+  my own.
+
+## Raging Blow / Ball of Lightning (2026-10-06)
+
+- Both 0 `rand()`, taken from the user's own live check. No static pass, no
+  functions boxed in Ghidra for them. If either ever shows RNG (an
+  enemy-count term like Rainstorm's, say), this entry is the thing to
+  recheck.
+
+## Thunder God RNG (2026-10-06)
+
+- 472, fixed: 96 setup + 16 (8 bolts) + 360 (24 flicker particles x 3 x 5).
+  Functions `spell_thundergod_*` at `0x8010f418/f440/f8dc`, created in
+  Ghidra. Static sum 484 matches the measured cast length.
+- The tick machine alone shows only 1 literal `rand()`; the rest is in
+  setup and the helper. The surprise was phase 4: nothing in the function
+  deactivates the flicker particles. `FUN_801238e0` does, when the sprite
+  animation finishes, so the count comes from the animation data. Sequence
+  = the sprite id passed to `vfx_create_particle`; table at
+  `*(*(0x800aa014)+0x14)`, frames `[id, duration]` from +4.
+- Live-checked 2026-10-06 (a one-off capture script (since removed), 4 seeds): 96 / 2 x 8 /
+  72 x 5 exactly as predicted, so the 10-tick period was right. Gotcha: a
+  window to the next actor pick reads 478; the extra 6 are the next turn's
+  roll at machine end +2. Count rands in [machine start, machine end].
+
+## Clay Guardian RNG (2026-10-06)
+
+- Seed-dependent, 90-132 over 20 seeds (multiples of 3). Only phase 3's
+  sparkle loop rolls: 3 per activation, the third (`% 60`) is the life.
+  Functions `spell_clayguardian_*` at `0x80110438/10460/1069c`; its context
+  lives at `DAT_8017a058`, not `0x8017a050` like the Lightning spells.
+- Live: 20/20 seeds and the first seed's per-tick counts matched the
+  simulator first try. Static sum 336 matches the measured cast length.
+- Not a bug but easy to trip over: the sparkle flag clears on phase 4's
+  first tick, yet the spawn pass still runs on phase 3's last tick (the
+  capture labels it `p4t0`, ticks are +1 in the labels).
+- The buff scales combatant rec `+0x42`; the doc's "likely DEF-final" is
+  still a hypothesis, nothing here tested it.
+- User tested it live: Clay Guardian did NOT reduce damage taken. Matches
+  `calc_damage` reading `wDEF` at `+0x32` while the spell writes `+0x42`.
+  Not traced: whether `+0x42` ever feeds `+0x32` (my `0x42` instruction
+  search was too noisy, many unrelated structs use that offset), and the
+  magic-damage path wasn't tested. Don't write "bugged" as settled until
+  that copy step is checked.
+
+## Copper Flesh (2026-10-06)
+
+- 0 rand, static. Functions `spell_copperflesh_*` at
+  `0x80110cc8/cf0/f8c/111610`, created in Ghidra (not boxed before). Context
+  is `DAT_8017a058`, the same slot Clay Guardian uses.
+- Almost all the "how it works" was already in the plate comments of
+  `apply_status_effect` and `apply_hp_damage_display` (a good reminder to
+  read those first). New here: it lands on phase 4's first tick (224 ticks
+  in), it blocks healing too, round-end decay is party-only so an enemy with
+  id 8 never loses it, and recasting resets the counter.
+- Static 448 vs measured 504: not explained by the end handler. Probably
+  frame pacing; not measured per phase.
+- Not checked: whether Hell's kill and item healing bypass the lock.
+
+
+## Guardian of Earth RNG (2026-10-06)
+
+- Seed-dependent, 380-408 over 20 seeds (all even): 40 setup + 2 per sparkle
+  activation. Functions `spell_guardianofearth_*` at
+  `0x80112048/12070/122f8/129ec`; context `DAT_8017a058`.
+- Gotcha: it is NOT on the Earth Rune (id 6, slots 21-24). It is slot 4 of
+  the Mother Earth Rune (id 30, +0x1a slots 22,23,24,33). My first capture
+  used rune 6, the slot scan found nothing, the script errored and the
+  headless window sat on the command menu. Scan the rune-set table
+  (`0x8016a0e0`, one pointer per rune id) for the spell id first.
+- Unlike Clay Guardian the sparkle life is not rolled: the sprite loops
+  (`vfx_create_particle` param_4 = 1) so only the z cutoff (-300, 0x9600 per
+  tick) ends it: 33 moves, re-activate every 34 passes. Start tick is
+  `rand() % 48` per sparkle, and the tick counter is already incremented in
+  the epilogue (s=0 fires on phase 3's last tick, labelled `p4t0`).
+- Live: 20/20 seeds and the first seed's per-tick counts matched first try.
+- Static phases 352 vs live 474-480 (older table): not measured per phase.
+- The buff lands on phase 4's first tick for the whole living party; same
+  `+0x42` x3/2 as Clay Guardian, so the "does nothing" caveat applies too
+  (not tested for this spell).
+
+## Scolding RNG (2026-10-06)
+
+- 0 rand, static only. Functions `spell_scolding_*` at
+  `0x80102dc0/102de8/103000/1037dc` (created in Ghidra), context
+  `DAT_8017a038`. Phases 64+64+32+96 = 256 = the live length already in the
+  docs table.
+- Evidence for zero: no direct `rand()` in setup or tick machine;
+  `apply_elemental_multiplier` only calls `printf`; hit script `0x8016f1cc`
+  has no opcode 40; end handler only frees. Damage lands on the last tick of
+  phase 3. Not live-tested (no live check was asked for; same status as
+  Copper Flesh).
+
+## Yell RNG (2026-10-06)
+
+- Fixed 33 (11 activations x 3), live-validated on 20 seeds
+  (a one-off capture script (since removed), McDohl Resurrection Rune id 7 slot 2, aimed
+  at a LIVE ally: it has no effect but the animation and RNG run). Functions
+  `spell_yell_*` at `0x80103824/1384c/103bfc/1043d0`, context `DAT_8017a038`.
+  Phases 64+32+80+64+64+64 = 368 = live.
+- CORRECTION: I first wrote 24 (static only). The user saw 33. Mistake: I
+  treated the sparkle's `+0x24` as a fixed re-fire tick (0x30). The per-tick
+  helper `FUN_8012080c` decrements it while the sparkle is active, so it is
+  a countdown that re-matches the ever-increasing counter at (48+t)/2 for
+  even t. Chain: 10,20,30,40 -> 29,34,39,44 -> 41,46 -> 47. Lesson: when a
+  spell writes a field and a later "equals tick" test reads it, decompile
+  every per-tick callee that touches the same particle before concluding
+  the field is constant (same pattern as Rainstorm and Shining Wind's pool A).
+- Start 0 never fires (labels begin at 1); the flag clears on phase 3's last
+  tick before the pass. Revive: phase 5's last tick clears bValidFlag and
+  calls apply_hp_damage_display(target, -HPMax/3); no rand.
+
+## Scream RNG (2026-10-06)
+
+- Fixed 162 (54 activations x 3), live-validated on 20 seeds plus the first
+  seed's per-tick counts (a one-off capture script (since removed), McDohl Resurrection
+  Rune id 7 slot 3, party-wide target type 0). Functions `spell_scream_*` at
+  `0x80104468/10490/104808/104ff4`, context `DAT_8017a038`. Phases
+  64+32+80+60+64+64 = 364 (docs said 364-366 live).
+- Same epilogue sparkle pass as Yell: 20 sparkles, start ticks 0,2..38,
+  counter 1..59 (phase 3 is 60 ticks, last tick clears the flag first).
+  Applied the Yell lesson up front: read FUN_8012080c (the +0x24 countdown)
+  before writing the model, and the static answer was right first time.
+- Shared helper `simulateResurrectionSparkles(startTicks, passes)` now backs
+  both simulateYell and simulateScream.
+- Heal: phase 5's last tick, apply_hp_damage_display(member, -300) for each
+  party member whose aUnk_0x50 byte != 1; no rand.
+
+## Blazing Camp RNG (2026-10-06, first Rune Unite)
+
+- Fixed 54, live-validated on 20 seeds + first-seed per-tick
+  (a one-off capture script (since removed): McDohl Fire rune + Luc Lightning
+  rune, both Rune slot 4 at the first enemy; setup from MeasureSpellTiming's
+  UNITES case, spell id 36). Functions `spell_blazingcamp_*` at
+  `0x80119584/195ac/19970/1a660`, context `DAT_8017a068` (the same slot
+  Storm Fang uses; fine, only one runs at a time).
+- Phases 64+32+150+64+64 = 374 = the live length in the docs table.
+- Phase 2: 10 meteors at ticks 72+6k (2 each) + one impact rand each on the
+  12th move (z -300 -> > -10, +25/tick; threshold is ctx[0x38]-10, a constant,
+  not the target's z) = 30. Phase 3: 12 sparkles at ticks 0,3..33 (2 each) =
+  24. Unlike Yell/Scream the phase-3 start ticks are never rewritten.
+- Damage: calc_dual_element_spell_damage(0,3,target,caster,0x5dc) on all
+  non-dead enemies at phase 4's last tick; no RNG. Hit scripts use native
+  handler 13 (palette cycle only), checked before concluding zero.
+- First Unite: Unites run through the same cast machinery, the machine just
+  has its own cast entry; the capture window works unchanged.
+
+## Thor RNG (2026-10-07, second Rune Unite)
+
+- Seed-dependent, 550-610 over 20 seeds, live-validated (20 totals + first
+  seed per-tick; a one-off capture script (since removed), McDohl Lightning rune + Luc
+  Water rune, Rune slot 4 at the first enemy). Functions `spell_thor_*` at
+  `0x8011a7f4/1a81c/1abd4/1bc3c`, context `DAT_8017a068`.
+- Frames: static phases 64+48+128+80+64 = 384 ticks, measured 570-572 frames
+  (docs table already said 571). Ticks are not 1 per frame in this spell; cause
+  not investigated (likely 2-frame ticks under GPU load).
+- 6 setup + 36 bolts + 120 trails + 4 x arc spawns. Arcs = the same 20 line
+  particles / spawn helper as Flaming Arrow (radius 0x78): reused the FA model
+  shape (spawn gate from tick 48, epilogue decay). Residual low 12 bits of
+  trail_x read live: 0 (checked because FUN_80123a5c's heap_alloc leaves them
+  uninitialised; documented FA residue values do not apply).
+- Ordering lesson: the trail tail flag. Game updates the lead's flag and then
+  copies it down the 10-slot array; I first shifted old values, which was 1
+  tick late on every seed (total off by a few calls). Found by diffing the
+  per-tick log against live: first mismatch at p2t58/59.
+- Bolt flash: B life = rand%32+0x30 never matters because the paired C (48
+  ticks) deactivates B. Only worth re-checking if C's countdown ever changes.
+- Method win: for a big machine, get the structure from the per-tick live log
+  first (labels showed 8@1, 4@13, 2@33.. immediately mapped to bolts, impact,
+  trails) before writing the model.
+
+## Scorched Earth RNG (2026-10-07, third Rune Unite)
+
+- Fixed 282, live-validated: 20 seeds all 282, 563 frames each, first-seed
+  per-tick log reproduced exactly (a one-off capture script (since removed):
+  McDohl Earth rune + Luc Fire rune, Rune slot 4 at the first enemy).
+  Functions `spell_scorchedearth_*` at `0x801179bc/179e4/17d5c/187fc`,
+  context `DAT_8017a068`.
+- No direct rand() in the tick machine: all rolls are
+  vfx_activate_and_position_particle (2 each) + 48 in setup, so counts depend
+  only on timing, hence seed-independent (no arc/lifetime rolls like Thor).
+- 48 setup + F 154 + A 32 + E 48. F first fire = 4 (two checks in a row, the
+  second `== -1` test has no active guard; found by the first model being 2
+  per first fire, off by 2 at every first-fire label). A re-fire pattern is
+  the Yell countdown again ((30+t)/2).
+- Sprite lengths read from battle.bin: sheet at 0x800aa004, seq 0xd = 11 x 5 =
+  55 ticks, seq 8 = 48, seq 3 (ring) loops and is ended by the scale logic
+  (47 ticks, confirmed by the live respawn gaps). Reused the Thunder God
+  convention: active t..t+L-1, reactivated at t+L.
+- Phase 4's length is data dependent (waits until meteor/impact pools are
+  inactive); not decoded. 563 total frames minus 484 for the other phases
+  gives ~79 if 1 tick = 1 frame (unverified).
+- Process win: wrote the model against the per-tick log first (Python), diffed,
+  then ported to Lua. Two diffs found, both one-liners.
+
+## Water Dragon RNG (2026-10-07, last traced Rune Unite)
+
+- Seed-dependent, 2998-3193 over 20 seeds, live-validated: totals and the
+  first seed's 218 per-tick entries matched on the first try
+  (a one-off capture script (since removed): McDohl Water rune + Luc Wind rune,
+  Rune slot 4 at the first enemy). Functions `spell_waterdragon_*` at
+  `0x8011bde4/1be0c/1c24c/1cd48`, context `DAT_8017a068`.
+- 302 setup + 24 bolts + three respawning pools (P1 30x4 life%180, P2 20x5
+  with a z-crossing end and no life countdown, P3 80x4 life%96) gated
+  on passes 64..318 (P2 128..318). Period of a counting-down pool = life+1
+  (the inactive mark is set AFTER the respawn loop in the same pass, so the
+  respawn is one pass later).
+- Frames: 384 static ticks vs 672-682 live (docs table already had 671-681).
+  Same gap as Thor, not explained. Both have a huge number of particles;
+  unverified guess is 2-frame ticks under GPU load.
+- Used the lessons so far: read every per-tick helper (FUN_8012076c, the pool
+  loops) before modelling; prototyped in Python against the live log, then
+  ported. The only trap was P2: its life field is never decremented, easy to
+  assume it is.
+- Unites status: Blazing Camp 54, Thor 550-610, Scorched Earth 282, Water
+  Dragon ~3000 done; Storm Fang (38, documented earlier) not re-checked
+  against per-tick helpers.
+
+## Deadly Fingertips RNG + the four zero Wind/Earth spells (2026-10-07)
+
+- The Shredding, Healing Wind, Storm, Voice of Earth: user says all 0. Added
+  zero simulators + docs rows, not decompiled (Voice of Earth has no end
+  handler, so a capture window would have needed a different marker).
+- Deadly Fingertips: seed-dependent 1075-1170, live 20 seeds + first-seed
+  per-tick (129 entries), a one-off capture script (since removed). Functions
+  `spell_deadlyfingertips_*` at `0x80113a68/13a90/13e98/147d4` (cast entry and
+  cleanup already existed in Ghidra; vfx_setup and tick machine created now),
+  context `DAT_8017a060` (Soul Eater arena slot).
+- Same mechanism as Dragon.simulateLightning (30 line particles,
+  vfx_spawn_random_arc_particle, 5 rand per respawn); only the gate length
+  differs: 209 passes (phase 2: 80, phase 3: 60, phase 4: 10, phase 5: 59).
+  Reused the Dragon model's loop shape; the prototype matched on the first run.
+- Gate edges mattered: phase 5's last tick clears the flag in the body BEFORE
+  the epilogue, so that pass doesn't spawn. Phase 2's first tick sets it before
+  its epilogue, so that pass does.
+- Instant death roll: none. apply_elemental_multiplier only calls printf; the
+  kill is deterministic from the immunity flag (+0x26 & 0x4000) and element
+  compat. (Does NOT mean "always kills": immune targets and the 0x4000 flag
+  block it.) The old "2 (instant-death)" base_power cell is not a chance.
+- Frames: 366 static ticks vs 576 live, the same non-1:1 gap as Thor/Water
+  Dragon; docs table had 575.
+- Spells without a decompiled RNG model now: none except Storm Fang's re-check;
+  the four zero spells rely on the user's verification.
+
+## Fog of Deception effect check (2026-10-07)
+
+- User asked to test what Fog does (expected: party evade up / enemy accuracy
+  down; SpellDuration's enemy is a spell-immune boss). Case 6 (re-read the
+  decompile): per living enemy, play 0x8016f1cc and rec+0x36 = (short)(rec+0x36
+  *4/5). No immunity test in the code at all.
+- Live (one-off script, since removed): rec+0x34..0x42 is 0 on EVERY
+  combatant (party and boss) at before-confirm, setup frame and end handler,
+  and nothing in +0x26..+0x43 changes during the whole 460-frame cast. So the
+  scale hits 0 -> no effect on this save.
+- calc_hit_chance reads only SKL +0x26 on both sides (+ Bucket 0x10 on a party
+  attacker, Hazy rune id 18 on the target of an enemy attacker). It never reads
+  +0x36, so even a nonzero +0x36 would not feed hit chance by that path.
+- Big side finding: aUnk_0x34 is all zero for McDohl too, so Clay Guardian's
+  +0x42 *3/2 is 0*1.5 = 0. That explains "Clay Guardian did not reduce damage"
+  without needing a missing copy into +0x32, and kills the old "+0x42 is
+  final DEF" guess (DEF at +0x32 was 135 in the same dump). One savestate only.
+- Not done: who else reads +0x36/+0x42 (a byte-pattern search for the offset is
+  noisy, many structs); other formations/gear where the block might be nonzero;
+  a behaviour test (enemy hit rate with vs without Fog) since the field is 0.
+  Both Fog and Clay Guardian look bugged/no-op as shipped, but only
+  proven for this savestate.
+- 2026-10-07 second save: `FogOfDeception.State` (early game, 5 party vs 5
+  ordinary enemies, McDohl HP 59). Same: rec+0x34..0x42 zero on all 10
+  combatants, no byte changes in +0x26..+0x43 during the 462-frame cast. Checked
+  that aPad_0xb94a (struct offset 2964 = 0xb94) is combatant record #1, so the
+  watched field is the scaled one. Not a boss-immunity effect. Also visible:
+  "before confirm" stats were stale garbage (e.g. ATK 32896) that were
+  recomputed by the setup frame, the known ~5-frame stale window.
+
+## 2026-10-20: chained cover wait
+
+Static read (Ghidra) plus a live 5 Bandits round 2 capture: the cover target's wait is
+opcode 44 (mask 9) in script 0x8016c2b4, a per-frame busy poll on the ally, not a timer in
+the C functions. A covered ally can be covered again while the first target waits; the
+target frees at her final free + 11 (live: Cleo free 607, McDohl 618). Documented in
+Battle_Damage_Formula.md "Cover target wait and chained covers". Open: what clears the
+ally's bit 8, round-end timeout. TickBasedAlgorithm.md is not in this repo, so its cover
+pseudocode still needs the same update there.

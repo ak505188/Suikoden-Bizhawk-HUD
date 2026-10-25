@@ -104,12 +104,14 @@ Offsets are into the character's persistent Stats struct (see
 
 ## HUD usage
 
-**Toolbox.** Toolbox > Party JSON has two actions, both on the file
-`Config.PartyJSON.FILE` (`PSX/State/Suikoden/party.json` in the BizHawk
+**Toolbox.** Toolbox > Party JSON has two actions, both on the folder
+`Config.PartyJSON.DIRECTORY` (`PSX/State/Suikoden/Parties` in the BizHawk
 directory):
 
-- *Export party to JSON* writes the current party, in formation order.
-- *Import party from JSON* imports every character in the file.
+- *Export party to JSON* writes the current party, in formation order, to
+  `Config.PartyJSON.EXPORT_NAME` (`party.json`) in that folder.
+- *Import party from JSON* lists the `.json` files in the folder. Pick one
+  with X to import every character in it.
 
 The result, or the error, shows at the bottom of the screen. Import outside
 battle (see below).

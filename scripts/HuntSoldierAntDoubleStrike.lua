@@ -1,7 +1,7 @@
 -- Live-validate Soldier Ant's own move-choice threshold (~77% Attack / ~23% DoubleStrike,
 -- soldier_ant_ai_select_target_and_move 0x800106b0) and hunt for a live DoubleStrike instance -
 -- never observed live yet, only read from the decompile. Every ant turn observed so far
--- (VerifyAntCommandAttribution.lua, 4 samples) happened to land on Attack.
+-- (a one-off verify script (since removed), 4 samples) happened to land on Attack.
 --
 -- Drives many rounds via Free Will, watching every combatant's own CURRENT_ACTOR (+0x8) turn: once
 -- an ant slot (6/7/8) becomes CURRENT_ACTOR and its own combatant_rec+0x50 continuation pointer
@@ -18,7 +18,7 @@ local BattleRoundInput = require "lib.BattleRoundInput"
 local Gamestate = require "lib.Enums.Gamestate"
 local json = require "lib.json"
 
-local BASE_SAVE = "/home/alex/Projects/Suikoden-Bizhawk-HUD/QueenAnt.State"
+local BASE_SAVE = "/home/alex/Projects/Suikoden-Bizhawk-HUD/savestates/QueenAnt.State"
 local OUT = "/home/alex/Local/BizHawk-2.10-linux-x64/Lua/Output/HuntSoldierAntDoubleStrike.json"
 local DOUBLE_STRIKE = 0x80010524
 local ROUNDS = 8

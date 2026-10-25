@@ -1,7 +1,7 @@
 -- User: "Give me addresses for the example structures. Where can I find all known enemy data
 -- structure?" Prints EVERY concrete address in the live pointer chain for QueenAnt.State's own
 -- enemies, and confirms the live `pAttackDataTable[bId]` row is the SAME static MonsterRecord
--- scripts/ScanMonsterRecords.py already catalogs (Monster_AI_Static_Catalog.md) - by decoding the
+-- scripts/python/ScanMonsterRecords.py already catalogs (Monster_AI_Static_Catalog.md) - by decoding the
 -- name field (offset+0, charmap-encoded) at the live-resolved row address and checking it reads
 -- "Queen Ant"/"Soldier Ant".
 --
@@ -33,7 +33,7 @@ local function decodeName(base, addr)
 end
 
 local ok, err = pcall(function()
-  savestate.load("/home/alex/Projects/Suikoden-Bizhawk-HUD/QueenAnt.State")
+  savestate.load("/home/alex/Projects/Suikoden-Bizhawk-HUD/savestates/QueenAnt.State")
 
   local basePtr = mainmemory.read_u32_le(Address.BATTLE_STATE_PTR)
   local base = Address.sanitize(basePtr)

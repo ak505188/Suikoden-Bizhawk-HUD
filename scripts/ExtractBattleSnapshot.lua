@@ -8,7 +8,7 @@
 
 package.path = "/home/alex/Projects/Suikoden-Bizhawk-HUD/?.lua;" .. package.path
 
-local BASE_SAVE = "/home/alex/Projects/Suikoden-Bizhawk-HUD/ZombieDragonStart.State"
+local BASE_SAVE = "/home/alex/Projects/Suikoden-Bizhawk-HUD/savestates/ZombieDragonStart.State"
 local OUT = "/home/alex/Local/BizHawk-2.10-linux-x64/Lua/Output/ZombieDragonStart.snapshot.json"
 
 -- Everything, including requires, inside one pcall: console errors are GUI-only and never reach

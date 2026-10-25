@@ -45,8 +45,8 @@ local function traceOne(savestatePath, label)
 end
 
 local ok, err = pcall(function()
-  traceOne("/home/alex/Projects/Suikoden-Bizhawk-HUD/Neclord.State", "Neclord(Wind)")
-  traceOne("/home/alex/Projects/Suikoden-Bizhawk-HUD/NeclordBats.State", "NeclordBats")
+  traceOne("/home/alex/Projects/Suikoden-Bizhawk-HUD/savestates/Neclord.State", "Neclord(Wind)")
+  traceOne("/home/alex/Projects/Suikoden-Bizhawk-HUD/savestates/NeclordBats.State", "NeclordBats")
 end)
 if not ok then log("ERROR: " .. tostring(err)) end
 

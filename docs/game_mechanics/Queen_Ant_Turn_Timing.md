@@ -3,7 +3,7 @@
 Frame offsets for the actors' own turns in the scripted Mt. Seifu fight
 (`va7.bin`), extracted on 2026-10-07 from the per-frame logs of the 70+
 headless runs described in [Queen_Ant_Ant_Respawn.md](./Queen_Ant_Ant_
-Respawn.md) (`scripts/CaptureAntScenarios.lua`, `QueenAnt2.State`; 50 Queen
+Respawn.md) (one-off script, since removed, `QueenAnt2.State`; 50 Queen
 AoE turns, 25 CommandAnts turns, 211 Soldier Ant turns). Per-sample table:
 [Queen_Ant_Turn_Timing_Samples.csv](./Queen_Ant_Turn_Timing_Samples.csv).
 

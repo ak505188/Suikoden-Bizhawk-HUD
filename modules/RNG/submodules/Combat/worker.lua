@@ -105,6 +105,10 @@ local EnemyDataFields = {
                   -- (play_attack_animation's opcode dispatch via PTR_LAB_8016babc, 0x800e3820) -
                   -- not yet traced to specific opcodes. Since 0 does not reliably mean "alive",
                   -- do NOT use this field alone to filter out dead combatants - see HPCurrent.
+  EFFECT_FLAGS = 0x40, -- u16 animation-script flag bits (Battle_Damage_Formula.md "The chains"):
+                       -- 0x1 dodge/counter point, 0x2 impact, 0x4 done, 0x10 damage applied.
+                       -- Only cleared by the combatant's own executor and the counter steps, so a
+                       -- stale 0x2 left by a dodge is the "primed counter" state.
 }
 
 -- ACTION_TYPE(+0x47) decode, for display only - see CombatantFields.ACTION_TYPE above.
@@ -226,6 +230,7 @@ function Worker:readBattleState()
       HPMax = memory.read_u16_le(rec + CombatantFields.HP_MAX),
       Id = memory.read_u8(ed + EnemyDataFields.ID),
       Busy = memory.read_u8(ed + EnemyDataFields.BUSY),
+      EffectFlags = memory.read_u16_le(ed + EnemyDataFields.EFFECT_FLAGS),
       AGL = memory.read_u16_le(rec + CombatantFields.AGL),
       SKL = memory.read_u16_le(rec + CombatantFields.SKL),
       LUK = memory.read_u16_le(rec + CombatantFields.LUK),

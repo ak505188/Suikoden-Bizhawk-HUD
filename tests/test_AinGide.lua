@@ -1,7 +1,7 @@
 -- Run with: lua5.4 tests/test_AinGide.lua (from the project root)
 --
 -- Every vector is a live capture (scripts/TraceAinGide.lua on AinGide.State, 40 injected seeds x 2
--- rounds, 2026-10-07; scripts/CheckAinGideTrace.py matched all 80 rounds). `seed` is the RNG at the
+-- rounds, 2026-10-07; scripts/python/CheckAinGideTrace.py matched all 80 rounds). `seed` is the RNG at the
 -- frame Ain Gide became the current actor; target is the 1-indexed front-row candidate (all
 -- captures had 3 candidates); finalSeed is the RNG after the Special's last (damage) roll.
 

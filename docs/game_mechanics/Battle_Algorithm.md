@@ -243,7 +243,7 @@ See the
 ### Animation timing: when damage lands and when busy clears
 
 Nothing stores "how long an attack takes". Each combatant's animation scripts
-decide it, and `scripts/AttackTimingWalker.py` computes the numbers statically
+decide it, and `scripts/python/AttackTimingWalker.py` computes the numbers statically
 into `outputs/AttackTimings.json`. Frame 0 is the tick the attack executor
 starts the attack script, right after the hit and crit rolls:
 
@@ -293,8 +293,8 @@ Validated live:
   and target reaction. That covers six party members (`vic` Viktor, `gre`
   Gremio, `shu` the Hero, `cre` Cleo, `kam` Camille, `tai` Tai Ho)
   attacking Zombie Dragon, including Cleo's projectile, and Zombie Dragon
-  attacking two different party members. Tools: `scripts/VerifyAttackTimings.lua` and
-  `scripts/AttackTimingCompare.py`.
+  attacking two different party members. Tools: `scripts/verify/VerifyAttackTimings.lua` and
+  `scripts/python/AttackTimingCompare.py`.
 
 Coverage (basic Attack, slot 1): the damage frame resolves for 120 of 124
 enemies and all 78 party files, and every party↔enemy reaction pair
@@ -338,6 +338,9 @@ counter  atk 0x1 -> retaliator runs own slot 3
 cover    (dispatch: ally 0x8016c270, target 0x8016c29c)
          atk 0x2 -> ★ calc_damage on ally, ally runs atk slot 2
 then     atk 0x4 -> atk runs own slot 4 (recover, clears its busy)
+chain    the target polls ally busy&9 every tick (script 0x8016c2b4 op 44),
+         frees at the ally's final free + 11; the ally may itself be
+         covered meanwhile (find_cover_target ignores target busy)
 ```
 
 - A miss leaves the attacker's timeline unchanged; only the target's busy
@@ -359,7 +362,7 @@ then     atk 0x4 -> atk runs own slot 4 (recover, clears its busy)
   the reaction's end, busy clears at +123, and the member keeps their
   ActionTag, so they still act that round if they hadn't yet.
 
-All of this is simulated by `walk_path()` in `scripts/AttackTimingWalker.py`
+All of this is simulated by `walk_path()` in `scripts/python/AttackTimingWalker.py`
 and matched a live capture frame for frame (200 attacks, 6 revives). Full
 tables in [TickBasedAlgorithm.md](../../TickBasedAlgorithm.md) ("Miss,
 counter, cover and death timing") and
@@ -414,7 +417,7 @@ The wait state is `0x800f43e0`, entered from `battle_advance_turn`'s
 "nobody eligible" branch. Formation slots never change mid-round when
 someone dies, on either side; both backfills land on the same frame, 3
 frames after the last actor finishes (live-confirmed 2026-09-25,
-`scripts/VerifyFormationBackfill.lua`). Enemies only seem to move up
+a one-off verify script (since removed)). Enemies only seem to move up
 mid-round because a party Attack whose target died retargets to the first
 valid enemy with no range check, back row included. Backfill rules, including the Neclord's Castle
 worked example, are in

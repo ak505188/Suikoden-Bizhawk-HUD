@@ -6,7 +6,7 @@
 package.path = "/home/alex/Projects/Suikoden-Bizhawk-HUD/?.lua;" .. package.path
 local Address = require "lib.Address"
 
-local BASE_SAVE = "/home/alex/Projects/Suikoden-Bizhawk-HUD/Dragon.State"
+local BASE_SAVE = "/home/alex/Projects/Suikoden-Bizhawk-HUD/savestates/Dragon.State"
 local OUTPUT_FILE = "/home/alex/Local/BizHawk-2.10-linux-x64/Lua/Output/DragonSweepResults.txt"
 local COMBATANT_BASE = 0xb94
 local MAX_FRAMES = 600 -- phase-3 "wait for turn to end" never actually detects actor!=7 within

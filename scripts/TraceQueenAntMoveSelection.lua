@@ -23,11 +23,11 @@ local BattleRoundInput = require "lib.BattleRoundInput"
 local Gamestate = require "lib.Enums.Gamestate"
 local json = require "lib.json"
 
-local BASE_SAVE = "/home/alex/Projects/Suikoden-Bizhawk-HUD/QueenAnt.State"
+local BASE_SAVE = "/home/alex/Projects/Suikoden-Bizhawk-HUD/savestates/QueenAnt.State"
 local OUT = "/home/alex/Local/BizHawk-2.10-linux-x64/Lua/Output/TraceQueenAntMoveSelection.json"
 local FRAMES_PER_ROUND = 4000
 local ROUNDS = 4
-local NUM_COMBATANTS = 9 -- 5 party + 3 ants + Queen Ant (confirmed via CaptureQueenAntRounds.lua)
+local NUM_COMBATANTS = 9 -- 5 party + 3 ants + Queen Ant (confirmed via a one-off capture script (since removed))
 local NUM_PARTY = 5
 
 local rows = {}
